@@ -170,11 +170,11 @@ def get_fwhm(img, show=False, save=False):
         ax.plot(r, improf, marker='o')
         # ax.plot(improf, r, marker='o')
         # ax.scatter(r, improf)
-        ax.axhline(0.5)
-        ax.axvline(fwhm/2)
+        ax.axhline(0.5, color='black')
+        ax.axvline(fwhm/2, color='black')
         ax.plot(fwhm/2, 0.5, color='red', marker='o')
         # ax.scatter(0.5, fwhm/2)
-        ax.text(1.0, 0.95, f'fwhm: {fwhm:g}')
+        ax.text(r.mean() * 1.3, 0.95, f'fwhm: {fwhm:2f}')
         if save:
             import fitsio
             plt.savefig('improf.png')
