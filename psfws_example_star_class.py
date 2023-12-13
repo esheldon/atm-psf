@@ -188,7 +188,7 @@ def main(seed, outfile):
     import fitsio
 
     show = False
-    save = True
+    save = False
     psf_type = 'hebert'
     # psf_type = 'gauss'
 
