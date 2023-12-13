@@ -170,11 +170,18 @@ def get_fwhm(img, show=False, save=False):
         ax.plot(r, improf, marker='o')
         # ax.plot(improf, r, marker='o')
         # ax.scatter(r, improf)
-        ax.scatter(fwhm/2, 0.5, color='red')
+        ax.axhline(0.5)
+        ax.axvline(fwhm/2)
+        ax.plot(fwhm/2, 0.5, color='red', marker='o')
         # ax.scatter(0.5, fwhm/2)
         ax.text(1.0, 0.95, f'fwhm: {fwhm:g}')
         if save:
-            plt.savefig('tmp.png')
+            import fitsio
+            plt.savefig('improf.png')
+            output = np.zeros(r.size, dtype=[('r', 'f8'), ('prof', 'f8')])
+            output['r'] = r[s]
+            output['prof'] = improf[s]
+            fitsio.write('improf.fits', output, clobber=True)
         if show:
             plt.show()
         plt.close()
@@ -182,13 +189,11 @@ def get_fwhm(img, show=False, save=False):
     return fwhm
 
 
-def main(seed, outfile):
+def main(seed, ntrial, outfile, save=False, show=False):
     import matplotlib.pyplot as plt
     from esutil.stat import print_stats
     import fitsio
 
-    show = False
-    save = False
     psf_type = 'hebert'
     # psf_type = 'gauss'
 
@@ -213,15 +218,11 @@ def main(seed, outfile):
     else:
         hpsf = galsim.Gaussian(fwhm=0.8)
 
-    nstar = 100
     nx, ny = [17] * 2
     n_photons = 1.e6
 
-    data = np.zeros(nstar, dtype=[('fwhm', 'f8')])
-    # for i in trange(nstar):
-    for i in range(nstar):
-        # print(f'{i+1}/{nstar}')
-        # thx, thy = rng.uniform(low=-0.5, high=0.5, size=2)
+    data = np.zeros(args.ntrial, dtype=[('fwhm', 'f8')])
+    for i in range(args.ntrial):
         thx = urng() - 0.5
         thy = urng() - 0.5
 
@@ -263,9 +264,18 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--ntrial', type=int, default=1)
+    parser.add_argument('--save', action='store_true')
+    parser.add_argument('--show', action='store_true')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = get_args()
-    main(args.seed, args.output)
+    main(
+        seed=args.seed,
+        ntrial=args.ntrial,
+        outfile=args.output,
+        save=args.save,
+        show=args.show,
+    )
