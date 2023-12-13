@@ -209,7 +209,6 @@ if __name__ == '__main__':
         #         pickle.dump(hpsf, fobj)
     else:
         hpsf = galsim.Gaussian(fwhm=0.8)
-        hpsf.gs_rng = galsim.GaussianDeviate(rng.integers(0, 2**31))
 
     nstar = 100
     nx, ny = [17] * 2
