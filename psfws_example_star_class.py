@@ -1,9 +1,16 @@
+# import os
+# import pickle
 import psfws
 import numpy as np
 import galsim
 # from tqdm import trange
 
 LAMBDAS = dict(u=365.49, g=480.03, r=622.20, i=754.06, z=868.21, y=991.66)
+# 0.5 with gaussian optical fwhm 0.35 gets overall fwhm=0.53
+# 0.25 gets fwhm=1.1
+# 0.375 gets fwhm=0.64
+# 0.30 gets fwhm=0.65?
+FUDGE_FACTOR = 0.25
 
 
 class HebertPSF(object):
@@ -13,18 +20,10 @@ class HebertPSF(object):
         self.rng = rng
         self.lam = LAMBDAS[band]
 
-        if hasattr(rng, 'integers'):
-            seed = rng.integers(0, 2**31)
-        else:
-            seed = rng.randint(0, 2**31)
-
-        self.gs_rng = galsim.BaseDeviate(seed)
-
         kwargs = get_atm_kwargs(
             alt=self.alt,
             az=self.az,
             rng=self.rng,
-            gs_rng=self.gs_rng,
             lam=self.lam,
         )
         print('creating atm')
@@ -64,7 +63,7 @@ class HebertPSF(object):
         # )
 
 
-def get_atm_kwargs(alt, az, rng, gs_rng, lam):
+def get_atm_kwargs(alt, az, rng, lam):
     """Get all atmospheric setup parameters."""
     # psf-weather-station params
     speeds, directions, altitudes, weights = get_psfws_params(
@@ -72,12 +71,13 @@ def get_atm_kwargs(alt, az, rng, gs_rng, lam):
     )
 
     # associated r0 at 500nm for these turbulence weights
-    r0_500 = (2.914 * (500e-9)**(-2) * np.sum(weights))**(-3./5)
+    r0_500 = FUDGE_FACTOR * (2.914 * (500e-9)**(-2) * np.sum(weights))**(-3./5)
 
     # Draw L0 from truncated log normal, broadcast to list of layers
+    nrng = galsim.GaussianDeviate(rng)
     L0 = 0
     while L0 < 10.0 or L0 > 100:
-        L0 = np.exp(rng.normal() * 0.6 + np.log(25.0))
+        L0 = np.exp(nrng() * 0.6 + np.log(25.0))
     L0 = [L0] * len(speeds)
 
     return dict(
@@ -89,7 +89,7 @@ def get_atm_kwargs(alt, az, rng, gs_rng, lam):
         r0_weights=weights,
         screen_size=set_screen_size(speeds),
         screen_scale=0.1,
-        rng=gs_rng,
+        rng=rng,
     )
 
 
@@ -143,13 +143,16 @@ def dofit(im, rng):
     return res
 
 
-def get_fwhm(img, show=False):
+def get_fwhm(img, show=False, save=False):
     import matplotlib.pyplot as plt
     import espy.images
 
     r, improf = espy.images.get_profile(img)
     r = r * 0.2
     improf *= 1.0/improf.max()
+
+    s = improf.argsort()
+    fwhm = 2 * np.interp(0.5, improf[s], r[s])
     # nrows, ncols = img.shape
     # cen = (np.array(img.shape) - 1)/2
     # rows, cols = np.mgrid[0:nrows, 0:ncols]
@@ -158,18 +161,31 @@ def get_fwhm(img, show=False):
     # r = np.sqrt(rows**2 + cols++2).ravel()
     # imravel = img.ravel()
 
-    if show:
-        plt.scatter(r, improf)
-        plt.show()
+    if show or save:
+        fig, ax = plt.subplots()
+        ax.set(
+            xlabel='r [arcsec]',
+        )
+        ax.plot(r, improf, marker='o')
+        # ax.plot(improf, r, marker='o')
+        # ax.scatter(r, improf)
+        ax.scatter(fwhm/2, 0.5, color='red')
+        # ax.scatter(0.5, fwhm/2)
+        ax.text(1.0, 0.95, f'fwhm: {fwhm:g}')
+        if save:
+            plt.savefig('tmp.png')
+        if show:
+            plt.show()
+        plt.close()
 
-    fwhm = 1
     return fwhm
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    show = True
+    show = False
+    save = True
     psf_type = 'hebert'
     # psf_type = 'gauss'
 
@@ -177,21 +193,34 @@ if __name__ == '__main__':
     # optical_psf = galsim.Gaussian(fwhm=0.01)
     optical_psf = galsim.Gaussian(fwhm=0.35)
 
-    rng = np.random.default_rng(1234)
+    rng = galsim.BaseDeviate(1234)
+    urng = galsim.UniformDeviate(rng)
     if psf_type == 'hebert':
         hpsf = HebertPSF(alt=90, az=90, rng=rng, band='i')
+        # fname = f'hpsf-{oseed}.pkl'
+        # if os.path.exists(fname):
+        #     print('reading from:', fname)
+        #     with open(fname, 'rb') as fobj:
+        #         hpsf = pickle.load(fobj)
+        # else:
+        #     hpsf = HebertPSF(alt=90, az=90, rng=rng, band='i')
+        #     print('pickling to:', fname)
+        #     with open(fname, 'wb') as fobj:
+        #         pickle.dump(hpsf, fobj)
     else:
         hpsf = galsim.Gaussian(fwhm=0.8)
         hpsf.gs_rng = galsim.GaussianDeviate(rng.integers(0, 2**31))
 
-    nx, ny = [17] * 2
     nstar = 100
+    nx, ny = [17] * 2
     n_photons = 1.e6
 
     # for i in trange(nstar):
     for i in range(nstar):
         # print(f'{i+1}/{nstar}')
-        thx, thy = rng.uniform(low=-0.5, high=0.5, size=2)
+        # thx, thy = rng.uniform(low=-0.5, high=0.5, size=2)
+        thx = urng() - 0.5
+        thy = urng() - 0.5
 
         if isinstance(hpsf, galsim.GSObject):
             psf = hpsf
@@ -206,7 +235,7 @@ if __name__ == '__main__':
             scale=0.2,
             method='phot',
             n_photons=n_photons,
-            rng=hpsf.gs_rng,
+            rng=rng,
         ).array
 
         # import IPython; IPython.embed()
@@ -214,7 +243,7 @@ if __name__ == '__main__':
             plt.imshow(np.log10(img.clip(min=1.0e-6)), origin='lower')
             plt.show()
 
-        fwhm = get_fwhm(img, show=show)
+        fwhm = get_fwhm(img, show=show, save=save)
         print(f'fwhm: {fwhm}')
         # res = dofit(img, rng)
         # print(f'fwhm: {res["fwhm"]}')
