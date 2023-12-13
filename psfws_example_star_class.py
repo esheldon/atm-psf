@@ -1,6 +1,5 @@
 # import os
 # import pickle
-import psfws
 import numpy as np
 import galsim
 # from tqdm import trange
@@ -10,7 +9,7 @@ LAMBDAS = dict(u=365.49, g=480.03, r=622.20, i=754.06, z=868.21, y=991.66)
 # 0.25 gets fwhm=1.1
 # 0.375 gets fwhm=0.64
 # 0.30 gets fwhm=0.65?
-FUDGE_FACTOR = 0.25
+FUDGE_FACTOR = 0.30
 
 
 class HebertPSF(object):
@@ -67,7 +66,7 @@ def get_atm_kwargs(alt, az, rng, lam):
     """Get all atmospheric setup parameters."""
     # psf-weather-station params
     speeds, directions, altitudes, weights = get_psfws_params(
-        alt, az, nlayers=6
+        alt, az, nlayers=6, rng=rng,
     )
 
     # associated r0 at 500nm for these turbulence weights
@@ -93,9 +92,11 @@ def get_atm_kwargs(alt, az, rng, lam):
     )
 
 
-def get_psfws_params(alt, az, nlayers):
+def get_psfws_params(alt, az, nlayers, rng):
     """Use psf-weather-station to fetch simulation setup parameters."""
-    ws = psfws.ParameterGenerator()
+    import psfws
+
+    ws = psfws.ParameterGenerator(seed=rng.raw())
     pt = ws.draw_datapoint()
 
     params = ws.get_parameters(
@@ -118,10 +119,10 @@ def set_screen_size(speeds):
     return screen_size
 
 
-def dofit(im, rng):
+def dofit(img, rng):
     import ngmix
 
-    cen = (np.array(im.shape) - 1)/2
+    cen = (np.array(img.shape) - 1)/2
     jac = ngmix.DiagonalJacobian(
         row=cen[0], col=cen[1], scale=0.2,
     )
@@ -181,8 +182,10 @@ def get_fwhm(img, show=False, save=False):
     return fwhm
 
 
-if __name__ == '__main__':
+def main(seed, outfile):
     import matplotlib.pyplot as plt
+    from esutil.stat import print_stats
+    import fitsio
 
     show = False
     save = True
@@ -193,7 +196,7 @@ if __name__ == '__main__':
     # optical_psf = galsim.Gaussian(fwhm=0.01)
     optical_psf = galsim.Gaussian(fwhm=0.35)
 
-    rng = galsim.BaseDeviate(1234)
+    rng = galsim.BaseDeviate(seed)
     urng = galsim.UniformDeviate(rng)
     if psf_type == 'hebert':
         hpsf = HebertPSF(alt=90, az=90, rng=rng, band='i')
@@ -214,6 +217,7 @@ if __name__ == '__main__':
     nx, ny = [17] * 2
     n_photons = 1.e6
 
+    data = np.zeros(nstar, dtype=[('fwhm', 'f8')])
     # for i in trange(nstar):
     for i in range(nstar):
         # print(f'{i+1}/{nstar}')
@@ -244,5 +248,24 @@ if __name__ == '__main__':
 
         fwhm = get_fwhm(img, show=show, save=save)
         print(f'fwhm: {fwhm}')
+        data['fwhm'][i] = fwhm
         # res = dofit(img, rng)
         # print(f'fwhm: {res["fwhm"]}')
+
+    print('fwhm stats')
+    print_stats(data['fwhm'])
+    print('writing:', outfile)
+    fitsio.write(outfile, data, clobber=True)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--output', required=True)
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args.seed, args.output)
