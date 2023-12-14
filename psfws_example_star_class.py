@@ -4,26 +4,55 @@ import numpy as np
 import galsim
 # from tqdm import trange
 
+SCALE = 0.20
 LAMBDAS = dict(u=365.49, g=480.03, r=622.20, i=754.06, z=868.21, y=991.66)
-# 0.5 with gaussian optical fwhm 0.35 gets overall fwhm=0.53
-# 0.25 gets fwhm=1.1
-# 0.375 gets fwhm=0.64
-# 0.30 gets fwhm=0.65?
+# gives median FWHM 0.8 when convolved by fixed gaussian with FWHM=0.35
+# for "optical psf"
 FUDGE_FACTOR = 0.30
+NPIX = 4096
+
+ALTRANGE = [20, 80]
+
+
+class HebertPSFWithOptical(object):
+    def __init__(self, alt, az, band, rng, optical_psf, wcs=None, fast=False):
+        self.hebert_psf = HebertPSF(
+            alt=alt, az=az, band=band, rng=rng, wcs=wcs,
+            fast=fast,
+        )
+        self.optical_psf = optical_psf
+
+    def _get_psf_focal_plane(self, u, v):
+        return self.hebert_psf._get_psf_focal_plane(u, v)
+
+    def get_psf(self, x, y):
+        u, v = self.hebert_psf.get_focal_plane_coords(x, y)
+        hpsf = self._get_psf_focal_plane(u, v)
+        return self._convolve_optical(hpsf, x, y)
+
+    def _convolve_optical(self, psf, x, y):
+        if isinstance(self.optical_psf, galsim.GSObject):
+            opsf = self.optical_psf
+        else:
+            opsf = self.optical_psf.get_psf(x, y)
+        return galsim.Convolve(psf, opsf)
 
 
 class HebertPSF(object):
-    def __init__(self, alt, az, band, rng):
+    def __init__(self, alt, az, band, rng, wcs=None, fast=False):
         self.alt = alt
         self.az = az
         self.rng = rng
         self.lam = LAMBDAS[band]
+        self.wcs = wcs
+        self.fast = fast
 
         kwargs = get_atm_kwargs(
             alt=self.alt,
             az=self.az,
             rng=self.rng,
             lam=self.lam,
+            fast=self.fast,
         )
         print('creating atm')
         self.atm = galsim.Atmosphere(**kwargs)
@@ -44,25 +73,30 @@ class HebertPSF(object):
         print('done')
 
     def get_psf(self, x, y):
-        thx, thy = self.convert_to_focal_plane_coords(x, y)
+        u, v = self.get_focal_plane_coords(x, y)
 
-        return self.get_psf_focal_plane(thx, thy)
+        return self._get_psf_focal_plane(u, v)
 
-    def get_psf_focal_plane(self, thx, thy):
-        theta = (thx*galsim.degrees, thy*galsim.degrees)
+    def _get_psf_focal_plane(self, u, v):
         return self.atm.makePSF(
-            self.lam, aper=self.aper, exptime=30.0, theta=theta,
+            self.lam, aper=self.aper, exptime=30.0, theta=(u, v),
         )
 
-        # psfRng = galsim.BaseDeviate(psfSeed)
-        # draw PSF
-        # img = psf.drawImage(
-        #     nx=nx, ny=ny, scale=0.2, method='phot',
-        #     n_photons=nPhot, rng=psfRng,
-        # )
+    def get_focal_plane_coords(self, x, y):
+        if self.wcs is None:
+            raise ValueError(
+                'must send wcs to convert x,y to focal plane coords'
+            )
+
+        pos = galsim.PositionD(x, y)
+        world_pos = self.wcs.toWorld(pos)
+        world_origin = self.wcs.center
+        # these are Angle objects
+        u, v = world_origin.project(world_pos)
+        return u, v
 
 
-def get_atm_kwargs(alt, az, rng, lam):
+def get_atm_kwargs(alt, az, rng, lam, fast=False):
     """Get all atmospheric setup parameters."""
     # psf-weather-station params
     speeds, directions, altitudes, weights = get_psfws_params(
@@ -79,6 +113,11 @@ def get_atm_kwargs(alt, az, rng, lam):
         L0 = np.exp(nrng() * 0.6 + np.log(25.0))
     L0 = [L0] * len(speeds)
 
+    if fast:
+        screen_size = 25
+    else:
+        screen_size = set_screen_size(speeds)
+
     return dict(
         r0_500=r0_500,
         L0=L0,
@@ -86,7 +125,7 @@ def get_atm_kwargs(alt, az, rng, lam):
         direction=directions,
         altitude=altitudes,
         r0_weights=weights,
-        screen_size=set_screen_size(speeds),
+        screen_size=screen_size,
         screen_scale=0.1,
         rng=rng,
     )
@@ -124,7 +163,7 @@ def dofit(img, rng):
 
     cen = (np.array(img.shape) - 1)/2
     jac = ngmix.DiagonalJacobian(
-        row=cen[0], col=cen[1], scale=0.2,
+        row=cen[0], col=cen[1], scale=SCALE,
     )
     psf_obs = ngmix.Observation(
         img,
@@ -149,7 +188,7 @@ def get_fwhm(img, show=False, save=False):
     import espy.images
 
     r, improf = espy.images.get_profile(img)
-    r = r * 0.2
+    r = r * SCALE
     improf *= 1.0/improf.max()
 
     s = improf.argsort()
@@ -189,29 +228,113 @@ def get_fwhm(img, show=False, save=False):
     return fwhm
 
 
-def main(seed, ntrial, outfile, save=False, show=False):
+def get_rand_altaz(rng):
+    cosalt_low = np.cos(np.radians(ALTRANGE[0]))
+    cosalt_high = np.cos(np.radians(ALTRANGE[1]))
+
+    crng = [cosalt_low, cosalt_high]
+    cosalt = rng.uniform(low=min(crng), high=max(crng))
+    cosalt = np.clip(cosalt, -1.0, 1.0)
+    alt = np.arccos(cosalt)
+    alt = np.degrees(alt)
+
+    az = rng.uniform(low=0, high=360)
+    return alt, az
+
+
+def get_rand_radec(rng, num=None):
+    if num is None:
+        is_scalar = True
+        num = 1
+    else:
+        is_scalar = False
+
+    dec_range = [-60, 3]
+    ra = rng.uniform(low=0, high=360, size=num)
+
+    # number [-1,1)
+    cosdec_min = np.cos(np.radians(90.0 + dec_range[0]))
+    cosdec_max = np.cos(np.radians(90.0 + dec_range[1]))
+    crng = [cosdec_min, cosdec_max]
+
+    v = rng.uniform(low=min(crng), high=max(crng), size=num)
+
+    np.clip(v, -1.0, 1.0, v)
+
+    # Now this generates on [0,pi)
+    dec = np.arccos(v)
+
+    # convert to degrees
+    np.degrees(dec, dec)
+
+    # now in range [-90,90.0)
+    dec -= 90.0
+    if is_scalar:
+        ra = ra[0]
+        dec = dec[0]
+    return ra, dec
+
+
+def get_wcs(rng):
+    ra, dec = get_rand_radec(rng)
+    theta = rng.uniform(low=0, high=2*np.pi)
+
+    image_origin = galsim.PositionD(NPIX/2, NPIX/2)
+    world_origin = galsim.CelestialCoord(
+        ra=ra * galsim.degrees,
+        dec=dec * galsim.degrees,
+    )
+    mat = np.array(
+        [[SCALE, 0.0],
+         [0.0, SCALE]],
+    )
+
+    costheta = np.cos(theta)
+    sintheta = np.sin(theta)
+    rot = np.array(
+        [[costheta, -sintheta],
+         [sintheta, costheta]],
+    )
+    mat = np.dot(mat, rot)
+
+    return galsim.TanWCS(
+        affine=galsim.AffineTransform(
+            mat[0, 0], mat[0, 1], mat[1, 0], mat[1, 1],
+            origin=image_origin,
+        ),
+        world_origin=world_origin,
+        units=galsim.arcsec,
+    )
+
+
+def main(psf_type, seed, ntrial, outfile, fast=False, save=False, show=False):
     import matplotlib.pyplot as plt
     from esutil.stat import print_stats
     import fitsio
 
-    psf_type = 'hebert'
-    # psf_type = 'gauss'
+    rng = np.random.default_rng(seed)
+    gsrng = galsim.BaseDeviate(rng.integers(0, 2**31))
 
-    # optical_psf = galsim.Gaussian(fwhm=0.75)
-    # optical_psf = galsim.Gaussian(fwhm=0.01)
-    optical_psf = galsim.Gaussian(fwhm=0.35)
+    wcs = get_wcs(rng)
+    alt, az = get_rand_altaz(rng)
+    print(wcs)
+    print('altaz:', alt, az)
 
-    rng = galsim.BaseDeviate(seed)
-    urng = galsim.UniformDeviate(rng)
     if psf_type == 'hebert':
-        hpsf = HebertPSF(alt=90, az=90, rng=rng, band='i')
+        optical_psf = galsim.Gaussian(fwhm=0.35)
+        hpsf = HebertPSFWithOptical(
+            alt=alt, az=az, rng=gsrng, band='i',
+            optical_psf=optical_psf,
+            wcs=wcs,
+            fast=fast,
+        )
         # fname = f'hpsf-{oseed}.pkl'
         # if os.path.exists(fname):
         #     print('reading from:', fname)
         #     with open(fname, 'rb') as fobj:
         #         hpsf = pickle.load(fobj)
         # else:
-        #     hpsf = HebertPSF(alt=90, az=90, rng=rng, band='i')
+        #     hpsf = HebertPSF(alt=90, az=90, rng=gsrng, band='i')
         #     print('pickling to:', fname)
         #     with open(fname, 'wb') as fobj:
         #         pickle.dump(hpsf, fobj)
@@ -223,23 +346,21 @@ def main(seed, ntrial, outfile, save=False, show=False):
 
     data = np.zeros(args.ntrial, dtype=[('fwhm', 'f8')])
     for i in range(args.ntrial):
-        thx = urng() - 0.5
-        thy = urng() - 0.5
+        x, y = rng.uniform(low=0, high=NPIX-1, size=2)
 
         if isinstance(hpsf, galsim.GSObject):
             psf = hpsf
         else:
-            psf = hpsf.get_psf_focal_plane(thx, thy)
-            psf = galsim.Convolve(psf, optical_psf)
+            psf = hpsf.get_psf(x, y)
 
         # draw PSF
         img = psf.drawImage(
             nx=nx,
             ny=ny,
-            scale=0.2,
+            scale=SCALE,
             method='phot',
             n_photons=n_photons,
-            rng=rng,
+            rng=gsrng,
         ).array
 
         # import IPython; IPython.embed()
@@ -250,8 +371,6 @@ def main(seed, ntrial, outfile, save=False, show=False):
         fwhm = get_fwhm(img, show=show, save=save)
         print(f'fwhm: {fwhm}')
         data['fwhm'][i] = fwhm
-        # res = dofit(img, rng)
-        # print(f'fwhm: {res["fwhm"]}')
 
     print('fwhm stats')
     print_stats(data['fwhm'])
@@ -265,17 +384,22 @@ def get_args():
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--ntrial', type=int, default=1)
+    parser.add_argument('--fast', action='store_true',
+                        help='use screen size 25 to speed up')
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--show', action='store_true')
+    parser.add_argument('--psf', default='hebert')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = get_args()
     main(
+        psf_type=args.psf,
         seed=args.seed,
         ntrial=args.ntrial,
         outfile=args.output,
         save=args.save,
         show=args.show,
+        fast=args.fast,
     )
