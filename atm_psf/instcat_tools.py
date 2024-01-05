@@ -23,9 +23,20 @@ name_map = {
 def replace_instcat(
     rng, fname, opsim_data, output_fname, allowed_include=None,
 ):
-    orig_data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
+
+    assert output_fname != fname
+
+    data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
 
     meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
+    replace_instcat_radec(
+        rng=rng,
+        ra=meta['rightascencion'],
+        dec=meta['declination'],
+        data=data,
+    )
+
+    write_instcat(output_fname, data, meta)
 
 
 def replace_instcat_meta(rng, meta, opsim_data):
@@ -39,7 +50,7 @@ def replace_instcat_meta(rng, meta, opsim_data):
     return new_meta
 
 
-def replace_instcat_data(rng, ra, dec, data):
+def replace_instcat_radec(rng, ra, dec, data):
     """
     generate new positions for objects centered at the ra, dec
 
@@ -53,9 +64,13 @@ def replace_instcat_data(rng, ra, dec, data):
         nrand=n,
         ra=ra,
         dec=dec,
-        rad=4.0,
+        rad=2.1,
         rng=rng,
     )
+
+    for i, d in enumerate(data):
+        d['ra'] = rra[i]
+        d['dec'] = rdec[i]
 
 
 def read_instcat(fname, allowed_include=None):
@@ -71,6 +86,7 @@ def read_instcat_data_as_dicts(fname, allowed_include=None):
     """
     entries = []
 
+    print('reading:', fname)
     opener, mode = _get_opener(fname)
 
     with opener(fname, mode) as fobj:
@@ -133,6 +149,20 @@ def read_instcat_header(fname):
 
     s = '{' + ',\n'.join(entries) + '}'
     return yaml.safe_load(s)
+
+
+def write_instcat(fname, data, meta):
+    print('writing:', fname)
+    with open(fname, 'w') as fobj:
+        for key, value in meta.items():
+            line = f'{key} = {value}\n'
+            fobj.write(line)
+
+        for d in data:
+            line = ['object'] + [str(v) for k, v in d.items()]
+            line = ' '.join(line)
+            fobj.write(line)
+            fobj.write('\n')
 
 
 def _get_opener(fname):
