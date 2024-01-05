@@ -15,7 +15,7 @@ GetEnv = True
 kill_sig = SIGINT
 
 should_transfer_files = YES
-# transfer_input_files = run-riz-drcbWsBPv0.1-cells2.yaml
+transfer_input_files = psfws_example_star_class.py
 
 # so transfer when the job completes
 when_to_transfer_output = ON_EXIT
@@ -24,6 +24,6 @@ environment = "OMP_NUM_THREADS=1"
 
 +Experiment = "astro"
 
-+job_name = "test1"
-Queue
-""
++job_name = "test-fudge0.30"
+Queue 300
+"""

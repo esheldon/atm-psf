@@ -1,3 +1,61 @@
+name_map = {
+    'rightascension': 'fieldra',
+    'declination': 'fieldDec',
+    'mjd': 'observationStartMJD',
+    'altitude': 'altitude',
+    'azimuth': 'azimuth',
+    'filter': 'filter',
+    'rotskypos': 'rotSkyPos',
+    # 'dist2moon': missing,
+    'moonalt': 'moonAlt',
+    'moonphase': 'moonPhase',
+    'moonra': 'moonRA',
+    # 'nsnap': missing,
+    # 'obshistid': missing
+    'rottelpos': 'rotTelPos',
+    # 'seed': to be set
+    'seeing': 'seeingFwhm500',  # TODO which to use of this and seeingFwhmEff?
+    'sunalt': 'sunAlt',
+    # 'minsource': missing
+}
+
+
+}
+def replace_instcat(rng, fname, opsim_data, output_fname, allowed_include=None):
+    orig_data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
+
+    meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
+
+
+def replace_instcat_meta(rng, meta, opsim_data):
+    new_meta = meta.copy()
+    for key in name_map:
+        assert key in meta
+        new_meta[key] = name_map[key]
+
+    new_meta['seed'] = rng.integers(0, 2**30)
+    new_meta['seqnum'] = 0
+    return new_meta
+
+
+def replace_instcat_data(rng, ra, dec, data):
+    """
+    generate new positions for objects centered at the ra, dec
+
+    TODO get real density of objects, which isn't easy due to
+    elliptical distribution of objects in original catalog
+    """
+    from esutil.coords import randcap
+    n = len(data)
+
+    rra, rdec = randcap(
+        nrand=n,
+        ra=ra,
+        dec=dec,
+        rad=4.0,
+        rng=rng,
+    )
+
 def read_instcat(fname, allowed_include=None):
     meta = read_instcat_header(fname)
     data = read_instcat_data_as_dicts(fname, allowed_include=allowed_include)
