@@ -20,8 +20,9 @@ name_map = {
 }
 
 
-}
-def replace_instcat(rng, fname, opsim_data, output_fname, allowed_include=None):
+def replace_instcat(
+    rng, fname, opsim_data, output_fname, allowed_include=None,
+):
     orig_data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
 
     meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
@@ -55,6 +56,7 @@ def replace_instcat_data(rng, ra, dec, data):
         rad=4.0,
         rng=rng,
     )
+
 
 def read_instcat(fname, allowed_include=None):
     meta = read_instcat_header(fname)
