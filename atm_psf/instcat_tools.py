@@ -31,13 +31,105 @@ name_map = {
 }
 
 
-def replace_instcat(
-    rng, fname, opsim_data, output_fname, allowed_include=None,
+def replace_instcat_from_db(
+    rng,
+    fname,
+    conn,
+    obsid,
+    output_fname,
+    allowed_include=None,
+    selector=None
 ):
+    """
+    Replace the instacat metadata and positions according to
+    opsim data
+
+    The ra/dec are generated uniformly in a disc centered at the
+    boresight from the opsim data.
+
+    One can limit the objects in the output file with the input selector
+    function and/or by limiting included source files with a list
+    of strings for matching with allowed_include
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    fname: str
+        The input instcat filename
+    conn: connection to opsim db
+        e.g. a sqlite3 connection
+    obsid: int
+        The observationId to use
+    output_fname: str
+        Name for new output instcat file
+    allowed_include: list of strings
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+    selector: function
+        Evaluates True for objects to be kept, e.g.
+            f = lambda d: d['magnorm'] > 17
+    """
+
+    import sqlite3
+
+    conn.row_factory = sqlite3.Row
+
+    query = f'select * from observations where observationId = {obsid}'
+    data = conn.execute(query).fetchall()
+    assert len(data) == 1
+
+    opsim_data = data[0]
+    replace_instcat(
+        rng=rng,
+        fname=fname,
+        opsim_data=opsim_data,
+        output_fname=output_fname,
+        allowed_include=allowed_include,
+        selector=selector,
+    )
+
+
+def replace_instcat(
+    rng, fname, opsim_data, output_fname, allowed_include=None, selector=None
+):
+    """
+    Replace the instacat metadata and positions according to the
+    input opsim data
+
+    The ra/dec are generated uniformly in a disc centered at the
+    boresight from the opsim data.
+
+    One can limit the objects in the output file with the input selector
+    function and/or by limiting included source files with a list
+    of strings for matching with allowed_include
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    fname: str
+        The input instcat filename
+    opsim_data: mapping
+        E.g. a sqlite.Row read from an opsim database.
+    output_fname: str
+        Name for new output instcat file
+    allowed_include: list of strings
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+    selector: function
+        Evaluates True for objects to be kept, e.g.
+            f = lambda d: d['magnorm'] > 17
+    """
 
     assert output_fname != fname
 
     data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
+
+    if selector is not None:
+        data = [d for d in data if selector(d)]
 
     meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
     replace_instcat_radec(
