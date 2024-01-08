@@ -1,3 +1,14 @@
+# radius for disc of random points
+INSTCAT_RADIUS = 2.1
+FILTERMAP = {
+    'u': 0,
+    'g': 1,
+    'r': 2,
+    'i': 3,
+    'z': 4,
+    'y': 5,
+}
+
 name_map = {
     'rightascension': 'fieldra',
     'declination': 'fieldDec',
@@ -6,7 +17,7 @@ name_map = {
     'azimuth': 'azimuth',
     'filter': 'filter',
     'rotskypos': 'rotSkyPos',
-    # 'dist2moon': missing,
+    'dist2moon': 'moonDistance',
     'moonalt': 'moonAlt',
     'moonphase': 'moonPhase',
     'moonra': 'moonRA',
@@ -31,7 +42,7 @@ def replace_instcat(
     meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
     replace_instcat_radec(
         rng=rng,
-        ra=meta['rightascencion'],
+        ra=meta['rightascension'],
         dec=meta['declination'],
         data=data,
     )
@@ -43,7 +54,14 @@ def replace_instcat_meta(rng, meta, opsim_data):
     new_meta = meta.copy()
     for key in name_map:
         assert key in meta
-        new_meta[key] = name_map[key]
+
+        opsim_val = opsim_data[name_map[key]]
+
+        if key == 'filter':
+            # opsim has filter name, but instcat wants number
+            new_meta[key] = FILTERMAP[opsim_val]
+        else:
+            new_meta[key] = opsim_val
 
     new_meta['seed'] = rng.integers(0, 2**30)
     new_meta['seqnum'] = 0
@@ -64,7 +82,7 @@ def replace_instcat_radec(rng, ra, dec, data):
         nrand=n,
         ra=ra,
         dec=dec,
-        rad=2.1,
+        rad=INSTCAT_RADIUS,
         rng=rng,
     )
 
@@ -155,9 +173,10 @@ def write_instcat(fname, data, meta):
     print('writing:', fname)
     with open(fname, 'w') as fobj:
         for key, value in meta.items():
-            line = f'{key} = {value}\n'
+            line = f'{key} {value}\n'
             fobj.write(line)
 
+        # this relies on dicts being ordered
         for d in data:
             line = ['object'] + [str(v) for k, v in d.items()]
             line = ' '.join(line)
