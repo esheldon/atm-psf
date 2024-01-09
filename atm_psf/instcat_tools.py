@@ -9,7 +9,7 @@ FILTERMAP = {
     'y': 5,
 }
 
-name_map = {
+NAME_MAP = {
     'rightascension': 'fieldra',
     'declination': 'fieldDec',
     'mjd': 'observationStartMJD',
@@ -143,11 +143,26 @@ def replace_instcat(
 
 
 def replace_instcat_meta(rng, meta, opsim_data):
+    """
+    Replace the metadata from an instcat with entries from an opsim
+    database row
+
+    Note all are replaced, see NAME_MAP
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    meta: dict
+        The metadata from in instcat
+    opsim_data: mapping
+        E.g. a sqlite.Row read from an opsim database.
+    """
     new_meta = meta.copy()
-    for key in name_map:
+    for key in NAME_MAP:
         assert key in meta
 
-        opsim_val = opsim_data[name_map[key]]
+        opsim_val = opsim_data[NAME_MAP[key]]
 
         if key == 'filter':
             # opsim has filter name, but instcat wants number
@@ -164,8 +179,16 @@ def replace_instcat_radec(rng, ra, dec, data):
     """
     generate new positions for objects centered at the ra, dec
 
-    TODO get real density of objects, which isn't easy due to
-    elliptical distribution of objects in original catalog
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    ra: float
+        The ra of the new pointing
+    dec: float
+        The dec of the new pointing
+    data: list
+        List of instcat entries, as read with read_instcat
     """
     from esutil.coords import randcap
     n = len(data)
@@ -184,15 +207,37 @@ def replace_instcat_radec(rng, ra, dec, data):
 
 
 def read_instcat(fname, allowed_include=None):
-    meta = read_instcat_header(fname)
+    """
+    Read data and metadata from an instcat
+
+    Parameters
+    ----------
+    fname: str
+        The instcat file name
+    allowed_include: list of strings, optional
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+    """
+    meta = read_instcat_meta(fname)
     data = read_instcat_data_as_dicts(fname, allowed_include=allowed_include)
     return data, meta
 
 
 def read_instcat_data_as_dicts(fname, allowed_include=None):
     """
-    object id ra dec magnorm sed1 sed2 gamma1 gamma2 kappa rest
+    Read object entries from an instcat
 
+    Parameters
+    ----------
+    fname: str
+        The instcat file name
+    allowed_include: list of strings, optional
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+
+    object id ra dec magnorm sed1 sed2 gamma1 gamma2 kappa rest
     """
     entries = []
 
@@ -237,11 +282,16 @@ def read_instcat_data_as_dicts(fname, allowed_include=None):
     return entries
 
 
-def read_instcat_header(fname):
+def read_instcat_meta(fname):
     """
-    get the metadata from the instance catalog header
+    get the metadata from the instance catalog header (metadata)
 
     convert to yaml and let it do data conversions
+
+    Parameters
+    ----------
+    fname: str
+        Path to the instcat
     """
     import yaml
 
@@ -262,6 +312,18 @@ def read_instcat_header(fname):
 
 
 def write_instcat(fname, data, meta):
+    """
+    Write an instcat
+
+    Parameters
+    ----------
+    fname: str
+        Path to output file
+    data: list
+        List of dict representing instcat objects
+    meta: dict
+        Metadata to be written in header
+    """
     print('writing:', fname)
     with open(fname, 'w') as fobj:
         for key, value in meta.items():
