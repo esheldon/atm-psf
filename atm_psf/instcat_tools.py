@@ -219,8 +219,17 @@ def read_instcat(fname, allowed_include=None):
         are kept.  For  ['star', 'gal'] we would keep filenames
         that had star or gal in them
     """
+    import os
+    from esutil.ostools import DirStack
+
+    ds = DirStack()
+    dirname = os.path.dirname(fname)
+    ds.push(dirname)
+
     meta = read_instcat_meta(fname)
     data = read_instcat_data_as_dicts(fname, allowed_include=allowed_include)
+
+    ds.pop()
     return data, meta
 
 

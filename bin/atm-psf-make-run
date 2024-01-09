@@ -43,8 +43,7 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True)
-    parser.add_argument('-n', required=True)
+    parser.add_argument('config')
     return parser.parse_args()
 
 
@@ -82,6 +81,12 @@ def write_script(run_dir):
     os.system(f'chmod 755 {outfile}')
 
 
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+
 def main():
     import os
     import numpy as np
@@ -98,6 +103,7 @@ def main():
     opsim_ids = opsim_info['id']
 
     run_dir = os.path.join(config['base_dir'], config['run'])
+    makedir(run_dir)
     all_ccds = np.arange(189)
 
     write_script(run_dir)
@@ -110,8 +116,7 @@ def main():
 
                 ipad = '%05d' % i
                 outdir = os.path.join(run_dir, ipad)
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
+                makedir(outdir)
 
                 ccds = rng.choice(
                     all_ccds,
@@ -135,7 +140,7 @@ def main():
                 )
 
                 job_name = f'{config["run"]}-{ipad}'
-                ccdlist = list(ccds)
+                ccdlist = [str(ccd) for ccd in ccds]
                 ccdstr = '[' + ','.join(ccdlist) + ']'
                 jobtext = JOB_TEMPLATE % {
                     'job_name': job_name,
