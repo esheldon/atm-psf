@@ -34,12 +34,14 @@ GetEnv = True
 
 kill_sig = SIGINT
 
+transfer_input_files = %(imsim_config)s
+
 +Experiment = "astro"
 
 """
 
 JOB_TEMPLATE = r"""
-+job_name = %(job_name)s
++job_name = "%(job_name)s"
 arguments = %(instcat)s %(ccds)s
 Queue
 """
@@ -103,6 +105,14 @@ def copy_imsim_config(config, run_dir):
     shutil.copy(config['imsim_config'], run_dir)
 
 
+def write_condor_head(condorf, config):
+    import os
+    head = CONDOR_HEAD % {
+        'imsim_config': os.path.basename(config['imsim_config']),
+    }
+    condorf.write(head)
+
+
 def main():
     import os
     import numpy as np
@@ -127,8 +137,10 @@ def main():
 
     write_script(config, run_dir)
     condor_file = os.path.join(run_dir, 'submit.condor')
+    print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
-        condorf.write(CONDOR_HEAD)
+
+        write_condor_head(condorf, config)
 
         with sqlite3.connect(config['opsim_db']) as conn:
             for i in range(config['npointings']):
