@@ -1,6 +1,16 @@
 FLUX_NAME = 'base_PsfFlux_instFlux'
 
 
+def make_psf_candidates(sources, exposure):
+    from lsst.meas.algorithms.makePsfCandidates import MakePsfCandidatesTask
+
+    keep = select_stars(sources)
+
+    task = MakePsfCandidatesTask()
+    res = task.makePsfCandidates(sources[keep], exposure)
+    return res.psfCandidates
+
+
 def select_stars(sources):
     from lsst.meas.algorithms.objectSizeStarSelector import (
         ObjectSizeStarSelectorConfig,

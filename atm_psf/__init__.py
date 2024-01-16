@@ -7,3 +7,4 @@ from . import util
 from . import sxtools
 from . import measure
 from . import select
+from . import pifftools
