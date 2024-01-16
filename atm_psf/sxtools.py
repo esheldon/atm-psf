@@ -20,7 +20,7 @@ SX_CONFIG = {
     'filter_type': 'conv',
 
     # 7x7 convolution mask of a gaussian PSF with FWHM = 0.8 arcsec
-    'filter_kernel':  KERNEL,
+    'filter_kernel': KERNEL,
 }
 
 
