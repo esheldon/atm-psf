@@ -67,7 +67,7 @@ def fits_to_exposure(fname, truth, fwhm=0.8):
     except AttributeError:
         exp.setFilter(filter_label)
 
-    psf = get_psf(fwhm)
+    psf = make_fixed_psf(fwhm)
     exp.setPsf(psf)
 
     exp.setWcs(wcs)
@@ -78,7 +78,10 @@ def fits_to_exposure(fname, truth, fwhm=0.8):
     return exp
 
 
-def get_psf(fwhm):
+def make_fixed_psf(fwhm):
+    """
+    make a KernelPsf(FixedKernel()) for a gaussian with the input fwhm
+    """
     import galsim
     from lsst.meas.algorithms import KernelPsf
     from lsst.afw.math import FixedKernel
