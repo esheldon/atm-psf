@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 LOG = logging.getLogger('atm_psf_measure')
 
 
-def detect_and_deblend(
+def detect_and_measure(
     exp,
     rng,
     thresh=5,
