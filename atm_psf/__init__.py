@@ -8,3 +8,4 @@ from . import sxtools
 from . import measure
 from . import select
 from . import pifftools
+from . import io
