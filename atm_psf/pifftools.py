@@ -4,7 +4,7 @@ def run_piff(psf_candidates, exposure):
 
     Parameters
     ----------
-    psf_candidates:
+    psf_candidates: of PsfCandidateF
         list of lsst.meas.algorithms.PsfCandidateF from running
         atm_psf.select.make_psf_candidates
     exposure: lsst.afw.image.ExposureF
@@ -22,3 +22,30 @@ def run_piff(psf_candidates, exposure):
         exposure=exposure, psfCandidateList=psf_candidates,
     )
     return piff_psf
+
+
+def split_candidates(psf_candidates, rng, reserve_frac):
+    """
+    Split the candidates into training and validation samples
+
+    Parameters
+    ----------
+    psf_candidates: of PsfCandidateF
+        list of lsst.meas.algorithms.PsfCandidateF from running
+        atm_psf.select.make_psf_candidates
+    rng: numpy random state
+        e.g. numpy.random.RandomState
+    reserve_frac: float
+        Fraction to reserve
+    """
+
+    train = []
+    reserve = []
+    for cand in psf_candidates:
+        r = rng.uniform()
+        if r < reserve_frac:
+            reserve.append(cand)
+        else:
+            train.append(cand)
+
+    return train, reserve
