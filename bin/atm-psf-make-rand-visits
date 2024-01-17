@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+"""
+generate a random set of visits from the input opsim db
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--opsimdb', required=True, help='input opsim db')
+    parser.add_argument('--outfile', required=True, help='output fits file')
+    return parser.parse_args()
+
+
+def go(args):
+    import numpy as np
+    import sqlite3
+    import fitsio
+
+    # target '' means WFD
+    query = """
+    select
+        observationId, filter
+    from
+        observations
+    where target = ''
+    order by random()
+    """
+
+    print(query)
+
+    dtype = [('id', 'i8'), ('filter', 'U1')]
+    dlist = []
+
+    with sqlite3.connect(args.opsimdb) as conn:
+        conn.row_factory = sqlite3.Row
+        curs = conn.cursor()
+        res = curs.execute(query).fetchall()
+        for r in res:
+            tmp = np.zeros(1, dtype=dtype)
+            tmp['id'] = r['observationId']
+            tmp['filter'] = r['filter']
+            dlist.append(tmp)
+
+    data = np.hstack(dlist)
+    print('writing:', args.outfile)
+    fitsio.write(args.outfile, data, clobber=True)
+
+
+def main():
+    args = get_args()
+    go(args)
+
+
+main()
