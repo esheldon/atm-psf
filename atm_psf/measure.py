@@ -17,7 +17,7 @@ LOG = logging.getLogger('atm_psf_measure')
 
 
 def detect_and_measure(
-    exp,
+    exposure,
     rng,
     thresh=5,
 ):
@@ -31,8 +31,8 @@ def detect_and_measure(
 
     Parameters
     ----------
-    mbexp: lsst.afw.image.MultibandExposure
-        The exposures to process
+    exposure: lsst.afw.image.ExposureF
+        The exposure to process
     rng: np.random.RandomState
         Random number generator for noise replacer
     thresh: float, optional
@@ -43,11 +43,6 @@ def detect_and_measure(
     sources
         The sources
     """
-    import lsst.afw.image as afw_image
-
-    # background measurement within the detection code requires ExposureF
-    if not isinstance(exp, afw_image.ExposureF):
-        exp = afw_image.ExposureF(exp, deep=True)
 
     schema = afw_table.SourceTable.makeMinimalSchema()
 
@@ -89,7 +84,7 @@ def detect_and_measure(
     detection_config.thresholdValue = thresh
 
     # these will be ignored when finding the image standard deviation
-    detection_config.statsMask = get_stats_mask(exp)
+    detection_config.statsMask = get_stats_mask(exposure)
 
     detection_task = SourceDetectionTask(config=detection_config)
 
@@ -105,13 +100,13 @@ def detect_and_measure(
 
     table = afw_table.SourceTable.make(schema)
 
-    result = detection_task.run(table, exp)
+    result = detection_task.run(table, exposure)
 
     if result is not None:
         sources = result.sources
-        deblend_task.run(exp, sources)
+        deblend_task.run(exposure, sources)
 
-        with ContextNoiseReplacer(exp, sources, rng) as replacer:
+        with ContextNoiseReplacer(exposure, sources, rng) as replacer:
 
             for source in sources:
 
@@ -121,7 +116,7 @@ def detect_and_measure(
                 source_id = source.getId()
 
                 with replacer.sourceInserted(source_id):
-                    meas_task.callMeasure(source, exp)
+                    meas_task.callMeasure(source, exposure)
 
     else:
         sources = []

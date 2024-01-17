@@ -41,7 +41,7 @@ def load_stack_piff(fname):
     return lsst.meas.extensions.piff.piffPsf.PiffPsf._read(data)
 
 
-def save_catalogs(fname, sources, training, reserved):
+def save_sources_and_candidates(fname, sources, training, reserved):
     """
     save stars and training/reserve samples
 
@@ -52,15 +52,44 @@ def save_catalogs(fname, sources, training, reserved):
     sources: SourceCatalog
         The result of detection and measurement, including all objects
         not just star candidates
-    training: list of PsfCandidateF
-        The training sample
+    training: array
+        Array of indices for the training sample
     reserved: list of PsfCandidateF
-        The reserve sample
+        Array of indices for the validation sample
     """
     import pickle
 
-    print('saving stars to:', fname)
+    print('saving sources and candidates to:', fname)
     with open(fname, 'wb') as fobj:
         output = (sources, training, reserved)
         s = pickle.dumps(output)
         fobj.write(s)
+
+
+def load_sources_and_candidates(fname):
+    """
+    save stars and training/reserve samples
+
+    Parameters
+    ----------
+    fname: str
+        Path for file to write
+
+    Returns
+    -------
+    sources: SourceCatalog
+        The result of detection and measurement, including all objects
+        not just star candidates
+    training: array
+        Array of indices for the training sample
+    reserved: list of PsfCandidateF
+        Array of indices for the validation sample
+    """
+    import pickle
+
+    print('loading sources and candidates from:', fname)
+    with open(fname, 'rb') as fobj:
+        s = fobj.read()
+        sources, training, reserved = pickle.loads(s)
+
+    return sources, training, reserved

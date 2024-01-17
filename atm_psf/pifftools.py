@@ -24,28 +24,59 @@ def run_piff(psf_candidates, exposure):
     return piff_psf
 
 
-def split_candidates(psf_candidates, rng, reserve_frac):
+def make_psf_candidates(sources, exposure):
+    """
+    Select stars and construct a list of PsfCandidate
+
+    Parameters
+    ----------
+    sources: SourceCatalog
+        From running atm_psf.measure.detect_and_measure
+    exposure: lsst.afw.image.ExposureF
+        The exposure object.  This is needed for the psf candidates
+        to construct postage stamp images
+
+    Returns
+    -------
+    list of lsst.meas.algorithms.PsfCandidateF
+    """
+    from lsst.meas.algorithms.makePsfCandidates import MakePsfCandidatesTask
+
+    task = MakePsfCandidatesTask()
+    res = task.makePsfCandidates(sources, exposure)
+    return res.psfCandidates
+
+
+def split_candidates(rng, star_select, reserve_frac):
     """
     Split the candidates into training and validation samples
 
     Parameters
     ----------
-    psf_candidates: of PsfCandidateF
-        list of lsst.meas.algorithms.PsfCandidateF from running
-        atm_psf.select.make_psf_candidates
     rng: numpy random state
         e.g. numpy.random.RandomState
+    star_select: bool array
+        Should have True if the object was selected as a star.  This array
+        should be the lenght of the entire SourceCatalog
     reserve_frac: float
         Fraction to reserve
+
+    Returns
+    -------
+    training, reserved.  Bool arrays, same length as star_select
     """
 
-    training = []
-    reserved = []
-    for cand in psf_candidates:
+    training = star_select.copy()
+    reserved = star_select.copy()
+
+    for i in range(star_select.size):
+        if not star_select[i]:
+            continue
+
         r = rng.uniform()
         if r < reserve_frac:
-            reserved.append(cand)
+            training[i] = False
         else:
-            training.append(cand)
+            reserved[i] = False
 
     return training, reserved

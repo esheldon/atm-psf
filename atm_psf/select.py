@@ -1,31 +1,6 @@
 FLUX_NAME = 'base_PsfFlux_instFlux'
 
 
-def make_psf_candidates(sources, exposure):
-    """
-    Select stars and construct a list of PsfCandidate
-
-    Parameters
-    ----------
-    sources: SourceCatalog
-        From running atm_psf.measure.detect_and_measure
-    exposure: lsst.afw.image.ExposureF
-        The exposure object.  This is needed for the psf candidates
-        to construct postage stamp images
-
-    Returns
-    -------
-    list of lsst.meas.algorithms.PsfCandidateF
-    """
-    from lsst.meas.algorithms.makePsfCandidates import MakePsfCandidatesTask
-
-    keep = select_stars(sources)
-
-    task = MakePsfCandidatesTask()
-    res = task.makePsfCandidates(sources[keep], exposure)
-    return res.psfCandidates
-
-
 def select_stars(sources):
     """
     Select stars and construct a list of PsfCandidate
