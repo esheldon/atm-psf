@@ -19,3 +19,4 @@ pyyaml
 galsim
 psf-weather-station
 matplotlib
+metadetect
