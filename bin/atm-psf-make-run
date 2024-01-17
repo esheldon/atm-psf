@@ -28,7 +28,7 @@ Notification = Never
 # Run this exe with these args
 Executable = run.sh
 
-request_memory = 8G
+request_memory = %(memory)s
 
 GetEnv = True
 
@@ -96,6 +96,7 @@ def write_script(config, run_dir):
 def makedir(d):
     import os
     if not os.path.exists(d):
+        print('making dir:', d)
         os.makedirs(d)
 
 
@@ -109,6 +110,7 @@ def write_condor_head(condorf, config):
     import os
     head = CONDOR_HEAD % {
         'imsim_config': os.path.basename(config['imsim_config']),
+        'memory': config['memory'],
     }
     condorf.write(head)
 
@@ -125,6 +127,7 @@ def main():
     rng = np.random.default_rng(config['seed'])
 
     run_dir = os.path.join(config['base_dir'], config['run'])
+    makedir(run_dir)
 
     copy_imsim_config(config, run_dir)
 
@@ -132,7 +135,6 @@ def main():
     opsim_info = load_opsim_info(config['opsim_info'], config['filter'])
     opsim_ids = opsim_info['id']
 
-    makedir(run_dir)
     all_ccds = np.arange(189)
 
     write_script(config, run_dir)
