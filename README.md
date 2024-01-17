@@ -11,12 +11,13 @@ pip install .
 
 Requirements
 ------------
-numpy
-fitsio
-piff
-esutil
-pyyaml
-galsim
-psf-weather-station
-matplotlib
-metadetect
+
+* numpy
+* fitsio
+* piff
+* esutil
+* pyyaml
+* galsim
+* psf-weather-station
+* matplotlib
+* metadetect
