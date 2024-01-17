@@ -39,13 +39,13 @@ def split_candidates(psf_candidates, rng, reserve_frac):
         Fraction to reserve
     """
 
-    train = []
-    reserve = []
+    training = []
+    reserved = []
     for cand in psf_candidates:
         r = rng.uniform()
         if r < reserve_frac:
-            reserve.append(cand)
+            reserved.append(cand)
         else:
-            train.append(cand)
+            training.append(cand)
 
-    return train, reserve
+    return training, reserved
