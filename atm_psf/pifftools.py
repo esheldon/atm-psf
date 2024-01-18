@@ -1,4 +1,151 @@
-def run_piff(psf_candidates, exposure):
+
+
+def run_piff(psf_candidates, reserved, exposure):
+    """
+    Run PIFF on the image using the input PSF candidates
+
+    Parameters
+    ----------
+    psf_candidates: of PsfCandidateF
+        list of lsst.meas.algorithms.PsfCandidateF from running
+        atm_psf.select.make_psf_candidates
+    exposure: lsst.afw.image.ExposureF
+        The exposure object
+    """
+    import numpy as np
+    from lsst.meas.extensions.piff.piffPsfDeterminer import (
+        PiffPsfDeterminerConfig,
+        getGoodPixels, computeWeight,
+        CelestialWcsWrapper, UVWcsWrapper,
+    )
+    from lsst.meas.extensions.piff.piffPsf import PiffPsf
+
+    from lsst.afw.cameraGeom import PIXELS, FIELD_ANGLE
+    import galsim
+    import piff
+
+    config = PiffPsfDeterminerConfig()
+
+    if config.stampSize:
+        stampSize = config.stampSize
+        if stampSize > psf_candidates[0].getWidth():
+            print('stampSize is larger than the PSF candidate '
+                  'size.  Using candidate size.')
+            stampSize = psf_candidates[0].getWidth()
+    else:  # TODO: Only the if block should stay after DM-36311
+        stampSize = psf_candidates[0].getWidth()
+
+    scale = exposure.getWcs().getPixelScale().asArcseconds()
+    match config.useCoordinates:
+        case 'field':
+            detector = exposure.getDetector()
+            pix_to_field = detector.getTransform(PIXELS, FIELD_ANGLE)
+            gswcs = UVWcsWrapper(pix_to_field)
+            pointing = None
+        case 'sky':
+            gswcs = CelestialWcsWrapper(exposure.getWcs())
+            skyOrigin = exposure.getWcs().getSkyOrigin()
+            ra = skyOrigin.getLongitude().asDegrees()
+            dec = skyOrigin.getLatitude().asDegrees()
+            pointing = galsim.CelestialCoord(
+                ra*galsim.degrees,
+                dec*galsim.degrees
+            )
+        case 'pixel':
+            gswcs = galsim.PixelScale(scale)
+            pointing = None
+
+    stars = []
+    for candidate, is_reserve in zip(psf_candidates, reserved):
+        cmi = candidate.getMaskedImage(stampSize, stampSize)
+        good = getGoodPixels(cmi, config.zeroWeightMaskBits)
+        fracGood = np.sum(good)/good.size
+        if fracGood < config.minimumUnmaskedFraction:
+            continue
+        weight = computeWeight(cmi, config.maxSNR, good)
+
+        bbox = cmi.getBBox()
+        bds = galsim.BoundsI(
+            galsim.PositionI(*bbox.getMin()),
+            galsim.PositionI(*bbox.getMax())
+        )
+        gsImage = galsim.Image(bds, wcs=gswcs, dtype=float)
+        gsImage.array[:] = cmi.image.array
+        gsWeight = galsim.Image(bds, wcs=gswcs, dtype=float)
+        gsWeight.array[:] = weight
+
+        source = candidate.getSource()
+        image_pos = galsim.PositionD(source.getX(), source.getY())
+
+        properties = {'is_reserve': is_reserve}
+        data = piff.StarData(
+            gsImage,
+            image_pos,
+            weight=gsWeight,
+            pointing=pointing,
+            properties=properties,
+        )
+
+        star = piff.Star(data, None)
+        assert star.is_reserve == is_reserve
+        stars.append(star)
+
+    piffConfig = {
+        'type': "Simple",
+        'model': {
+            'type': 'PixelGrid',
+            'scale': scale * config.samplingSize,
+            'size': stampSize,
+            'interp': config.interpolant
+        },
+        'interp': {
+            'type': 'BasisPolynomial',
+            'order': config.spatialOrder
+        },
+        'outliers': {
+            'type': 'Chisq',
+            'nsigma': config.outlierNSigma,
+            'max_remove': config.outlierMaxRemove
+        }
+    }
+
+    piffResult = piff.PSF.process(piffConfig)
+    wcs = {0: gswcs}
+
+    piffResult.fit(stars, wcs, pointing)
+    drawSize = 2*np.floor(0.5*stampSize/config.samplingSize) + 1
+
+    # Mike says no objects are removed during fit(), so this is not needed
+    # used_image_pos = [s.image_pos for s in piffResult.stars]
+    # if flagKey:
+    #     for candidate in psf_candidates:
+    #         source = candidate.getSource()
+    #         posd = galsim.PositionD(source.getX(), source.getY())
+    #         if posd in used_image_pos:
+    #             source.set(flagKey, True)
+
+    meta = {}
+    meta["spatialFitChi2"] = piffResult.chisq
+    meta["numAvailStars"] = len(stars)
+    meta["numGoodStars"] = len(piffResult.stars)
+    meta["avgX"] = np.mean([p.x for p in piffResult.stars])
+    meta["avgY"] = np.mean([p.y for p in piffResult.stars])
+
+    if not config.debugStarData:
+        for star in piffResult.stars:
+            # Remove large data objects from the stars
+            del star.fit.params
+            del star.fit.params_var
+            del star.fit.A
+            del star.fit.b
+            del star.data.image
+            del star.data.weight
+            del star.data.orig_weight
+
+    return PiffPsf(drawSize, drawSize, piffResult), meta
+
+
+def run_piff_old(psf_candidates, exposure):
     """
     Run PIFF on the image using the input PSF candidates
 
@@ -63,11 +210,11 @@ def split_candidates(rng, star_select, reserve_frac):
 
     Returns
     -------
-    training, reserved.  Bool arrays, same length as star_select
+    reserved.  Bool arrays, same length as star_select
     """
 
-    training = star_select.copy()
     reserved = star_select.copy()
+    reserved[:] = False
 
     for i in range(star_select.size):
         if not star_select[i]:
@@ -75,8 +222,6 @@ def split_candidates(rng, star_select, reserve_frac):
 
         r = rng.uniform()
         if r < reserve_frac:
-            training[i] = False
-        else:
-            reserved[i] = False
+            reserved[i] = True
 
-    return training, reserved
+    return reserved

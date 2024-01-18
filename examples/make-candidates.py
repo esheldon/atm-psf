@@ -13,8 +13,13 @@ exp = atm_psf.exposures.fits_to_exposure(
     fwhm=0.8,
 )
 
+detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
+detmeas.detect()
+detmeas.measure()
+sources = detmeas.sources
+
 # run detection
-sources = atm_psf.measure.detect_and_measure(exposure=exp, rng=rng)
+# sources = atm_psf.measure.detect_and_measure(exposure=exp, rng=rng)
 
 # find stars in the size/flux diagram
 # note this is a bool array

@@ -2,7 +2,7 @@
 EDGE = 50
 
 
-def fits_to_exposure(fname, truth, fwhm=0.8):
+def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     """
     load an exposure from an eimage fits file.  They sky is subtracted
     if truth is sent
@@ -67,7 +67,7 @@ def fits_to_exposure(fname, truth, fwhm=0.8):
     except AttributeError:
         exp.setFilter(filter_label)
 
-    psf = make_fixed_psf(fwhm)
+    psf = make_fixed_psf(fwhm=fwhm, rng=rng)
     exp.setPsf(psf)
 
     exp.setWcs(wcs)
@@ -78,7 +78,7 @@ def fits_to_exposure(fname, truth, fwhm=0.8):
     return exp
 
 
-def make_fixed_psf(fwhm):
+def make_fixed_psf(fwhm, rng):
     """
     make a KernelPsf(FixedKernel()) for a gaussian with the input fwhm
     """
@@ -89,6 +89,9 @@ def make_fixed_psf(fwhm):
 
     g = galsim.Gaussian(fwhm=fwhm)
     psf_image = g.drawImage(scale=0.2, nx=25, ny=25).array
+
+    noise = psf_image.max() / 1000
+    psf_image += rng.normal(scale=noise, size=psf_image.shape)
 
     psf_image = psf_image.astype(float)
 

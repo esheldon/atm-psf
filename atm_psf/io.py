@@ -41,7 +41,7 @@ def load_stack_piff(fname):
     return lsst.meas.extensions.piff.piffPsf.PiffPsf._read(data)
 
 
-def save_sources_and_candidates(fname, sources, training, reserved):
+def save_source_data(fname, data):
     """
     save stars and training/reserve samples
 
@@ -49,24 +49,27 @@ def save_sources_and_candidates(fname, sources, training, reserved):
     ----------
     fname: str
         Path for file to write
-    sources: SourceCatalog
-        The result of detection and measurement, including all objects
-        not just star candidates
-    training: array
-        Array of indices for the training sample
-    reserved: list of PsfCandidateF
-        Array of indices for the validation sample
+    data: dict
+        Should have entries
+            sources: SourceCatalog
+                The result of detection and measurement, including all objects
+                not just star candidates
+            star_select: array
+                Bool array, True if the object was a psf candidate
+            reserved: list of PsfCandidateF
+                Bool array, True if the object was reserved for validation
+            other: metadata from piff run
+              such as spatialFitChi2, numAvailStars, numGoodStars, avgX, avgY
     """
     import pickle
 
-    print('saving sources and candidates to:', fname)
+    print('saving sources data to:', fname)
     with open(fname, 'wb') as fobj:
-        output = (sources, training, reserved)
-        s = pickle.dumps(output)
+        s = pickle.dumps(data)
         fobj.write(s)
 
 
-def load_sources_and_candidates(fname):
+def load_source_data(fname):
     """
     save stars and training/reserve samples
 
@@ -77,19 +80,23 @@ def load_sources_and_candidates(fname):
 
     Returns
     -------
-    sources: SourceCatalog
-        The result of detection and measurement, including all objects
-        not just star candidates
-    training: array
-        Array of indices for the training sample
-    reserved: list of PsfCandidateF
-        Array of indices for the validation sample
+    data: dict
+        Should have entries
+            sources: SourceCatalog
+                The result of detection and measurement, including all objects
+                not just star candidates
+            star_select: array
+                Bool array, True if the object was a psf candidate
+            reserved: list of PsfCandidateF
+                Bool array, True if the object was reserved for validation
+            other: metadata from piff run
+              such as spatialFitChi2, numAvailStars, numGoodStars, avgX, avgY
     """
     import pickle
 
     print('loading sources and candidates from:', fname)
     with open(fname, 'rb') as fobj:
         s = fobj.read()
-        sources, training, reserved = pickle.loads(s)
+        data = pickle.loads(s)
 
-    return sources, training, reserved
+    return data
