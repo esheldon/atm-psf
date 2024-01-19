@@ -162,6 +162,9 @@ class DetectMeasurer(object):
         # fix odd issue where it things things are near the edge
         meas_config.plugins['base_SdssCentroid'].binmax = 1
 
+        # sub-pixel offsets in the psf rendering
+        meas_config.plugins['ext_shapeHSM_HsmPsfMoments'].useSourceCentroidOffset = True  # noqa
+
         self._meas_task = SingleFrameMeasurementTask(
             config=meas_config,
             schema=self._schema,
