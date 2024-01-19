@@ -13,7 +13,7 @@ ccds_per_pointing: 4
 
 # same config used for all image generation, but we override
 # input instcat etc.
-imsim_config: /astro/u/esheldon/git/atm-psf/example-configs/gauss01.yaml
+imsim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/gauss01.yaml
 
 # get observing conditions from here, including pointing
 opsim_db: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/baseline_v3.3_10yrs.db
@@ -25,4 +25,4 @@ opsim_info: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/random-visits.f
 instcats: /astro/u/esheldon/imsim_outputs/instcats.txt
 
 # data from this run will be located in base_dir/{run_name}
-base_dir: /astro/u/esheldon/imsim_outputs/runs
+base_dir: /astro/u/esheldon/imsim_outputs/sim-runs

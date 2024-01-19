@@ -133,7 +133,9 @@ def main():
 
     instcats = load_instcat_paths(config['instcats'])
     opsim_info = load_opsim_info(config['opsim_info'], config['filter'])
-    opsim_ids = opsim_info['id']
+    opsim_ids = rng.choice(
+        opsim_info['id'], size=config['npointings'], replace=False,
+    )
 
     all_ccds = np.arange(189)
 
@@ -147,8 +149,10 @@ def main():
         with sqlite3.connect(config['opsim_db']) as conn:
             for i in range(config['npointings']):
 
-                ipad = '%05d' % i
-                outdir = os.path.join(run_dir, ipad)
+                obsid = opsim_ids[i]
+
+                obsid_pad = '%08d' % obsid
+                outdir = os.path.join(run_dir, obsid_pad)
                 makedir(outdir)
 
                 ccds = rng.choice(
@@ -160,7 +164,6 @@ def main():
                 instcat_in = rng.choice(instcats)
                 instcat_out = os.path.join(outdir, 'instcat.txt')
 
-                obsid = rng.choice(opsim_ids)
 
                 replace_instcat_from_db(
                     rng=rng,
@@ -172,7 +175,7 @@ def main():
                     selector=lambda d: d['magnorm'] > 17
                 )
 
-                job_name = f'{config["run"]}-{ipad}'
+                job_name = f'{config["run"]}-{obsid_pad}'
                 ccdlist = [str(ccd) for ccd in ccds]
                 ccdstr = '[' + ','.join(ccdlist) + ']'
                 jobtext = JOB_TEMPLATE % {
