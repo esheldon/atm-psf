@@ -125,8 +125,9 @@ def main():
     print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
 
+        write_condor_head(condorf, config)
+
         for i, data in enumerate(dlist):
-            write_condor_head(condorf, config)
 
             outdir = os.path.join(run_dir, data['obsid'])
 
