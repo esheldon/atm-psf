@@ -51,7 +51,7 @@ def main(image_file, truth_file, piff_file, source_file, seed):
     exp.setPsf(piff_psf)
     detmeas.measure()
 
-    print('saving piff to:', fname)
+    print('saving piff to:', piff_file)
     atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
 
     # save sources and candidate list
@@ -59,10 +59,13 @@ def main(image_file, truth_file, piff_file, source_file, seed):
         'sources': sources,
         'star_select': star_select,
         'reserved': reserved,
+        'seed': seed,
+        'image_file': image_file,
+        'truth_file': truth_file,
     }
     alldata.update(meta)
 
-    print('saving sources data to:', fname)
+    print('saving sources data to:', source_file)
     atm_psf.io.save_source_data(fname=source_file, data=alldata)
 
 

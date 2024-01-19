@@ -23,7 +23,6 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     from lsst.afw.cameraGeom.testUtils import DetectorWrapper
     import lsst.afw.image as afw_image
     from .wcs import header_to_wcs
-    import numpy as np
 
     print('loading:', fname)
     with fitsio.FITS(fname) as fits:
@@ -44,11 +43,10 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
         sky = int(truth_data['sky_level'][0] * 0.2**2)
 
         print('sky:', sky)
-        print('med image:', np.median(masked_image.image.array))
-
         masked_image.image.array[:, :] -= sky
         masked_image.variance.array[:, :] = sky
-        print('med image after:', np.median(masked_image.image.array))
+        print('stats after subtraction:')
+        print_image_stats(masked_image.image.array)
 
     EDGEFLAG = masked_image.mask.getMaskPlane('EDGE')
     masked_image.mask.array[:EDGE, :] = EDGEFLAG
@@ -98,3 +96,13 @@ def make_fixed_psf(fwhm, rng):
     return KernelPsf(
         FixedKernel(afw_image.ImageD(psf_image))
     )
+
+
+def print_image_stats(image):
+    import esutil as eu
+    import numpy as np
+
+    mn, sig, err = eu.stat.sigma_clip(image.ravel(), get_err=True)
+
+    print('median:', np.median(image))
+    print(f'mean: {mn:3f} +/- {err:3f}')
