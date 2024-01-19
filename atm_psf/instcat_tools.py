@@ -22,7 +22,7 @@ NAME_MAP = {
     'moonphase': 'moonPhase',
     'moonra': 'moonRA',
     # 'nsnap': missing,
-    # 'obshistid': missing
+    'obshistid': 'observationId',
     'rottelpos': 'rotTelPos',
     # 'seed': to be set
     'seeing': 'seeingFwhm500',  # TODO which to use of this and seeingFwhmEff?

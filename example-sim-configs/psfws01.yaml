@@ -347,8 +347,13 @@ output:
     #     first: 94  # Can set first to something if you want to do a specific sensor.
 
     # ESS
-    # dir: fits
-    dir: output
+    # dir: output
+    dir:
+        type: FormattedStr
+        format : "%08d"
+        items:
+            - { type: OpsimData, field: observationId }
+
     file_name:
         type: FormattedStr
         format : eimage-%08d-%1d-%s-%s-det%03d.fits
@@ -381,7 +386,13 @@ output:
     #             - "@output.det_num"
 
     truth:
-        dir: output
+        # dir: output
+        dir:
+            type: FormattedStr
+            format : "%08d"
+            items:
+                - { type: OpsimData, field: observationId }
+
         file_name:
             type: FormattedStr
             # format : centroid_%08d-%1d-%s-%s-det%03d.txt.gz

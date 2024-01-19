@@ -10,6 +10,9 @@ def save_stack_piff(fname, piff_psf):
     piff_psf: lsst.meas.extensions.piff.piffPsf.PiffPsf
         The object to write
     """
+    import esutil as eu
+    eu.ostools.makedirs_fromfile(fname)
+
     with open(fname, 'wb') as fobj:
         s = piff_psf._write()
         fobj.write(s)
@@ -60,6 +63,9 @@ def save_source_data(fname, data):
               such as spatialFitChi2, numAvailStars, numGoodStars, avgX, avgY
     """
     import pickle
+    import esutil as eu
+
+    eu.ostools.makedirs_fromfile(fname)
 
     with open(fname, 'wb') as fobj:
         s = pickle.dumps(data)

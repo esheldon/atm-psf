@@ -1,7 +1,7 @@
 run: "run-i-01"
 seed: 18
 
-memory: "8G"
+memory: "10G"
 
 filter: "i"
 

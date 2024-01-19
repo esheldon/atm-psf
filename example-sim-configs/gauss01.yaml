@@ -114,14 +114,14 @@ input:
     #                           # and let the atm_psf figure out a unique name from the input params.
 
     # ESS
-    tree_rings:
-        # This enables TreeRingCenter and TreeRungFunc, which are stored as a dict here based
-        # on the detector name, so the right value can be accessed for each object.
-        # This file lives in the imsim repo.
-        file_name: "tree_ring_parameters_2018-04-26.txt"
-        # Can limit the detectors to read in.  This is handy while debugging, since it takes
-        # half a minute or so to read all 189 detectors (the default behavior).
-        # only_dets: [R22_S11]
+    # tree_rings:
+    #     # This enables TreeRingCenter and TreeRungFunc, which are stored as a dict here based
+    #     # on the detector name, so the right value can be accessed for each object.
+    #     # This file lives in the imsim repo.
+    #     file_name: "tree_ring_parameters_2018-04-26.txt"
+    #     # Can limit the detectors to read in.  This is handy while debugging, since it takes
+    #     # half a minute or so to read all 189 detectors (the default behavior).
+    #     # only_dets: [R22_S11]
 
     # checkpoint:
     #     dir: checkpoint
@@ -332,8 +332,13 @@ output:
     #     first: 94  # Can set first to something if you want to do a specific sensor.
 
     # ESS
-    # dir: fits
-    dir: output
+    # dir: output
+    dir:
+        type: FormattedStr
+        format : "%08d"
+        items:
+            - { type: OpsimData, field: observationId }
+
     file_name:
         type: FormattedStr
         format : eimage-%08d-%1d-%s-%s-det%03d.fits
@@ -366,7 +371,13 @@ output:
     #             - "@output.det_num"
 
     truth:
-        dir: output
+        # dir: output
+        dir:
+            type: FormattedStr
+            format : "%08d"
+            items:
+                - { type: OpsimData, field: observationId }
+
         file_name:
             type: FormattedStr
             # format : centroid_%08d-%1d-%s-%s-det%03d.txt.gz

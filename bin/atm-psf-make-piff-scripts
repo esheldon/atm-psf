@@ -6,7 +6,7 @@ seed=$1
 image=$2
 truth=$3
 piff=$4
-source=$5
+sources=$5
 
 atm-psf-run-piff \
         --seed $seed \
@@ -30,8 +30,6 @@ GetEnv = True
 
 kill_sig = SIGINT
 
-# transfer_input_files = %(imsim_config)s
-
 +Experiment = "astro"
 
 """
@@ -47,6 +45,7 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
 
 
@@ -76,15 +75,10 @@ def makedir(d):
 
 
 def write_condor_head(condorf, config):
-    import os
-    head = CONDOR_HEAD % {
-        'imsim_config': os.path.basename(config['imsim_config']),
-        'memory': config['memory'],
-    }
-    condorf.write(head)
+    condorf.write(CONDOR_HEAD)
 
 
-def get_files(directory):
+def get_file_data(directory):
     import os
 
     flist = []
@@ -104,7 +98,8 @@ def get_files(directory):
         if not os.path.exists(truth_fname):
             raise RuntimeError(f'{truth_fname} not found')
 
-        d = {'image': image_fname, 'truth': truth_fname}
+        obsid = os.path.basename(os.path.dirname(image_fname))
+        d = {'image': image_fname, 'truth': truth_fname, 'obsid': obsid}
         dlist.append(d)
 
     return dlist
@@ -119,8 +114,7 @@ def main():
     config = load_config(args.config)
     rng = np.random.default_rng(config['seed'])
 
-    sim_run_dir = config['sim_dir']
-    dlist = get_files(sim_run_dir)
+    dlist = get_file_data(config['sim_dir'])
     print('found:', len(dlist), 'eimage files')
 
     run_dir = os.path.join(config['base_dir'], config['run'])
@@ -134,7 +128,32 @@ def main():
         for i, data in enumerate(dlist):
             write_condor_head(condorf, config)
 
+            outdir = os.path.join(run_dir, data['obsid'])
+
+            bname = os.path.basename(data['image'])
+            piff_name = bname.replace(
+                '.fits', '.pkl'
+            ).replace(
+                'eimage', 'piff'
+            )
+            assert piff_name != bname
+            sources_name = piff_name.replace('piff', 'sources')
+            assert sources_name != piff_name
+
+            piff_file = os.path.join(outdir, piff_name)
+            if args.skip_existing and os.path.exists(piff_file):
+                print('skipping existing:', piff_file)
+                continue
+
             ipad = '%05d' % i
+
+            # use relative dir so directory is relocatable
+            piff_file_local = os.path.join(
+                data['obsid'], os.path.basename(piff_name),
+            )
+            sources_file_local = os.path.join(
+                data['obsid'], os.path.basename(sources_name),
+            )
 
             job_name = f'{config["run"]}-{ipad}'
             jobtext = JOB_TEMPLATE % {
@@ -142,8 +161,8 @@ def main():
                 'seed': rng.integers(0, 2**20),
                 'image': data['image'],
                 'truth': data['truth'],
-                'piff': piff_file,
-                'sources': source_file,
+                'piff': piff_file_local,
+                'sources': sources_file_local,
             }
             condorf.write(jobtext)
 

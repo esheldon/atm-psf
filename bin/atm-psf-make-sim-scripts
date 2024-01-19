@@ -10,12 +10,8 @@ nfiles=$((ncomma + 1))
 
 echo "nfiles: $nfiles"
 
-outdir=$(dirname $instcat)
-
 galsim %(imsim_config)s \
     input.instance_catalog.file_name="${instcat}" \
-    output.dir=${outdir} \
-    output.truth.dir=${outdir} \
     output.nfiles=${nfiles} \
     output.det_num="${ccds}"
 """
@@ -164,7 +160,6 @@ def main():
                 instcat_in = rng.choice(instcats)
                 instcat_out = os.path.join(outdir, 'instcat.txt')
 
-
                 replace_instcat_from_db(
                     rng=rng,
                     fname=instcat_in,
@@ -178,9 +173,16 @@ def main():
                 job_name = f'{config["run"]}-{obsid_pad}'
                 ccdlist = [str(ccd) for ccd in ccds]
                 ccdstr = '[' + ','.join(ccdlist) + ']'
+
+                # use relative name so directory is relocatable
+                instcat_local = os.path.join(
+                    obsid_pad,
+                    os.path.basename(instcat_out),
+                )
+
                 jobtext = JOB_TEMPLATE % {
                     'job_name': job_name,
-                    'instcat': instcat_out,
+                    'instcat': instcat_local,
                     'ccds': ccdstr,
                 }
                 condorf.write(jobtext)
