@@ -40,6 +40,7 @@ def main(image_file, truth_file, piff_file, source_file, seed):
         exposure=exp,
     )
 
+    print('running piff')
     piff_psf, meta = atm_psf.pifftools.run_piff(
         psf_candidates=candidates,
         reserved=reserved[star_select],
@@ -50,6 +51,7 @@ def main(image_file, truth_file, piff_file, source_file, seed):
     exp.setPsf(piff_psf)
     detmeas.measure()
 
+    print('saving piff to:', fname)
     atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
 
     # save sources and candidate list
@@ -60,6 +62,7 @@ def main(image_file, truth_file, piff_file, source_file, seed):
     }
     alldata.update(meta)
 
+    print('saving sources data to:', fname)
     atm_psf.io.save_source_data(fname=source_file, data=alldata)
 
 
@@ -81,4 +84,5 @@ if __name__ == '__main__':
         truth_file=args.truth,
         piff_file=args.piff,
         source_file=args.sources,
+        seed=args.seed,
     )

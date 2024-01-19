@@ -10,7 +10,6 @@ def save_stack_piff(fname, piff_psf):
     piff_psf: lsst.meas.extensions.piff.piffPsf.PiffPsf
         The object to write
     """
-    print('saving piff to:', fname)
     with open(fname, 'wb') as fobj:
         s = piff_psf._write()
         fobj.write(s)
@@ -35,7 +34,6 @@ def load_stack_piff(fname):
 
     import lsst.meas.extensions.piff.piffPsf
 
-    print('reading piff from:', fname)
     with open(fname, 'rb') as fobj:
         data = fobj.read()
     return lsst.meas.extensions.piff.piffPsf.PiffPsf._read(data)
@@ -63,7 +61,6 @@ def save_source_data(fname, data):
     """
     import pickle
 
-    print('saving sources data to:', fname)
     with open(fname, 'wb') as fobj:
         s = pickle.dumps(data)
         fobj.write(s)
@@ -94,7 +91,6 @@ def load_source_data(fname):
     """
     import pickle
 
-    print('loading sources and candidates from:', fname)
     with open(fname, 'rb') as fobj:
         s = fobj.read()
         data = pickle.loads(s)
