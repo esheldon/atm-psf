@@ -1,0 +1,187 @@
+#!/usr/bin/env python
+
+SCRIPT = r"""#!/usr/bin/bash
+# make sure to source ~/imsim-setup/imsim-setup.sh first
+instcat=$1
+ccds=$2
+
+ncomma=$(echo -n $ccds | grep -Fo "," | wc -l)
+nfiles=$((ncomma + 1))
+
+echo "nfiles: $nfiles"
+
+outdir=$(dirname $instcat)
+
+galsim %(imsim_config)s \
+    input.instance_catalog.file_name="${instcat}" \
+    output.dir=${outdir} \
+    output.truth.dir=${outdir} \
+    output.nfiles=${nfiles} \
+    output.det_num="${ccds}"
+"""
+
+CONDOR_HEAD = r"""
+Universe = vanilla
+
+Notification = Never
+
+# Run this exe with these args
+Executable = run.sh
+
+request_memory = %(memory)s
+
+GetEnv = True
+
+kill_sig = SIGINT
+
+transfer_input_files = %(imsim_config)s
+
++Experiment = "astro"
+
+"""
+
+JOB_TEMPLATE = r"""
++job_name = "%(job_name)s"
+arguments = %(instcat)s %(ccds)s
+Queue
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config')
+    return parser.parse_args()
+
+
+def load_config(fname):
+    # import os
+    import yaml
+    with open(fname) as fobj:
+        data = yaml.safe_load(fobj)
+    # data['run'] = os.path.basename(fname).replace('.yaml', '')
+    return data
+
+
+def load_instcat_paths(fname):
+    with open(fname) as fobj:
+        paths = [line.strip() for line in fobj]
+    return paths
+
+
+def load_opsim_info(fname, filter):
+    import fitsio
+    import numpy as np
+
+    data = fitsio.read(fname)
+    w, = np.where(data['filter'] == filter)
+    return data[w]
+
+
+def write_script(config, run_dir):
+    import os
+
+    outfile = f'{run_dir}/run.sh'
+    print('writing:', outfile)
+
+    # we copied it local to run_dir
+    imsim_config = os.path.basename(config['imsim_config'])
+
+    script = SCRIPT % {'imsim_config': imsim_config}
+    with open(outfile, 'w') as fobj:
+        fobj.write(script)
+    os.system(f'chmod 755 {outfile}')
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        os.makedirs(d)
+
+
+def copy_imsim_config(config, run_dir):
+    import shutil
+    print(f'copying {config["imsim_config"]} -> {run_dir}')
+    shutil.copy(config['imsim_config'], run_dir)
+
+
+def write_condor_head(condorf, config):
+    import os
+    head = CONDOR_HEAD % {
+        'imsim_config': os.path.basename(config['imsim_config']),
+        'memory': config['memory'],
+    }
+    condorf.write(head)
+
+
+def main():
+    import os
+    import numpy as np
+    import sqlite3
+    from atm_psf.instcat_tools import replace_instcat_from_db
+
+    args = get_args()
+
+    config = load_config(args.config)
+    rng = np.random.default_rng(config['seed'])
+
+    run_dir = os.path.join(config['base_dir'], config['run'])
+    makedir(run_dir)
+
+    copy_imsim_config(config, run_dir)
+
+    instcats = load_instcat_paths(config['instcats'])
+    opsim_info = load_opsim_info(config['opsim_info'], config['filter'])
+    opsim_ids = opsim_info['id']
+
+    all_ccds = np.arange(189)
+
+    write_script(config, run_dir)
+    condor_file = os.path.join(run_dir, 'submit.condor')
+    print('opening:', condor_file)
+    with open(condor_file, 'w') as condorf:
+
+        write_condor_head(condorf, config)
+
+        with sqlite3.connect(config['opsim_db']) as conn:
+            for i in range(config['npointings']):
+
+                ipad = '%05d' % i
+                outdir = os.path.join(run_dir, ipad)
+                makedir(outdir)
+
+                ccds = rng.choice(
+                    all_ccds,
+                    size=config['ccds_per_pointing'],
+                    replace=False,
+                )
+
+                instcat_in = rng.choice(instcats)
+                instcat_out = os.path.join(outdir, 'instcat.txt')
+
+                obsid = rng.choice(opsim_ids)
+
+                replace_instcat_from_db(
+                    rng=rng,
+                    fname=instcat_in,
+                    conn=conn,
+                    obsid=obsid,
+                    output_fname=instcat_out,
+                    allowed_include=['star'],
+                    selector=lambda d: d['magnorm'] > 17
+                )
+
+                job_name = f'{config["run"]}-{ipad}'
+                ccdlist = [str(ccd) for ccd in ccds]
+                ccdstr = '[' + ','.join(ccdlist) + ']'
+                jobtext = JOB_TEMPLATE % {
+                    'job_name': job_name,
+                    'instcat': instcat_out,
+                    'ccds': ccdstr,
+                }
+                condorf.write(jobtext)
+
+
+if __name__ == '__main__':
+    main()
