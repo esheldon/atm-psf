@@ -59,8 +59,13 @@ def save_source_data(fname, data):
                 Bool array, True if the object was a psf candidate
             reserved: list of PsfCandidateF
                 Bool array, True if the object was reserved for validation
-            other: metadata from piff run
-              such as spatialFitChi2, numAvailStars, numGoodStars, avgX, avgY
+            seed: int
+                Seed used in processing
+            image_file, truth_file: str
+                The input files
+            additional entries:
+               metadata from piff run, such as spatialFitChi2, numAvailStars,
+               numGoodStars, avgX, avgY
     """
     import pickle
     import esutil as eu
@@ -92,8 +97,13 @@ def load_source_data(fname):
                 Bool array, True if the object was a psf candidate
             reserved: list of PsfCandidateF
                 Bool array, True if the object was reserved for validation
-            other: metadata from piff run
-              such as spatialFitChi2, numAvailStars, numGoodStars, avgX, avgY
+            seed: int
+                Seed used in processing
+            image_file, truth_file: str
+                The input files
+            additional entries
+              metadata from piff runsuch as spatialFitChi2, numAvailStars,
+              numGoodStars, avgX, avgY
     """
     import pickle
 
