@@ -9,3 +9,4 @@ from . import measure
 from . import select
 from . import pifftools
 from . import io
+from . import diagnostics
