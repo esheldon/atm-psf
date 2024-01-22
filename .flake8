@@ -39,4 +39,6 @@ ignore =
     # at least two spaces before inline comment
     # E261
     # lowercase
-    N803, N806
+    N803, N806,
+    # function name lowercase
+    N802
