@@ -227,7 +227,7 @@ image:
 
     sensor:
         type: Silicon
-        strength: 0.01
+        strength: 1.0e-06
         index_key: image_num    # This tells GalSim that this only changes with a new image num.
         # ESS
         # treering_center: { type: TreeRingCenter, det_name: $det_name }
