@@ -15,8 +15,8 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     Tratio = st['T'][w] / st['psfrec_T'][w]
 
     flux_lim = [1000, 1.e7]
-    fwhm_lim = [0.3, 1.5]
-    Tratio_lim = [0.0, 4]
+    fwhm_lim = [0.3, 1.2]
+    Tratio_lim = [0.0, 2]
     # fwhm
     axs[0].set(
         xlabel='PSF flux',
@@ -53,7 +53,7 @@ def plot_stars(st, pixel_scale=0.2, show=False):
 
     axs[1].set(
         xlabel='PSF flux',
-        ylabel=r'T/T$_{\mathrm{psf}}$',
+        ylabel=r'T/T$_{\mathrm{PSF}}$',
         xlim=flux_lim,
         ylim=Tratio_lim,
     )
