@@ -7,6 +7,7 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     logic = (st['flags'] == 0) & (st['psfrec_flags'] == 0)
     w, = np.where(logic)
     # slogic = logic & st['star_select']
+    wnostar, = np.where(~st['star_select'][w])
     wstar, = np.where(st['star_select'][w])
 
     flux = st['psf_flux'][w]
@@ -25,21 +26,27 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     )
     axs[0].set_xscale('log')
 
-    ms = 1
+    # ms = 0.1
+    ms = 0.25
     axs[0].scatter(
-        flux,
-        fwhm,
+        flux[wnostar],
+        fwhm[wnostar],
+        marker='.',
         s=ms,
-        color='black',
+        c='black',
+        # edgecolors=None,
         label='all',
     )
     axs[0].scatter(
         flux[wstar],
         fwhm[wstar],
+        marker='.',
         s=ms,
-        color='red',
+        c='red',
+        # edgecolors=None,
         label='star cand',
     )
+
     axs[0].legend()
 
     # T/Tpsf
@@ -53,8 +60,9 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     axs[1].set_xscale('log')
 
     axs[1].scatter(
-        flux,
-        Tratio,
+        flux[wnostar],
+        Tratio[wnostar],
+        marker='.',
         s=ms,
         color='black',
         label='all',
@@ -62,10 +70,12 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     axs[1].scatter(
         flux[wstar],
         Tratio[wstar],
+        marker='.',
         s=ms,
         color='red',
         label='star cand',
     )
+    axs[1].axhline(1, color='darkgreen')
 
     if show:
         mplt.show()
