@@ -26,7 +26,6 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     fwhm_lim = [0.3, 1.2]
     Tratio_lim = [-1, 1]
     Tratio_hist_lim = [-0.1, 0.1]
-    # Tdiff_lim = [-0.5, 0.5]
     ediff_lim = [-0.1, 0.1]
 
     # fwhm
@@ -38,26 +37,22 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     )
     axs[0, 0].set_xscale('log')
 
+    Tratio_label = r'T/T$_{\mathrm{PSF}} - 1$'
     axs[0, 1].set(
         xlabel='PSF flux',
-        ylabel=r'T/T$_{\mathrm{PSF}}$ - 1',
+        ylabel=Tratio_label,
         xlim=flux_lim,
         ylim=Tratio_lim,
     )
     axs[0, 1].set_xscale('log')
 
-    # axs[1, 0].set(
-    #     xlabel=r'T$_{\mathrm{PSF}}$ - T$_{\mathrm{star}}$',
-    #     xlim=Tdiff_lim,
-    # )
-    Tratio_label = r'T/T$_{\mathrm{PSF}}$ - 1'
     axs[1, 0].set(
         ylabel=Tratio_label,
         xlim=Tratio_hist_lim,
     )
 
     axs[1, 1].set(
-        xlabel=r'e$_{\mathrm{PSF}}$ - e$_{\mathrm{star}}$',
+        xlabel=r'e$_{\mathrm{star}} - $e$_{\mathrm{PSF}}$',
         xlim=ediff_lim,
     )
 
@@ -140,8 +135,8 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     )
 
     # e diff
-    e1diff = e1psf - e1
-    e2diff = e2psf - e2
+    e1diff = e1 - e1psf
+    e2diff = e2 - e2psf
     e1diff_stats = eu.stat.get_stats(e1diff[wres])
     e2diff_stats = eu.stat.get_stats(e2diff[wres])
 
