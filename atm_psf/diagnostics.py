@@ -1,4 +1,4 @@
-def plot_stars(st, pixel_scale=0.2, show=False):
+def plot_stars(st, pixel_scale=0.2, nbin=30, show=False):
     import matplotlib.pyplot as mplt
     import numpy as np
     import esutil as eu
@@ -47,7 +47,7 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     axs[0, 1].set_xscale('log')
 
     axs[1, 0].set(
-        ylabel=Tratio_label,
+        xlabel=Tratio_label,
         xlim=Tratio_hist_lim,
     )
 
@@ -97,8 +97,6 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     )
     axs[0, 1].axhline(1, color='darkgreen')
 
-    nbin = 30
-
     # Tpsf - Tstar
     # Tdiff = Tpsf - T
     #
@@ -127,6 +125,7 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     axs[1, 0].hist(
         Tratio[wres],
         bins=np.linspace(Tratio_hist_lim[0], Tratio_hist_lim[1], nbin),
+        alpha=0.5,
     )
     xloc = 0.1
     axs[1, 0].text(
