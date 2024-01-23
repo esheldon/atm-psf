@@ -14,6 +14,7 @@ def select_stars(sources):
     -------
     array of bool, True for the kept candidates
     """
+    import numpy as np
 
     from lsst.meas.algorithms.objectSizeStarSelector import (
         ObjectSizeStarSelectorConfig,
@@ -34,7 +35,8 @@ def select_stars(sources):
     task = ObjectSizeStarSelectorTask(config=config)
     res = task.selectSources(sources[selected])
 
-    selected[~res.selected] = False
+    w, = np.where(selected)
+    selected[w[~res.selected]] = False
     return selected
 
 

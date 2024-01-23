@@ -104,5 +104,5 @@ def print_image_stats(image):
 
     mn, sig, err = eu.stat.sigma_clip(image.ravel(), get_err=True)
 
-    print('median:', np.median(image))
-    print(f'mean: {mn:3f} +/- {err:3f}')
+    print('    median:', np.median(image))
+    print(f'    mean: {mn:3f} +/- {err:3f}')
