@@ -26,9 +26,16 @@ def select_stars(sources):
     # config.fluxMin = 0
     # config.fluxMax = 0
 
+    # remove parents and blends
+    selected = (
+        (sources['deblend_nChild'] == 0)
+        & (sources['deblend_parentNPeaks'] == 0)
+    )
     task = ObjectSizeStarSelectorTask(config=config)
-    res = task.selectSources(sources)
-    return res.selected
+    res = task.selectSources(sources[selected])
+
+    selected[~res.selected] = False
+    return selected
 
 
 def plot_sizemag(sources, keep, show=False):
