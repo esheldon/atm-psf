@@ -23,6 +23,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     from lsst.afw.cameraGeom.testUtils import DetectorWrapper
     import lsst.afw.image as afw_image
     from .wcs import header_to_wcs
+    from metadetect.lsst.skysub import iterate_detection_and_skysub
 
     print('loading:', fname)
     with fitsio.FITS(fname) as fits:
@@ -42,10 +43,10 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     if truth is not None:
         sky = int(truth_data['sky_level'][0] * 0.2**2)
 
-        print('sky:', sky)
+        print('subtracting cat sky:', sky)
         masked_image.image.array[:, :] -= sky
         masked_image.variance.array[:, :] = sky
-        print('stats after subtraction:')
+        print('image stats after subtraction:')
         print_image_stats(masked_image.image.array)
 
     EDGEFLAG = masked_image.mask.getMaskPlane('EDGE')
@@ -73,14 +74,13 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     detector = DetectorWrapper(hdr['DET_NAME']).detector
     exp.setDetector(detector)
 
-    if True:
-        from metadetect.lsst.skysub import iterate_detection_and_skysub
-        iterate_detection_and_skysub(
-            exposure=exp,
-            thresh=5,
-        )
-        print('stats after second subtraction:')
-        print_image_stats(exp.image.array)
+    print('doing iterative detection/sky subtraction')
+    iterate_detection_and_skysub(
+        exposure=exp,
+        thresh=5,
+    )
+    print('image stats after second subtraction:')
+    print_image_stats(exp.image.array)
 
     return exp
 
