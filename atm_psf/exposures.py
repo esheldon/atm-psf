@@ -73,6 +73,15 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     detector = DetectorWrapper(hdr['DET_NAME']).detector
     exp.setDetector(detector)
 
+    if True:
+        from metadetect.lsst.skysub import iterate_detection_and_skysub
+        iterate_detection_and_skysub(
+            exposure=exp,
+            thresh=5,
+        )
+        print('stats after second subtraction:')
+        print_image_stats(exp.image.array)
+
     return exp
 
 

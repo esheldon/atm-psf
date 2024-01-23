@@ -78,6 +78,7 @@ def detect_and_measure_old(
 
     detection_config = SourceDetectionConfig()
     detection_config.reEstimateBackground = False
+    # detection_config.reEstimateBackground = True
     # variance here actually means relative to the sqrt(variance)
     # from the variance plane.
     # TODO this would include poisson
