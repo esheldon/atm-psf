@@ -57,7 +57,7 @@ def plot_stars(st, pixel_scale=0.2, show=False):
     )
 
     axs[1, 1].set(
-        xlabel=r'e1$_{\mathrm{PSF}}$ - e1$_{\mathrm{star}}$',
+        xlabel=r'e$_{\mathrm{PSF}}$ - e$_{\mathrm{star}}$',
         xlim=ediff_lim,
     )
 
