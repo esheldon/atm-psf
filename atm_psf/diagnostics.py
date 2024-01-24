@@ -1,18 +1,25 @@
-def plot_stars(st, pixel_scale=0.2, nbin=30, show=False):
+def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     import matplotlib.pyplot as mplt
     import numpy as np
     import esutil as eu
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(8, 8))
 
-    logic = (st['flags'] == 0) & (st['psfrec_flags'] == 0)
-    w, = np.where(logic)
-    # slogic = logic & st['star_select']
-    wnostar, = np.where(~st['star_select'][w])
-    wstar, = np.where(st['star_select'][w])
-    wres, = np.where(st['reserved'][w])
+    logic = (
+        (st['flags'] == 0)
+        & (st['psfrec_flags'] == 0)
+        & (st['psf_flux_err'] > 0)
+    )
 
-    flux = st['psf_flux'][w]
+    w, = np.where(logic)
+    sind = np.arange(w.size)
+    if frac is not None:
+        num = int(frac * w.size)
+        rng = np.random.default_rng(seed=st.size)
+        sind = rng.choice(sind, size=num)
+
+    s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
+
     fwhm = np.sqrt(st['T'][w] / 2) * 2.3548 * pixel_scale
     T = st['T'][w]
     Tpsf = st['psfrec_T'][w]
@@ -22,26 +29,34 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False):
     e2 = st['e2'][w]
     e2psf = st['psfrec_e2'][w]
 
-    flux_lim = [1000, 1.e7]
+    # flux_lim = [1000, 1.e7]
+    s2n_lim = [3, 50000]
     fwhm_lim = [0.3, 1.2]
     Tratio_lim = [-1, 1]
     Tratio_hist_lim = [-0.1, 0.1]
     ediff_lim = [-0.1, 0.1]
 
+    wnostar, = np.where(~st['star_select'][w[sind]])
+    wstar, = np.where(st['star_select'][w[sind]])
+    wnostar = sind[wnostar]
+    wstar = sind[wstar]
+
     # fwhm
     axs[0, 0].set(
-        xlabel='PSF flux',
+        xlabel='S/N',
         ylabel='FWHM [arcsec]',
-        xlim=flux_lim,
+        # xlim=flux_lim,
+        xlim=s2n_lim,
         ylim=fwhm_lim,
     )
     axs[0, 0].set_xscale('log')
 
     Tratio_label = r'T/T$_{\mathrm{PSF}} - 1$'
     axs[0, 1].set(
-        xlabel='PSF flux',
+        xlabel='S/N',
         ylabel=Tratio_label,
-        xlim=flux_lim,
+        # xlim=flux_lim,
+        xlim=s2n_lim,
         ylim=Tratio_lim,
     )
     axs[0, 1].set_xscale('log')
@@ -59,63 +74,51 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False):
     # ms = 0.1
     ms = 0.25
     axs[0, 0].scatter(
-        flux[wnostar],
+        s2n[wnostar],
         fwhm[wnostar],
         marker='.',
         s=ms,
         c='black',
-        label='all',
     )
     axs[0, 0].scatter(
-        flux[wstar],
+        s2n[wstar],
         fwhm[wstar],
         marker='.',
         s=ms,
         c='red',
-        label='star cand',
     )
 
+    # Above makes the legend markers too small.  Use larger fake points off
+    # plot
+    axs[0, 0].scatter(1.e9, -1000, marker='.', c='black', label='all')
+    axs[0, 0].scatter(1.e9, -1000, marker='.', c='red', label='star cand')
     axs[0, 0].legend()
 
     # T/Tpsf - 1
 
     axs[0, 1].scatter(
-        flux[wnostar],
+        s2n[wnostar],
         Tratio[wnostar],
         marker='.',
         s=ms,
         color='black',
-        label='all',
     )
     axs[0, 1].scatter(
-        flux[wstar],
+        s2n[wstar],
         Tratio[wstar],
         marker='.',
         s=ms,
         color='red',
-        label='star cand',
     )
-    axs[0, 1].axhline(1, color='darkgreen')
+    axs[0, 1].axhline(0, color='darkgreen', alpha=0.5)
 
-    # Tpsf - Tstar
-    # Tdiff = Tpsf - T
     #
-    # Tdiff_stats = eu.stat.get_stats(Tdiff[wres])
-    # Tdmess = r'$\Delta$T = %.3g +/- %.3g' % (
-    #     Tdiff_stats['mean'],
-    #     Tdiff_stats['err'],
-    # )
-    # axs[1, 0].hist(
-    #     Tdiff[wres],
-    #     bins=np.linspace(Tdiff_lim[0], Tdiff_lim[1], nbin),
-    # )
-    # xloc = 0.1
-    # axs[1, 0].text(
-    #     xloc, 0.9, Tdmess,
-    #     transform=axs[1, 0].transAxes,
-    # )
+    # only reserved stars used in the following plots
+    #
 
     # T/Tpsf
+
+    wres, = np.where(st['reserved'][w])
 
     Tratio_stats = eu.stat.get_stats(Tratio[wres])
     Tdmess = Tratio_label + ': %.3g +/- %.3g' % (
