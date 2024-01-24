@@ -12,6 +12,8 @@
 #        output.dir={some_directory}
 #
 # * turn off sky gradient and vignetting so we can use a single number for sky_level
+#   Note this does not prevent vignetting on the ray traced, photon shot objects,
+#   only the sky  and FFT objects.
 # * eimage will have variance equal to sky_level
 # * hack to get sky by storing image.sky_level in truth catalog, the same value
 #   for all objects
@@ -133,6 +135,7 @@ input:
     #           - "$det_name"
 
     # turn off vignetting so we can use sky_level * pixel_area to get the background
+    # note does not turn of vignetting on photon shot objects
     # vignetting:
     #     file_name: LSSTCam_vignetting_data.json
 
