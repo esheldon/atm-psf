@@ -4,7 +4,7 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     rng = np.random.default_rng(seed=st.size)
 
-    fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(8, 8))
+    fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(9, 8))
 
     logic = (
         (st['flags'] == 0)
@@ -33,8 +33,8 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     s2n_lim = [3, 50000]
     fwhm_lim = [0.3, 1.2]
     Tratio_lim = [-1, 1]
-    Tratio_hist_lim = [-0.1, 0.1]
-    ediff_lim = [-0.1, 0.1]
+    Tratio_hist_lim = [-0.05, 0.05]
+    ediff_lim = [-0.07, 0.07]
 
     wnostar, = np.where(~st['star_select'][w[sind]])
     wstar, = np.where(st['star_select'][w[sind]])
@@ -178,11 +178,13 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
 def bootstrap(rng, vals, nsamp=1000):
     import numpy as np
+    # import esutil as eu
 
     means = np.zeros(nsamp)
     for i in range(nsamp):
         ind = rng.integers(0, vals.size, size=vals.size)
         means[i] = vals[ind].mean()
+        # means[i], _ = eu.stat.sigma_clip(vals[ind])
 
     mn = means.mean()
     err = means.std()
