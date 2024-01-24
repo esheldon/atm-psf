@@ -107,12 +107,10 @@ def get_file_data(directory):
 
 def main():
     import os
-    import numpy as np
 
     args = get_args()
 
     config = load_config(args.config)
-    rng = np.random.default_rng(config['seed'])
 
     dlist = get_file_data(config['sim_dir'])
     print('found:', len(dlist), 'eimage files')
@@ -123,6 +121,7 @@ def main():
     write_script(run_dir)
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
+
     with open(condor_file, 'w') as condorf:
 
         write_condor_head(condorf, config)
@@ -159,13 +158,19 @@ def main():
             job_name = f'{config["run"]}-{ipad}'
             jobtext = JOB_TEMPLATE % {
                 'job_name': job_name,
-                'seed': rng.integers(0, 2**20),
+                'seed': get_seed(data['image']),
                 'image': data['image'],
                 'truth': data['truth'],
                 'piff': piff_file_local,
                 'sources': sources_file_local,
             }
             condorf.write(jobtext)
+
+
+def get_seed(fname):
+    import hashlib
+    h = hashlib.sha1('stuff'.encode("utf-8")).hexdigest()
+    return int(h, 16) % 2**30
 
 
 if __name__ == '__main__':
