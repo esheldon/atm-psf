@@ -3,11 +3,13 @@
 
 def main(flist, outfile, nbin, frac):
     import atm_psf
+    import esutil as eu
 
     data = atm_psf.io.load_sources_many(flist)
     fig, axs = atm_psf.diagnostics.plot_stars(data, nbin=nbin, frac=frac)
 
     print('writing:', outfile)
+    eu.ostools.makedirs_fromfile(outfile)
     fig.savefig(outfile, dpi=150)
 
 
@@ -16,7 +18,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', nargs='+', required=True)
     parser.add_argument('-o', '--output', required=True)
-    parser.add_argument('--nbin', type=int)
+    parser.add_argument('--nbin', default=30, type=int)
     parser.add_argument(
         '--frac',
         type=float,
