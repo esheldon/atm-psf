@@ -47,6 +47,7 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
 
 
@@ -134,6 +135,7 @@ def main():
     opsim_ids = rng.choice(
         opsim_info['id'], size=npointings, replace=False,
     )
+    seeds = rng.integers(0, 2**20, size=npointings)
 
     all_ccds = np.arange(189)
 
@@ -149,23 +151,28 @@ def main():
                 print('-'*70)
                 print(f'{i+1}/{npointings}')
 
-                obsid = opsim_ids[i]
+                this_rng = np.random.default_rng(seeds[i])
 
+                obsid = opsim_ids[i]
                 obsid_pad = '%08d' % obsid
+
                 outdir = os.path.join(run_dir, obsid_pad)
                 makedir(outdir)
 
-                ccds = rng.choice(
+                instcat_in = this_rng.choice(instcats)
+                instcat_out = os.path.join(outdir, 'instcat.txt')
+                if args.skip_existing and os.path.exists(instcat_out):
+                    print('skipping existing:', instcat_out)
+                    continue
+
+                ccds = this_rng.choice(
                     all_ccds,
                     size=config['ccds_per_pointing'],
                     replace=False,
                 )
 
-                instcat_in = rng.choice(instcats)
-                instcat_out = os.path.join(outdir, 'instcat.txt')
-
                 replace_instcat_from_db(
-                    rng=rng,
+                    rng=this_rng,
                     fname=instcat_in,
                     conn=conn,
                     obsid=obsid,
@@ -183,7 +190,6 @@ def main():
                     obsid_pad,
                     os.path.basename(instcat_out),
                 )
-
                 jobtext = JOB_TEMPLATE % {
                     'job_name': job_name,
                     'instcat': instcat_local,
