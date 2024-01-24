@@ -1,7 +1,8 @@
 def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     import matplotlib.pyplot as mplt
     import numpy as np
-    import esutil as eu
+
+    rng = np.random.default_rng(seed=st.size)
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(8, 8))
 
@@ -15,7 +16,6 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     sind = np.arange(w.size)
     if frac is not None:
         num = int(frac * w.size)
-        rng = np.random.default_rng(seed=st.size)
         sind = rng.choice(sind, size=num)
 
     s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
@@ -120,10 +120,9 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     wres, = np.where(st['reserved'][w])
 
-    Tratio_stats = eu.stat.get_stats(Tratio[wres])
+    Tmean, Terr = bootstrap(rng, Tratio[wres])
     Tdmess = Tratio_label + ': %.3g +/- %.3g' % (
-        Tratio_stats['mean'],
-        Tratio_stats['err'],
+        Tmean, Terr,
     )
     axs[1, 0].hist(
         Tratio[wres],
@@ -139,16 +138,14 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     # e diff
     e1diff = e1 - e1psf
     e2diff = e2 - e2psf
-    e1diff_stats = eu.stat.get_stats(e1diff[wres])
-    e2diff_stats = eu.stat.get_stats(e2diff[wres])
+    m1, err1 = bootstrap(rng, e1diff[wres])
+    m2, err2 = bootstrap(rng, e2diff[wres])
 
     e1dmess = r'$\Delta$e$_1$: %.3g +/- %.3g' % (
-        e1diff_stats['mean'],
-        e1diff_stats['err'],
+        m1, err1,
     )
     e2dmess = r'$\Delta$e$_2$: %.3g +/- %.3g' % (
-        e2diff_stats['mean'],
-        e2diff_stats['err'],
+        m2, err2,
     )
 
     axs[1, 1].hist(
@@ -177,3 +174,16 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
         mplt.show()
 
     return fig, axs
+
+
+def bootstrap(rng, vals, nsamp=1000):
+    import numpy as np
+
+    means = np.zeros(nsamp)
+    for i in range(nsamp):
+        ind = rng.integers(0, vals.size, size=vals.size)
+        means[i] = vals[ind].mean()
+
+    mn = means.mean()
+    err = means.std()
+    return mn, err
