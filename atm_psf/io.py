@@ -153,7 +153,7 @@ def make_star_struct(n):
     return np.zeros(n, dtype=dtype)
 
 
-def load_sources_many(flist):
+def load_sources_many(flist, nstars_min=50):
     """
     load star data from multiple files.  See load_sources for details.
 
@@ -173,6 +173,11 @@ def load_sources_many(flist):
     dlist = []
     for fname in flist:
         data = load_sources(fname)
+
+        nstars = data['star_select'].sum()
+        if nstars < nstars_min:
+            print(f'skipping nstars {nstars} < {nstars_min}')
+            continue
         dlist.append(data)
 
     return eu.numpy_util.combine_arrlist(dlist)
@@ -201,45 +206,50 @@ def load_sources(fname):
     st = make_star_struct(len(sources))
 
     st['star_select'] = data['star_select']
-    st['reserved'] = data['reserved']
 
-    st['ra'] = sources['coord_ra']
-    st['dec'] = sources['coord_dec']
-    st['psf_flux'] = sources['base_PsfFlux_instFlux']
-    st['psf_flux_err'] = sources['base_PsfFlux_instFluxErr']
+    if 'reserved' in data:
+        st['reserved'] = data['reserved']
 
-    st['x'] = sources['ext_shapeHSM_HsmSourceMoments_x']
-    st['y'] = sources['ext_shapeHSM_HsmSourceMoments_y']
+        st['ra'] = sources['coord_ra']
+        st['dec'] = sources['coord_dec']
+        st['psf_flux'] = sources['base_PsfFlux_instFlux']
+        st['psf_flux_err'] = sources['base_PsfFlux_instFluxErr']
 
-    _oflags = sources['ext_shapeHSM_HsmSourceMoments_flag']
-    xx = sources['ext_shapeHSM_HsmSourceMoments_xx']
-    xy = sources['ext_shapeHSM_HsmSourceMoments_xy']
-    yy = sources['ext_shapeHSM_HsmSourceMoments_yy']
+        st['x'] = sources['ext_shapeHSM_HsmSourceMoments_x']
+        st['y'] = sources['ext_shapeHSM_HsmSourceMoments_y']
 
-    _pflags = sources['ext_shapeHSM_HsmPsfMoments_flag']
-    pxx = sources['ext_shapeHSM_HsmPsfMoments_xx']
-    pxy = sources['ext_shapeHSM_HsmPsfMoments_xy']
-    pyy = sources['ext_shapeHSM_HsmPsfMoments_yy']
+        _oflags = sources['ext_shapeHSM_HsmSourceMoments_flag']
+        xx = sources['ext_shapeHSM_HsmSourceMoments_xx']
+        xy = sources['ext_shapeHSM_HsmSourceMoments_xy']
+        yy = sources['ext_shapeHSM_HsmSourceMoments_yy']
 
-    e1, e2, T, obj_flags = get_e1e2T(
-        flags=_oflags, xx=xx, xy=xy, yy=yy,
-    )
-    psfrec_e1, psfrec_e2, psfrec_T, psfrec_flags = get_e1e2T(
-        flags=_pflags, xx=pxx, xy=pxy, yy=pyy,
-    )
+        _pflags = sources['ext_shapeHSM_HsmPsfMoments_flag']
+        pxx = sources['ext_shapeHSM_HsmPsfMoments_xx']
+        pxy = sources['ext_shapeHSM_HsmPsfMoments_xy']
+        pyy = sources['ext_shapeHSM_HsmPsfMoments_yy']
 
-    ngood = ((obj_flags == 0) & (psfrec_flags == 0)).sum()
+        e1, e2, T, obj_flags = get_e1e2T(
+            flags=_oflags, xx=xx, xy=xy, yy=yy,
+        )
+        psfrec_e1, psfrec_e2, psfrec_T, psfrec_flags = get_e1e2T(
+            flags=_pflags, xx=pxx, xy=pxy, yy=pyy,
+        )
 
-    print(f'keeping: {ngood}/{len(sources)}')
-    st['flags'] = obj_flags
-    st['e1'] = e1
-    st['e2'] = e2
-    st['T'] = T
+        ngood = ((obj_flags == 0) & (psfrec_flags == 0)).sum()
 
-    st['psfrec_flags'] = psfrec_flags
-    st['psfrec_e1'] = psfrec_e1
-    st['psfrec_e2'] = psfrec_e2
-    st['psfrec_T'] = psfrec_T
+        print(f'keeping: {ngood}/{len(sources)}')
+        st['flags'] = obj_flags
+        st['e1'] = e1
+        st['e2'] = e2
+        st['T'] = T
+
+        st['psfrec_flags'] = psfrec_flags
+        st['psfrec_e1'] = psfrec_e1
+        st['psfrec_e2'] = psfrec_e2
+        st['psfrec_T'] = psfrec_T
+    else:
+        st['flags'] = 2**10
+
     return st
 
 
