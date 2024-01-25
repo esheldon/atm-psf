@@ -135,7 +135,7 @@ def main():
     opsim_ids = rng.choice(
         opsim_info['id'], size=npointings, replace=False,
     )
-    seeds = rng.integers(0, 2**20, size=npointings)
+    seeds = rng.integers(0, 2**30, size=npointings)
 
     all_ccds = np.arange(189)
 
