@@ -15,10 +15,14 @@ def save_stack_piff(fname, piff_psf):
         The object to write
     """
     import esutil as eu
+    import pickle
     eu.ostools.makedirs_fromfile(fname)
 
     with open(fname, 'wb') as fobj:
-        s = piff_psf._write()
+        if piff_psf is None:
+            s = pickle.dumps(None)
+        else:
+            s = piff_psf._write()
         fobj.write(s)
 
 

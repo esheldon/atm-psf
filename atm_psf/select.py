@@ -34,9 +34,12 @@ def select_stars(sources):
     )
     task = ObjectSizeStarSelectorTask(config=config)
     res = task.selectSources(sources[selected])
+    print('    selected', res.selected.sum())
 
     w, = np.where(selected)
     selected[w[~res.selected]] = False
+    print('    kept', selected.sum(), 'after blending cuts')
+    # import IPython; IPython.embed()
     return selected
 
 

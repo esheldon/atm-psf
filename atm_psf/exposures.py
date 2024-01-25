@@ -24,6 +24,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     import lsst.afw.image as afw_image
     from .wcs import header_to_wcs
     from metadetect.lsst.skysub import iterate_detection_and_skysub
+    import numpy as np
 
     print('loading:', fname)
     with fitsio.FITS(fname) as fits:
@@ -40,20 +41,47 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     masked_image = afw_image.MaskedImageF(nx, ny)
     masked_image.image.array[:, :] = image
 
-    if truth is not None:
+    if True and truth is not None:
         sky = int(truth_data['sky_level'][0] * 0.2**2)
 
+        print('cat sky:', sky)
         print('subtracting cat sky:', sky)
         masked_image.image.array[:, :] -= sky
         masked_image.variance.array[:, :] = sky
         print('image stats after subtraction:')
         print_image_stats(masked_image.image.array)
 
+    if False:
+        import sep
+        import sxdes
+
+        bkg_model = sep.Background(masked_image.image.array)
+        bkg = bkg_model.back()
+
+        print('bkg median:', np.median(bkg))
+        masked_image.image.array[:, :] -= bkg
+        masked_image.variance.array[:, :] = bkg_model.globalrms**2
+        print('image stats after subtraction:')
+        print_image_stats(masked_image.image.array)
+        # objects = sep.extract(
+        #     masked_image.image.array, 1.0, err=bkg_model.globalrms,
+        # )
+        objects, seg = sxdes.run_sep(
+            masked_image.image.array, noise=bkg_model.globalrms,
+        )
+        print('sky:', int(truth_data['sky_level'][0] * 0.2**2))
+        print('globalrms**2:', bkg_model.globalrms**2)
+        # import IPython; IPython.embed()
+        # _fwhm = objects['flux_radius'] * 2 * 0.2,
+        # plot_flux_fwhm(objects['flux_auto'], _fwhm, show=True)
+        # stop
+
     EDGEFLAG = masked_image.mask.getMaskPlane('EDGE')
     masked_image.mask.array[:EDGE, :] = EDGEFLAG
-    masked_image.mask.array[ny-EDGE, :] = EDGEFLAG
+    masked_image.mask.array[ny-EDGE:, :] = EDGEFLAG
     masked_image.mask.array[:, :EDGE] = EDGEFLAG
-    masked_image.mask.array[:, nx-EDGE] = EDGEFLAG
+    masked_image.mask.array[:, nx-EDGE:] = EDGEFLAG
+    # view_image(masked_image.mask.array)
 
     exp = afw_image.ExposureF(masked_image)
 
@@ -74,13 +102,60 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     detector = DetectorWrapper(hdr['DET_NAME']).detector
     exp.setDetector(detector)
 
-    print('doing iterative detection/sky subtraction')
-    iterate_detection_and_skysub(
-        exposure=exp,
-        thresh=5,
-    )
-    print('image stats after second subtraction:')
-    print_image_stats(exp.image.array)
+    if True:
+        print('doing iterative detection/sky subtraction')
+        iterate_detection_and_skysub(
+            exposure=exp,
+            thresh=5,
+        )
+
+        print('image stats after second subtraction:')
+        print('BGMEAN:', exp.getMetadata()['BGMEAN'])
+        print_image_stats(exp.image.array)
+
+        # sources = result.sources
+        val = 2 ** exp.mask.getMaskPlaneDict()['DETECTED']
+        exp.mask.array[:, :] &= ~val
+        # view_image(exp.mask.array)
+        # import IPython; IPython.embed()
+
+        if False:
+            from .measure import DetectMeasurer
+            detmeas = DetectMeasurer(exposure=exp, rng=rng)
+            detmeas.detect()
+            detmeas.measure()
+            sources = detmeas.sources
+
+            Ts = (
+                sources['base_SdssShape_xx'] + sources['base_SdssShape_yy']
+            )
+            _fwhm = np.sqrt(Ts/2) * 2.3548200450309493 * 0.2
+            figax = plot_flux_fwhm(
+                sources['base_PsfFlux_instFlux'],
+                _fwhm,
+                show=False,
+            )
+
+            Th = (
+                sources['ext_shapeHSM_HsmSourceMoments_xx']
+                + sources['ext_shapeHSM_HsmSourceMoments_yy']
+            )
+
+            _fwhm = np.sqrt(Th/2) * 2.3548200450309493 * 0.2
+            plot_flux_fwhm(
+                sources['base_PsfFlux_instFlux'],
+                _fwhm,
+                figax=figax,
+                show=False,
+            )
+            _flux = objects['flux_auto']
+            _fwhm = objects['flux_radius'] * 2 * 0.2,
+            plot_flux_fwhm(
+                _flux,
+                _fwhm,
+                figax=figax,
+                show=True,
+            )
 
     return exp
 
@@ -115,3 +190,34 @@ def print_image_stats(image):
 
     print('    median:', np.median(image))
     print(f'    mean: {mn:3f} +/- {err:3f}')
+
+
+def plot_flux_fwhm(flux, fwhm, show=False, figax=None):
+    import matplotlib.pyplot as mplt
+
+    if figax is None:
+        fig, ax = mplt.subplots()
+
+        ax.set_xscale('log')
+        ax.set(
+            xlim=[700, 1.e6],
+            ylim=[0, 1.5],
+            xlabel='flux',
+            ylabel='FWHM [arcsec]',
+        )
+    else:
+        fig, ax = figax
+
+    ax.scatter(flux, fwhm, alpha=0.5)
+    if show:
+        mplt.show()
+
+    return fig, ax
+
+
+def view_image(im):
+    import matplotlib.pyplot as mplt
+
+    fig, ax = mplt.subplots()
+    ax.imshow(im)
+    mplt.show()
