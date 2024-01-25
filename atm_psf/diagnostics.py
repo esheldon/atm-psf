@@ -29,17 +29,17 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     e2 = st['e2'][w]
     e2psf = st['psfrec_e2'][w]
 
-    # flux_lim = [1000, 1.e7]
-    s2n_lim = [3, 50000]
-    fwhm_lim = [0.3, 1.2]
-    Tratio_lim = [-1, 1]
-    Tratio_hist_lim = [-0.05, 0.05]
-    ediff_lim = [-0.07, 0.07]
-
     wnostar, = np.where(~st['star_select'][w[sind]])
     wstar, = np.where(st['star_select'][w[sind]])
     wnostar = sind[wnostar]
     wstar = sind[wstar]
+
+    # flux_lim = [1000, 1.e7]
+    s2n_lim = [3, 50000]
+    fwhm_lim = [0.3, 2.0]
+    Tratio_lim = [-1, 1]
+    Tratio_hist_lim = [-0.05, 0.05]
+    ediff_lim = [-0.07, 0.07]
 
     # fwhm
     axs[0, 0].set(
