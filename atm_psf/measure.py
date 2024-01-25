@@ -122,9 +122,6 @@ def detect_and_measure_old(
                 with replacer.sourceInserted(source_id):
                     meas_task.callMeasure(source, exposure)
 
-        # sources['base_SdssShape_xx'] = sources['ext_shapeHSM_HsmSourceMoments_xx']
-        # sources['base_SdssShape_xy'] = sources['ext_shapeHSM_HsmSourceMoments_xy']
-        # sources['base_SdssShape_yy'] = sources['ext_shapeHSM_HsmSourceMoments_yy']
     else:
         sources = []
 
