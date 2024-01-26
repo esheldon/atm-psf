@@ -1,6 +1,7 @@
 def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     import matplotlib.pyplot as mplt
     import numpy as np
+    from .util import T_to_fwhm
 
     rng = np.random.default_rng(seed=st.size)
 
@@ -20,7 +21,8 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
 
-    fwhm = np.sqrt(st['T'][w] / 2) * 2.3548 * pixel_scale
+    fwhm = T_to_fwhm(st['T'][w])
+    # fwhm = T_to_fwhm(st['psfrec_T'][w])
     T = st['T'][w]
     Tpsf = st['psfrec_T'][w]
     Tratio = T / Tpsf - 1

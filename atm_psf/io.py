@@ -153,7 +153,7 @@ def make_star_struct(n):
     return np.zeros(n, dtype=dtype)
 
 
-def load_sources_many(flist, nstars_min=50):
+def load_sources_many(flist, nstars_min=50, fwhm_min=0.55):
     """
     load star data from multiple files.  See load_sources for details.
 
@@ -168,18 +168,30 @@ def load_sources_many(flist, nstars_min=50):
         Array with e1, e2, T added as well as flags for processing.
         Flags are set based on HSM flags and if T is <= 0
     """
-
+    import numpy as np
     import esutil as eu
+    from .util import T_to_fwhm
+
     dlist = []
     for fname in flist:
         data = load_sources(fname)
 
-        nstars = data['star_select'].sum()
+        ss = data['star_select']
+        nstars = ss.sum()
         if nstars < nstars_min:
-            print(f'skipping nstars {nstars} < {nstars_min}')
+            print(f'    skipping nstars {nstars} < {nstars_min}')
             continue
+
+        res = data['reserved']
+        fwhms = T_to_fwhm(data['psfrec_T'][res])
+        fwhm = np.median(fwhms)
+        if fwhm < fwhm_min:
+            print(f'    skipping fwhm {fwhm:.3f} < {fwhm_min:.3f}')
+            continue
+
         dlist.append(data)
 
+    print(f'kept {len(dlist)}/{len(flist)}')
     return eu.numpy_util.combine_arrlist(dlist)
 
 
