@@ -1,10 +1,19 @@
-def get_fwhm(img, cen=None, show=False, save=False, scale=0.2):
+from .constants import SCALE
+
+
+def T_to_fwhm(T):
+    import numpy as np
+    sigma = np.sqrt(T/2)
+    return sigma * 2.3548200450309493 * SCALE
+
+
+def get_image_fwhm(img, cen=None, show=False, save=False):
     import numpy as np
     import matplotlib.pyplot as plt
     import espy.images
 
     r, improf = espy.images.get_profile(img, cen=cen)
-    r = r * scale
+    r = r * SCALE
     improf *= 1.0/improf.max()
 
     s = improf.argsort()
