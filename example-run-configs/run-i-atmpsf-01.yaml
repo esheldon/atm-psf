@@ -6,7 +6,7 @@ memory: "12G"
 filter: "i"
 
 # total number of pointings (and thus atmospheres)
-npointings: 100
+npointings: 800
 
 # render this many random CCDs per pointing
 ccds_per_pointing: 4

@@ -169,7 +169,7 @@ def main():
 
 def get_seed(fname):
     import hashlib
-    h = hashlib.sha1('stuff'.encode("utf-8")).hexdigest()
+    h = hashlib.sha1(fname.encode("utf-8")).hexdigest()
     return int(h, 16) % 2**30
 
 
