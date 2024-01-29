@@ -1,12 +1,12 @@
-run: "run-r-atmpsf-01"
-seed: 1111
+run: "run-g-atmpsf-01"
+seed: 981
 
 memory: "12G"
 
-filter: "r"
+filter: "g"
 
 # total number of pointings (and thus atmospheres)
-npointings: 800
+npointings: 1600
 
 # render this many random CCDs per pointing
 ccds_per_pointing: 4
