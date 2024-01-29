@@ -122,10 +122,16 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     wres, = np.where(st['reserved'][w])
 
-    Tmean, Terr = bootstrap(rng, Tratio[wres])
+    Tstat = bootstrap(rng, Tratio[wres])
     Tdmess = Tratio_label + ': %.3g +/- %.3g' % (
-        Tmean, Terr,
+        Tstat['mean'], Tstat['mean_err'],
     )
+    Tskewmess = 'skew: %.3g +/- %.3g' % (
+        Tstat['skew'], Tstat['skew_err'],
+    )
+    # Tskewmess = 'skew: %.3g' % (
+    #     Tstat['skew'],
+    # )
     axs[1, 0].hist(
         Tratio[wres],
         bins=np.linspace(Tratio_hist_lim[0], Tratio_hist_lim[1], nbin),
@@ -136,18 +142,22 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
         xloc, 0.9, Tdmess,
         transform=axs[1, 0].transAxes,
     )
+    axs[1, 0].text(
+        xloc, 0.85, Tskewmess,
+        transform=axs[1, 0].transAxes,
+    )
 
     # e diff
     e1diff = e1 - e1psf
     e2diff = e2 - e2psf
-    m1, err1 = bootstrap(rng, e1diff[wres])
-    m2, err2 = bootstrap(rng, e2diff[wres])
+    m1stat = bootstrap(rng, e1diff[wres])
+    m2stat = bootstrap(rng, e2diff[wres])
 
     e1dmess = r'$\Delta$e$_1$: %.3g +/- %.3g' % (
-        m1, err1,
+        m1stat['mean'], m1stat['mean_err'],
     )
     e2dmess = r'$\Delta$e$_2$: %.3g +/- %.3g' % (
-        m2, err2,
+        m2stat['mean'], m2stat['mean_err'],
     )
 
     axs[1, 1].hist(
@@ -180,14 +190,24 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
 def bootstrap(rng, vals, nsamp=1000):
     import numpy as np
-    # import esutil as eu
+    import scipy.stats
+    import esutil as eu
 
     means = np.zeros(nsamp)
+    skews = np.zeros(nsamp)
     for i in range(nsamp):
         ind = rng.integers(0, vals.size, size=vals.size)
         means[i] = vals[ind].mean()
-        # means[i], _ = eu.stat.sigma_clip(vals[ind])
+        means[i], _, _ind = eu.stat.sigma_clip(vals[ind], get_indices=True)
+        skews[i] = scipy.stats.skew(vals[ind[_ind]])
 
     mn = means.mean()
     err = means.std()
-    return mn, err
+    skew = skews.mean()
+    skew_err = skews.std()
+    return {
+        'mean': mn,
+        'mean_err': err,
+        'skew': skew,
+        'skew_err': skew_err,
+    }
