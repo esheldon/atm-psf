@@ -153,7 +153,7 @@ def make_star_struct(n):
     return np.zeros(n, dtype=dtype)
 
 
-def load_sources_many(flist, nstars_min=50, fwhm_min=0.55):
+def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
     """
     load star data from multiple files.  See load_sources for details.
 
@@ -174,28 +174,33 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55):
 
     dlist = []
     for fname in flist:
-        data = load_sources(fname)
+        st, alldata = load_sources(fname, get_all=True)
+        if airmass_max is not None:
+            airmass = alldata['airmass']
+            if airmass > airmass_max:
+                print(f'    skipping airmass {airmass} > {airmass_max}')
+                continue
 
-        ss = data['star_select']
+        ss = st['star_select']
         nstars = ss.sum()
         if nstars < nstars_min:
             print(f'    skipping nstars {nstars} < {nstars_min}')
             continue
 
-        res = data['reserved']
-        fwhms = T_to_fwhm(data['psfrec_T'][res])
+        res = st['reserved']
+        fwhms = T_to_fwhm(st['psfrec_T'][res])
         fwhm = np.median(fwhms)
         if fwhm < fwhm_min:
             print(f'    skipping fwhm {fwhm:.3f} < {fwhm_min:.3f}')
             continue
 
-        dlist.append(data)
+        dlist.append(st)
 
     print(f'kept {len(dlist)}/{len(flist)}')
     return eu.numpy_util.combine_arrlist(dlist)
 
 
-def load_sources(fname):
+def load_sources(fname, get_all=False):
     """
     load source data with calculated shapes
 
@@ -262,7 +267,10 @@ def load_sources(fname):
     else:
         st['flags'] = 2**10
 
-    return st
+    if get_all:
+        return st, data
+    else:
+        return st
 
 
 def get_e1e2T(xx, xy, yy, flags):
