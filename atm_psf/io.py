@@ -301,3 +301,27 @@ def get_e1e2T(xx, xy, yy, flags):
         Tflags[w] = 0
 
     return e1, e2, T, Tflags
+
+
+def load_instcat_paths(fname):
+    with open(fname) as fobj:
+        paths = [line.strip() for line in fobj]
+    return paths
+
+
+def load_opsim_info(fname, filter=None):
+    import fitsio
+    import numpy as np
+
+    data = fitsio.read(fname)
+    if filter is not None:
+        w, = np.where(data['filter'] == filter)
+        data = data[w]
+    return data
+
+
+def load_config(fname):
+    import yaml
+    with open(fname) as fobj:
+        data = yaml.safe_load(fobj)
+    return data

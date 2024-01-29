@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--opsim-db', required=True)
+    parser.add_argument('--imsim-config', required=True)
+    parser.add_argument('--obsid', type=int, required=True)
+    parser.add_argument('--instcat', required=True)
+    parser.add_argument('--ccds', required=True,
+                        help='e.g. "[35,66]"')
+    parser.add_argument('--seed', type=int, required=True)
+    return parser.parse_args()
+
+
+GALSIM_COMMAND = r"""
+galsim %(imsim_config)s \
+    input.instance_catalog.file_name="%(instcat)s" \
+    output.nfiles=%(nfiles)d \
+    output.det_num="%(ccds)s"
+"""
+
+
+def run_galsim(imsim_config, instcat, ccds):
+    import os
+    nfiles = len(ccds.split(','))
+
+    command = GALSIM_COMMAND % {
+        'imsim_config': imsim_config,
+        'instcat': instcat,
+        'nfiles': nfiles,
+        'ccds': ccds,
+    }
+    print(command)
+    res = os.system(command)
+    if res != 0:
+        raise RuntimeError('failed galsim call')
+
+
+def main(imsim_config, opsim_db, obsid, instcat, ccds, seed):
+    import os
+    import numpy as np
+    import sqlite3
+    import atm_psf
+
+    rng = np.random.default_rng(seed)
+
+    print('connecting to:', opsim_db)
+
+    with sqlite3.connect(opsim_db) as conn:
+        # galsim will also write to this dir
+        outdir = '%08d' % obsid
+
+        instcat_out = os.path.join(outdir, 'instcat.txt')
+
+        print('making instcat')
+        atm_psf.instcat_tools.replace_instcat_from_db(
+            rng=rng,
+            fname=instcat,
+            conn=conn,
+            obsid=obsid,
+            output_fname=instcat_out,
+            allowed_include=['star'],
+            selector=lambda d: d['magnorm'] > 17
+        )
+
+    # galsim will write to subdir, so chdir to it
+    print('running galsim')
+    run_galsim(
+        imsim_config=imsim_config,
+        instcat=instcat_out,
+        ccds=ccds,
+    )
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        imsim_config=args.imsim_config,
+        opsim_db=args.opsim_db,
+        obsid=args.obsid,
+        instcat=args.instcat,
+        ccds=args.ccds,
+        seed=args.seed,
+    )

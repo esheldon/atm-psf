@@ -51,3 +51,13 @@ def get_image_fwhm(img, cen=None, show=False, save=False):
         plt.close()
 
     return fwhm
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        try:
+            os.makedirs(d)
+        except Exception:
+            pass

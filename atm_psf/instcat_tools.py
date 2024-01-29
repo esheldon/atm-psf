@@ -333,6 +333,10 @@ def write_instcat(fname, data, meta):
     meta: dict
         Metadata to be written in header
     """
+    import esutil as eu
+
+    eu.ostools.makedirs_fromfile(fname, allow_fail=True)
+
     print('writing:', fname)
     with open(fname, 'w') as fobj:
         for key, value in meta.items():
