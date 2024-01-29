@@ -15,7 +15,7 @@ def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
     # loads the image, subtractes the sky using sky_level in truth catalog,
     # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
     # detection
-    exp = atm_psf.exposures.fits_to_exposure(
+    exp, hdr = atm_psf.exposures.fits_to_exposure(
         fname=image_file,
         truth=truth_file,
         rng=rng,
@@ -35,6 +35,8 @@ def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
+    alldata['airmass'] = hdr['AMSTART']
+    alldata['filter'] = hdr['FILTER']
 
     nstars = star_select.sum()
     if nstars >= nstars_min:

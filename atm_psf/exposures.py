@@ -157,7 +157,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
                 show=True,
             )
 
-    return exp
+    return exp, hdr
 
 
 def make_fixed_psf(fwhm, rng):
