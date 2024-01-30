@@ -1,12 +1,19 @@
 #!/usr/bin/env python
 
 
-def main(flist, outfile, nbin, frac, airmass_max):
+def main(flist, outfile, nbin, frac, airmass_max, bys2n=False, s2n_nbin=5):
     import atm_psf
     import esutil as eu
 
     data = atm_psf.io.load_sources_many(flist, airmass_max=airmass_max)
-    fig, axs = atm_psf.diagnostics.plot_stars(data, nbin=nbin, frac=frac)
+    if bys2n:
+        fig, axs = atm_psf.diagnostics.plot_star_stats_bys2n(
+            data, nbin=s2n_nbin, frac=frac,
+        )
+    else:
+        fig, axs = atm_psf.diagnostics.plot_star_stats(
+            data, nbin=nbin, frac=frac,
+        )
 
     print('writing:', outfile)
     eu.ostools.makedirs_fromfile(outfile)
@@ -25,6 +32,9 @@ def get_args():
         type=float,
         help='use this fraction of objects in scatter plots'
     )
+    parser.add_argument('--bys2n', action='store_true',
+                        help='plot stats as a function of S/N')
+    parser.add_argument('--s2n-nbin', default=5, type=int)
     return parser.parse_args()
 
 
@@ -33,4 +43,6 @@ if __name__ == '__main__':
     main(
         flist=args.input, outfile=args.output, nbin=args.nbin, frac=args.frac,
         airmass_max=args.airmass_max,
+        bys2n=args.bys2n,
+        s2n_nbin=args.s2n_nbin,
     )

@@ -1,4 +1,4 @@
-def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
+def plot_star_stats(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     import matplotlib.pyplot as mplt
     import numpy as np
     from .util import T_to_fwhm
@@ -7,11 +7,7 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(9, 8))
 
-    logic = (
-        (st['flags'] == 0)
-        & (st['psfrec_flags'] == 0)
-        & (st['psf_flux_err'] > 0)
-    )
+    logic = get_logic(st)
 
     w, = np.where(logic)
     sind = np.arange(w.size)
@@ -186,6 +182,92 @@ def plot_stars(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
         mplt.show()
 
     return fig, axs
+
+
+def plot_star_stats_bys2n(st, pixel_scale=0.2, show=False, frac=None, nbin=5):
+    import matplotlib.pyplot as mplt
+    import numpy as np
+    import esutil as eu
+
+    rng = np.random.default_rng(seed=st.size)
+
+    fig, axs = mplt.subplots(nrows=2, figsize=(7, 7))
+
+    logic = get_logic(st)
+    logic &= st['reserved']
+
+    w, = np.where(logic)
+
+    s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
+    T = st['T'][w]
+    Tpsf = st['psfrec_T'][w]
+    Tratio = T / Tpsf - 1
+
+    nperbin = int(s2n.size / nbin)
+    print(f'nperbin: {nperbin}')
+
+    binner = eu.stat.Binner(s2n)
+    binner.dohist(nperbin=nperbin, rev=True)
+
+    s2ns = np.zeros(nbin)
+    means = np.zeros(nbin)
+    mean_errs = np.zeros(nbin)
+    skews = np.zeros(nbin)
+    skew_errs = np.zeros(nbin)
+
+    rev = binner['rev']
+    for i in range(binner['hist'].size):
+        if rev[i] != rev[i+1]:
+            wsub = rev[rev[i]:rev[i+1]]
+
+            stats = bootstrap(rng, Tratio[wsub])
+
+            s2ns[i] = s2n[wsub].mean()
+
+            means[i] = stats['mean']
+            mean_errs[i] = stats['mean_err']
+            skews[i] = stats['skew']
+            skew_errs[i] = stats['skew_err']
+
+    s2n_lim = [50, 4000]
+
+    # fwhm
+    Tratio_label = r'T/T$_{\mathrm{PSF}} - 1$'
+    axs[0].set(
+        xlabel='S/N',
+        ylabel=Tratio_label,
+        xlim=s2n_lim,
+        ylim=[-0.00095, 0.00195],
+    )
+    axs[0].axhline(0, color='black')
+    axs[1].set(
+        xlabel='S/N',
+        ylabel=Tratio_label + ' skew',
+        xlim=s2n_lim,
+        ylim=[-0.41, 0.11],
+    )
+    axs[1].axhline(0, color='black')
+    axs[0].set_xscale('log')
+    axs[1].set_xscale('log')
+
+    axs[0].errorbar(
+        s2ns, means, mean_errs,
+    )
+    axs[1].errorbar(
+        s2ns, skews, skew_errs,
+    )
+    if show:
+        mplt.show()
+
+    return fig, axs
+
+
+def get_logic(st):
+    return (
+        (st['flags'] == 0)
+        & (st['psfrec_flags'] == 0)
+        & (st['psf_flux_err'] > 0)
+    )
 
 
 def bootstrap(rng, vals, nsamp=1000):
