@@ -1,0 +1,3 @@
+run: run-g-am1.1-01-piff-01
+base_dir: /astro/u/esheldon/imsim_outputs/piff-runs
+sim_dir: /astro/u/esheldon/imsim_outputs/sim-runs/run-g-am1.1-01

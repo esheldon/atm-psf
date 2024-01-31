@@ -1,0 +1,29 @@
+run: "run-i-am1.1-01"
+seed: 597475341
+
+memory: "12G"
+
+filter: "i"
+airmass_range: [1.0, 1.1]
+
+# total number of pointings (and thus atmospheres)
+npointings: 1600
+
+# render this many random CCDs per pointing
+ccds_per_pointing: 4
+
+# same config used for all image generation, but we override
+# input instcat etc.
+imsim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/atmpsf01.yaml
+
+# get observing conditions from here, including pointing
+opsim_db: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/baseline_v3.3_10yrs.db
+
+# holds id and filter only
+opsim_info: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/random-visits.fits
+
+# get objects from here, but with random ra/dec around pointing
+instcats: /astro/u/esheldon/imsim_outputs/instcats.txt
+
+# data from this run will be located in base_dir/{run_name}
+base_dir: /astro/u/esheldon/imsim_outputs/sim-runs
