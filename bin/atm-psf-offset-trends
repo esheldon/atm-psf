@@ -1,0 +1,200 @@
+#!/usr/bin/env python
+
+
+def plot_one_cens(cens):
+    import matplotlib.pyplot as mplt
+    nbin = 10
+    alpha = 0.5
+    fig, ax = mplt.subplots()
+    ax.set(xlabel='shift [pixels]')
+    ax.hist(cens[:, 0], bins=nbin, alpha=alpha, label='u')
+    ax.hist(cens[:, 1], bins=nbin, alpha=alpha, label='v')
+    ax.legend()
+    mplt.show()
+
+
+def load_data(ploteach=False):
+    import atm_psf
+    from glob import glob
+    import numpy as np
+    import random
+    from tqdm import tqdm
+    import esutil as eu
+
+    dtype = [
+        ('airmass', 'f8'),
+        ('dec', 'f8'),
+
+        ('off', 'f8'),
+        ('off_std', 'f8'),
+        ('uoff', 'f8'),
+        ('uoff_std', 'f8'),
+        ('voff', 'f8'),
+        ('voff_std', 'f8'),
+    ]
+
+    dlist = glob('[0-9]*')  # [:200]
+
+    stlist = []
+    for i, d in enumerate(tqdm(dlist)):
+        flist = glob(f'{d}/piff-*pkl')
+        random.shuffle(flist)
+        f = flist[0]
+
+        sfile = f.replace('piff-', 'sources-')
+        sdata = atm_psf.io.load_source_data(sfile)
+        if 'reserved' in sdata and sdata['airmass'] >= 1:
+
+            st = np.zeros(1, dtype=dtype)
+            p = atm_psf.io.load_stack_piff(f)
+            cens = np.array([s.center for s in p.piffResult.stars])
+
+            st['airmass'] = sdata['airmass']
+
+            sc = sdata['star_select']
+            st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
+            off = np.sqrt(
+                cens[:, 0]**2 + cens[:, 1]**2
+            )
+
+            st['off'], st['off_std'] = eu.stat.sigma_clip(off)
+            st['uoff'], st['uoff_std'] = eu.stat.sigma_clip(cens[:, 0])
+            st['voff'], st['voff_std'] = eu.stat.sigma_clip(cens[:, 1])
+
+            # st['off'] = off.mean()
+            # st['off_std'] = off.std()
+            # st['uoff'] = cens[:, 0].mean()
+            # st['uoff_std'] = cens[:, 0].std()
+            # st['voff'] = cens[:, 1].mean()
+            # st['voff_std'] = cens[:, 1].std()
+
+            stlist.append(st)
+
+            if ploteach:
+                plot_one_cens(cens)
+
+    return eu.numpy_util.combine_arrlist(stlist)
+
+
+def plot_trend(st, xfield='airmass'):
+    import matplotlib.pyplot as mplt
+    import esutil as eu
+    import numpy as np
+
+    nbin = 20
+    nperbin = int(st.size / nbin)
+    xbs = eu.stat.Binner(st[xfield])
+    xbs.dohist(nperbin=nperbin, calc_stats=True, rev=True)
+
+    dtype = [
+        (xfield, 'f8'),
+
+        ('off', 'f8'),
+        ('off_err', 'f8'),
+
+        ('uoff', 'f8'),
+        ('uoff_err', 'f8'),
+        ('uoff_std', 'f8'),
+        ('uoff_std_err', 'f8'),
+
+        ('voff', 'f8'),
+        ('voff_err', 'f8'),
+        ('voff_std', 'f8'),
+        ('voff_std_err', 'f8'),
+    ]
+    stats = np.zeros(
+        nbin,
+        dtype=dtype,
+    )
+    rev = xbs['rev']
+    for i in range(nbin):
+        if rev[i] != rev[i+1]:
+            w = rev[rev[i]:rev[i+1]]
+
+            stats[xfield][i] = st[xfield][w].mean()
+
+            stats['off'][i] = st['off'][w].mean()
+            stats['off_err'][i] = st['off'][w].std() / np.sqrt(nbin)
+
+            stats['uoff'][i] = st['uoff'][w].mean()
+            stats['uoff_err'][i] = st['uoff'][w].std() / np.sqrt(nbin)
+            stats['uoff_std'][i] = st['uoff_std'][w].mean()
+            stats['uoff_std_err'][i] = st['uoff_std'][w].std() / np.sqrt(nbin)
+
+            stats['voff'][i] = st['voff'][w].mean()
+            stats['voff_err'][i] = st['voff'][w].std() / np.sqrt(nbin)
+            stats['voff_std'][i] = st['voff_std'][w].mean()
+            stats['voff_std_err'][i] = st['voff_std'][w].std() / np.sqrt(nbin)
+
+    # import IPython; IPython.embed()
+
+    fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
+
+    axs[0].set(
+        ylabel='offset',
+    )
+    axs[1].set(
+        xlabel=xfield, ylabel=r'$\sigma$(offset)',
+    )
+    # axs[0].set_xscale('log')
+    # axs[1].set_xscale('log')
+
+    axs[0].errorbar(
+        stats[xfield],
+        stats['uoff'],
+        stats['uoff_err'],
+        label='u',
+    )
+    axs[0].errorbar(
+        stats[xfield],
+        stats['voff'],
+        stats['voff_err'],
+        label='v',
+    )
+    axs[0].errorbar(
+        stats[xfield],
+        stats['off'],
+        stats['voff_err'],
+        label=r'$\sqrt{u^2 + v^2}$',
+    )
+
+    axs[0].legend()
+
+    axs[1].errorbar(
+        stats[xfield],
+        stats['uoff_std'],
+        stats['uoff_std_err'],
+        label='u',
+    )
+    axs[1].errorbar(
+        stats[xfield],
+        stats['voff_std'],
+        stats['voff_std_err'],
+        label='v',
+    )
+    # axs[1].legend()
+
+    fname = f'offsets-vs-{xfield}.pdf'
+    print('writing:', fname)
+    mplt.savefig(fname)
+    mplt.savefig(fname.replace('.pdf', '.png'), dpi=150)
+
+
+def main():
+    import os
+    import fitsio
+    ploteach = False
+
+    fname = 'offsets.fits'
+    if not os.path.exists(fname):
+        st = load_data(ploteach=ploteach)
+        # fitsio.write(fname, st, clobber=True)
+    else:
+        st = fitsio.read(fname)
+
+    plot_trend(st, xfield='dec')
+    plot_trend(st, xfield='airmass')
+
+
+if __name__ == '__main__':
+    main()
