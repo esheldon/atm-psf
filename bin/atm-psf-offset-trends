@@ -179,6 +179,7 @@ def load_data_bypointing(ploteach=False):
 
     dtype = [
         ('airmass', 'f8'),
+        ('alt', 'f8'),
         ('dec', 'f8'),
 
         ('off', 'f8'),
@@ -209,6 +210,10 @@ def load_data_bypointing(ploteach=False):
             ])
 
             st['airmass'] = sdata['airmass']
+            if 'altitude' in sdata['instcat_meta']:
+                st['alt'] = sdata['instcat_meta']['altitude']
+            else:
+                st['alt'] = np.nan
 
             sc = sdata['star_select']
             st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
@@ -287,51 +292,40 @@ def plot_trend_bypointing(st, xfield='airmass'):
 
     # import IPython; IPython.embed()
 
-    fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
+    # fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
+    fig, ax = mplt.subplots()
 
-    axs[0].set(
-        ylabel='offset',
-    )
-    axs[1].set(
-        xlabel=xfield, ylabel=r'$\sigma$(offset)',
-    )
-    # axs[0].set_xscale('log')
-    # axs[1].set_xscale('log')
+    if xfield == 'alt':
+        xlabel = 'altitude'
+    else:
+        xlabel = xfield
 
-    axs[0].errorbar(
+    ax.set(
+        xlabel=xlabel,
+        ylabel='offset [arcsec]',
+    )
+
+    ax.errorbar(
         stats[xfield],
         stats['uoff'],
         stats['uoff_err'],
         label='u',
     )
-    axs[0].errorbar(
+    ax.errorbar(
         stats[xfield],
         stats['voff'],
         stats['voff_err'],
         label='v',
     )
-    axs[0].errorbar(
-        stats[xfield],
-        stats['off'],
-        stats['voff_err'],
-        label=r'$\sqrt{u^2 + v^2}$',
-    )
-
-    axs[0].legend()
-
-    axs[1].errorbar(
-        stats[xfield],
-        stats['uoff_std'],
-        stats['uoff_std_err'],
-        label='u',
-    )
-    axs[1].errorbar(
-        stats[xfield],
-        stats['voff_std'],
-        stats['voff_std_err'],
-        label='v',
-    )
-    # axs[1].legend()
+    ax.axhline(0, color='black')
+    # ax.errorbar(
+    #     stats[xfield],
+    #     stats['off'],
+    #     stats['voff_err'],
+    #     label=r'$\sqrt{u^2 + v^2}$',
+    # )
+    #
+    ax.legend()
 
     fname = f'offsets-vs-{xfield}.pdf'
     print('writing:', fname)
@@ -353,6 +347,7 @@ def main():
     if args.bypointing:
         st = load_data_bypointing(ploteach=ploteach)
 
+        plot_trend_bypointing(st, xfield='alt')
         plot_trend_bypointing(st, xfield='dec')
         plot_trend_bypointing(st, xfield='airmass')
     else:
