@@ -13,7 +13,155 @@ def plot_one_cens(cens):
     mplt.show()
 
 
-def load_data(ploteach=False):
+def load_data():
+    import atm_psf
+    from glob import glob
+    import numpy as np
+    from tqdm import tqdm
+    import esutil as eu
+
+    dtype = [
+        ('airmass', 'f8'),
+        ('ra', 'f8'),
+        ('dec', 'f8'),
+        ('s2n', 'f8'),
+        ('off', 'f8'),
+        ('uoff', 'f8'),
+        ('voff', 'f8'),
+    ]
+
+    dlist = glob('[0-9]*')  # [:200]
+
+    stlist = []
+    for i, d in enumerate(tqdm(dlist)):
+        flist = glob(f'{d}/piff-*pkl')
+        for f in flist:
+
+            sfile = f.replace('piff-', 'sources-')
+            sdata = atm_psf.io.load_source_data(sfile)
+            if 'reserved' in sdata and sdata['airmass'] >= 1:
+
+                sources = sdata['sources']
+                sc, = np.where(
+                    sdata['star_select']
+                    & ~sdata['reserved']
+                )
+
+                p = atm_psf.io.load_stack_piff(f)
+                stars = [s for s in p.piffResult.stars if not s.is_reserve]
+                nstar = len(stars)
+                if sc.size != nstar:
+                    print('Skipping for missing stars', f, sc.size, nstar)
+                    continue
+
+                for stari, sourcei in enumerate(sc):
+
+                    psf_flux = sources['base_PsfFlux_instFlux'][sourcei]
+                    psf_flux_err = sources['base_PsfFlux_instFluxErr'][sourcei]
+
+                    if psf_flux_err > 0:
+                        st = np.zeros(1, dtype=dtype)
+                        # print(stari, sourcei)
+                        try:
+                            cen = stars[stari].center
+                        except IndexError:
+                            print(stari, sourcei)
+                            import IPython
+                            IPython.embed()
+
+                        st['airmass'] = sdata['airmass']
+                        st['ra'] = sources['coord_ra'][sourcei]
+                        st['dec'] = sources['coord_dec'][sourcei]
+
+                        st['s2n'] = psf_flux / psf_flux_err
+
+                        st['off'] = np.sqrt(cen[0]**2 + cen[1]**2)
+                        st['uoff'] = cen[0]
+                        st['voff'] = cen[1]
+
+                        stlist.append(st)
+
+    return eu.numpy_util.combine_arrlist(stlist)
+
+
+def plot_trend(st, xfield='s2n'):
+    import matplotlib.pyplot as mplt
+    import esutil as eu
+    import numpy as np
+
+    nbin = 20
+    nperbin = int(st.size / nbin)
+    xbs = eu.stat.Binner(st[xfield])
+    xbs.dohist(nperbin=nperbin, calc_stats=True, rev=True)
+
+    dtype = [
+        (xfield, 'f8'),
+
+        ('off', 'f8'),
+        ('off_err', 'f8'),
+
+        ('uoff', 'f8'),
+        ('uoff_err', 'f8'),
+
+        ('voff', 'f8'),
+        ('voff_err', 'f8'),
+    ]
+    stats = np.zeros(
+        nbin,
+        dtype=dtype,
+    )
+    rev = xbs['rev']
+    for i in range(nbin):
+        if rev[i] != rev[i+1]:
+            w = rev[rev[i]:rev[i+1]]
+
+            stats[xfield][i] = st[xfield][w].mean()
+
+            stats['off'][i], _, stats['off_err'][i] = (
+                eu.stat.sigma_clip(st['off'][w], get_err=True)
+            )
+            stats['uoff'][i], _, stats['uoff_err'][i] = (
+                eu.stat.sigma_clip(st['uoff'][w], get_err=True)
+            )
+            stats['voff'][i], _, stats['voff_err'][i] = (
+                eu.stat.sigma_clip(st['voff'][w], get_err=True)
+            )
+
+    fig, ax = mplt.subplots()
+
+    ax.set(
+        xlabel=xfield,
+        ylabel='offset',
+    )
+    if xfield == 's2n':
+        ax.set_xscale('log')
+
+    ax.errorbar(
+        stats[xfield],
+        stats['uoff'],
+        stats['uoff_err'],
+        label='u',
+    )
+    ax.errorbar(
+        stats[xfield],
+        stats['voff'],
+        stats['voff_err'],
+        label='v',
+    )
+    ax.errorbar(
+        stats[xfield],
+        stats['off'],
+        stats['voff_err'],
+        label=r'$\sqrt{u^2 + v^2}$',
+    )
+
+    fname = f'offsets-vs-{xfield}.pdf'
+    print('writing:', fname)
+    mplt.savefig(fname)
+    mplt.savefig(fname.replace('.pdf', '.png'), dpi=150)
+
+
+def load_data_bypointing(ploteach=False):
     import atm_psf
     from glob import glob
     import numpy as np
@@ -76,7 +224,7 @@ def load_data(ploteach=False):
     return eu.numpy_util.combine_arrlist(stlist)
 
 
-def plot_trend(st, xfield='airmass'):
+def plot_trend_bypointing(st, xfield='airmass'):
     import matplotlib.pyplot as mplt
     import esutil as eu
     import numpy as np
@@ -180,20 +328,25 @@ def plot_trend(st, xfield='airmass'):
     mplt.savefig(fname.replace('.pdf', '.png'), dpi=150)
 
 
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bypointing', action='store_true')
+    return parser.parse_args()
+
+
 def main():
-    import os
-    import fitsio
+    args = get_args()
     ploteach = False
 
-    fname = 'offsets.fits'
-    if not os.path.exists(fname):
-        st = load_data(ploteach=ploteach)
-        # fitsio.write(fname, st, clobber=True)
-    else:
-        st = fitsio.read(fname)
+    if args.bypointing:
+        st = load_data_bypointing(ploteach=ploteach)
 
-    plot_trend(st, xfield='dec')
-    plot_trend(st, xfield='airmass')
+        plot_trend_bypointing(st, xfield='dec')
+        plot_trend_bypointing(st, xfield='airmass')
+    else:
+        st = load_data()
+        plot_trend(st, xfield='s2n')
 
 
 if __name__ == '__main__':
