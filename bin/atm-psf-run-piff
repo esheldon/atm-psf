@@ -53,11 +53,19 @@ def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
         )
 
         print('running piff')
-        piff_psf, meta = atm_psf.pifftools.run_piff(
+        piff_psf, meta, not_kept = atm_psf.pifftools.run_piff(
             psf_candidates=candidates,
             reserved=reserved[star_select],
             exposure=exp,
         )
+        # star_select is a full boolean, so we need to get the corresponding
+        # indices
+        nout = not_kept.sum()
+        if nout > 0:
+            print('skipped:', nout, 'candidates')
+            ws, = np.where(star_select)
+            star_select[ws[not_kept]] = False
+            reserved[ws[not_kept]] = False
 
         # remeasure with new psf
         exp.setPsf(piff_psf)

@@ -56,12 +56,17 @@ def run_piff(psf_candidates, reserved, exposure):
             pointing = None
 
     stars = []
-    for candidate, is_reserve in zip(psf_candidates, reserved):
+    ncand = len(psf_candidates)
+    not_kept = np.zeros(ncand, dtype=bool)
+    indices = np.arange(ncand)
+    for ind, candidate, is_reserve in zip(indices, psf_candidates, reserved):
         cmi = candidate.getMaskedImage(stampSize, stampSize)
         good = getGoodPixels(cmi, config.zeroWeightMaskBits)
         fracGood = np.sum(good)/good.size
         if fracGood < config.minimumUnmaskedFraction:
+            not_kept[ind] = True
             continue
+
         weight = computeWeight(cmi, config.maxSNR, good)
 
         bbox = cmi.getBBox()
@@ -142,7 +147,8 @@ def run_piff(psf_candidates, reserved, exposure):
             del star.data.weight
             del star.data.orig_weight
 
-    return PiffPsf(drawSize, drawSize, piffResult), meta
+    ppsf = PiffPsf(drawSize, drawSize, piffResult)
+    return ppsf, meta, not_kept
 
 
 def run_piff_old(psf_candidates, exposure):
