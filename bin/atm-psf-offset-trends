@@ -48,7 +48,10 @@ def load_data():
                 )
 
                 p = atm_psf.io.load_stack_piff(f)
-                stars = [s for s in p.piffResult.stars if not s.is_reserve]
+                stars = [
+                    s for s in p.piffResult.stars
+                    if not s.is_reserve and not s.is_flagged
+                ]
 
                 assert sc.size == len(stars)
 
@@ -87,7 +90,7 @@ def plot_trend(st, xfield='s2n'):
     import esutil as eu
     import numpy as np
 
-    nbin = 20
+    nbin = 40
     nperbin = int(st.size / nbin)
     xbs = eu.stat.Binner(st[xfield])
     xbs.dohist(nperbin=nperbin, calc_stats=True, rev=True)
@@ -127,9 +130,14 @@ def plot_trend(st, xfield='s2n'):
 
     fig, ax = mplt.subplots()
 
+    if xfield == 's2n':
+        xlabel = 'S/N'
+    else:
+        xlabel = xfield
     ax.set(
-        xlabel=xfield,
-        ylabel='offset',
+        xlabel=xlabel,
+        ylabel='offset [arcsec]',
+        xlim=[0.5*stats[xfield].min(), 1.5*stats[xfield].max()],
     )
     if xfield == 's2n':
         ax.set_xscale('log')
@@ -146,12 +154,14 @@ def plot_trend(st, xfield='s2n'):
         stats['voff_err'],
         label='v',
     )
-    ax.errorbar(
-        stats[xfield],
-        stats['off'],
-        stats['voff_err'],
-        label=r'$\sqrt{u^2 + v^2}$',
-    )
+    ax.axhline(0, color='black')
+    ax.legend()
+    # ax.errorbar(
+    #     stats[xfield],
+    #     stats['off'],
+    #     stats['voff_err'],
+    #     label=r'$\sqrt{u^2 + v^2}$',
+    # )
 
     fname = f'offsets-vs-{xfield}.pdf'
     print('writing:', fname)
@@ -193,7 +203,10 @@ def load_data_bypointing(ploteach=False):
 
             st = np.zeros(1, dtype=dtype)
             p = atm_psf.io.load_stack_piff(f)
-            cens = np.array([s.center for s in p.piffResult.stars])
+            cens = np.array([
+                s.center for s in p.piffResult.stars
+                if not s.is_reserve and not s.is_flagged
+            ])
 
             st['airmass'] = sdata['airmass']
 

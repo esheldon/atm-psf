@@ -20,6 +20,7 @@ def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
         truth=truth_file,
         rng=rng,
     )
+    instcat_meta = load_instcat_meta(image_file)
 
     detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
@@ -37,6 +38,7 @@ def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
     alldata['star_select'] = star_select
     alldata['airmass'] = hdr['AMSTART']
     alldata['filter'] = hdr['FILTER']
+    alldata['instcat_meta'] = instcat_meta
 
     nstars = star_select.sum()
     if nstars >= nstars_min:
@@ -99,6 +101,22 @@ def get_args():
     parser.add_argument('--sources', required=True)
     parser.add_argument('--seed', type=int, required=True)
     return parser.parse_args()
+
+
+def load_instcat_meta(image_file):
+    import os
+    import atm_psf
+
+    dname = os.path.dirname(image_file)
+    if dname == '':
+        dname = './'
+
+    instcat_file = os.path.join(
+        dname,
+        'instcat.txt',
+    )
+    print('loading instcat:', instcat_file)
+    return atm_psf.instcat_tools.read_instcat_meta(instcat_file)
 
 
 if __name__ == '__main__':
