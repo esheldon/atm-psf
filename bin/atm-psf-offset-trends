@@ -49,10 +49,8 @@ def load_data():
 
                 p = atm_psf.io.load_stack_piff(f)
                 stars = [s for s in p.piffResult.stars if not s.is_reserve]
-                nstar = len(stars)
-                if sc.size != nstar:
-                    print('Skipping for missing stars', f, sc.size, nstar)
-                    continue
+
+                assert sc.size == len(stars)
 
                 for stari, sourcei in enumerate(sc):
 

@@ -118,16 +118,15 @@ def run_piff(psf_candidates, reserved, exposure):
     wcs = {0: gswcs}
 
     piffResult.fit(stars, wcs, pointing)
-    drawSize = 2*np.floor(0.5*stampSize/config.samplingSize) + 1
 
-    # Mike says no objects are removed during fit(), so this is not needed
-    # used_image_pos = [s.image_pos for s in piffResult.stars]
-    # if flagKey:
-    #     for candidate in psf_candidates:
-    #         source = candidate.getSource()
-    #         posd = galsim.PositionD(source.getX(), source.getY())
-    #         if posd in used_image_pos:
-    #             source.set(flagKey, True)
+    # this is indicative of old piff where stars could be dropped
+    assert len(stars) == len(piffResult.stars)
+
+    for i, star in enumerate(piffResult.stars):
+        if star.is_flagged:
+            not_kept[i] = True
+
+    drawSize = 2*np.floor(0.5*stampSize/config.samplingSize) + 1
 
     meta = {}
     meta["spatialFitChi2"] = piffResult.chisq
