@@ -28,6 +28,8 @@ def load_data():
         ('off', 'f8'),
         ('uoff', 'f8'),
         ('voff', 'f8'),
+        ('alt_off', 'f8'),
+        ('az_off', 'f8'),
     ]
 
     dlist = glob('[0-9]*')  # [:200]
@@ -55,6 +57,9 @@ def load_data():
 
                 assert sc.size == len(stars)
 
+                alt = sdata['instcat_meta']['altitude']
+                az = sdata['instcat_meta']['azimuth']
+
                 for stari, sourcei in enumerate(sc):
 
                     psf_flux = sources['base_PsfFlux_instFlux'][sourcei]
@@ -71,6 +76,8 @@ def load_data():
                             IPython.embed()
 
                         st['airmass'] = sdata['airmass']
+                        st['alt'] = alt
+                        st['az'] = az
                         st['ra'] = sources['coord_ra'][sourcei]
                         st['dec'] = sources['coord_dec'][sourcei]
 
@@ -79,6 +86,9 @@ def load_data():
                         st['off'] = np.sqrt(cen[0]**2 + cen[1]**2)
                         st['uoff'] = cen[0]
                         st['voff'] = cen[1]
+                        st['alt_off'], st['az_off'] = project_one_uv_onto_altaz(  # noqa
+                            alt=alt, az=az, du=cen[0], dv=cen[1],
+                        )
 
                         stlist.append(st)
 
@@ -179,6 +189,7 @@ def load_data_bypointing(ploteach=False):
 
     dtype = [
         ('airmass', 'f8'),
+        ('alt', 'f8'),
         ('dec', 'f8'),
 
         ('off', 'f8'),
@@ -187,6 +198,9 @@ def load_data_bypointing(ploteach=False):
         ('uoff_std', 'f8'),
         ('voff', 'f8'),
         ('voff_std', 'f8'),
+
+        ('alt_off', 'f8'),
+        ('az_off', 'f8'),
     ]
 
     dlist = glob('[0-9]*')  # [:200]
@@ -203,12 +217,17 @@ def load_data_bypointing(ploteach=False):
 
             st = np.zeros(1, dtype=dtype)
             p = atm_psf.io.load_stack_piff(f)
+            # these are really offsets in u, v
             cens = np.array([
                 s.center for s in p.piffResult.stars
                 if not s.is_reserve and not s.is_flagged
             ])
 
+            alt = sdata['instcat_meta']['altitude']
+            az = sdata['instcat_meta']['azimuth']
+
             st['airmass'] = sdata['airmass']
+            st['alt'] = alt
 
             sc = sdata['star_select']
             st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
@@ -219,6 +238,12 @@ def load_data_bypointing(ploteach=False):
             st['off'], st['off_std'] = eu.stat.sigma_clip(off)
             st['uoff'], st['uoff_std'] = eu.stat.sigma_clip(cens[:, 0])
             st['voff'], st['voff_std'] = eu.stat.sigma_clip(cens[:, 1])
+
+            dalt, daz = project_uv_onto_altaz(
+                alt=alt, az=az, du=cens[:, 0], dv=cens[:, 1],
+            )
+            st['alt_off'], _ = eu.stat.sigma_clip(dalt)
+            st['az_off'], _ = eu.stat.sigma_clip(daz)
 
             # st['off'] = off.mean()
             # st['off_std'] = off.std()
@@ -233,6 +258,41 @@ def load_data_bypointing(ploteach=False):
                 plot_one_cens(cens)
 
     return eu.numpy_util.combine_arrlist(stlist)
+
+
+def project_uv_onto_altaz(alt, az, du, dv):
+    import numpy as np
+
+    dalt = np.zeros(du.size)
+    daz = np.zeros(dv.size)
+
+    for i in range(dalt.size):
+        dalt[i], daz[i] = project_one_uv_onto_altaz(
+            alt=alt, az=az, du=du[i], dv=dv[i],
+        )
+    return dalt, daz
+
+
+def project_one_uv_onto_altaz(alt, az, du, dv):
+
+    q = get_rubin_parallactic_angle(alt, az)
+
+    sinq, cosq = q.sincos()
+
+    dalt = sinq * du + cosq * dv
+    daz = cosq * du - sinq * dv
+
+    return dalt, daz
+
+
+def get_rubin_parallactic_angle(alt, az):
+    from galsim import degrees, CelestialCoord
+
+    zenith = CelestialCoord(0.0 * degrees, 90 * degrees)
+    ncp = CelestialCoord(0.0 * degrees, -30 * degrees)  # below the horizon
+
+    coord = CelestialCoord(az * degrees, alt * degrees)
+    return coord.angleBetween(ncp, zenith)
 
 
 def plot_trend_bypointing(st, xfield='airmass'):
@@ -260,6 +320,11 @@ def plot_trend_bypointing(st, xfield='airmass'):
         ('voff_err', 'f8'),
         ('voff_std', 'f8'),
         ('voff_std_err', 'f8'),
+
+        ('altoff', 'f8'),
+        ('altoff_err', 'f8'),
+        ('azoff', 'f8'),
+        ('azoff_err', 'f8'),
     ]
     stats = np.zeros(
         nbin,
@@ -285,53 +350,53 @@ def plot_trend_bypointing(st, xfield='airmass'):
             stats['voff_std'][i] = st['voff_std'][w].mean()
             stats['voff_std_err'][i] = st['voff_std'][w].std() / np.sqrt(nbin)
 
+            stats['altoff'][i] = st['alt_off'][w].mean()
+            stats['altoff_err'][i] = st['alt_off'][w].std() / np.sqrt(nbin)
+            stats['azoff'][i] = st['az_off'][w].mean()
+            stats['azoff_err'][i] = st['az_off'][w].std() / np.sqrt(nbin)
+
     # import IPython; IPython.embed()
 
-    fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
+    # fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
+    fig, ax = mplt.subplots()
 
-    axs[0].set(
-        ylabel='offset',
-    )
-    axs[1].set(
-        xlabel=xfield, ylabel=r'$\sigma$(offset)',
-    )
-    # axs[0].set_xscale('log')
-    # axs[1].set_xscale('log')
+    if xfield == 'alt':
+        xlabel = 'altitude'
+    else:
+        xlabel = xfield
 
-    axs[0].errorbar(
+    ax.set(
+        xlabel=xlabel,
+        ylabel='offset [arcsec]',
+    )
+
+    ax.errorbar(
         stats[xfield],
         stats['uoff'],
         stats['uoff_err'],
-        label='u',
+        label=r'$\Delta u$',
     )
-    axs[0].errorbar(
+    ax.errorbar(
         stats[xfield],
         stats['voff'],
         stats['voff_err'],
-        label='v',
+        label=r'$\Delta v$',
     )
-    axs[0].errorbar(
+    ax.errorbar(
         stats[xfield],
-        stats['off'],
-        stats['voff_err'],
-        label=r'$\sqrt{u^2 + v^2}$',
+        stats['altoff'],
+        stats['altoff_err'],
+        label=r'$\Delta$ alt',
+    )
+    ax.errorbar(
+        stats[xfield],
+        stats['azoff'],
+        stats['azoff_err'],
+        label=r'$\Delta$ az',
     )
 
-    axs[0].legend()
-
-    axs[1].errorbar(
-        stats[xfield],
-        stats['uoff_std'],
-        stats['uoff_std_err'],
-        label='u',
-    )
-    axs[1].errorbar(
-        stats[xfield],
-        stats['voff_std'],
-        stats['voff_std_err'],
-        label='v',
-    )
-    # axs[1].legend()
+    ax.axhline(0, color='black')
+    ax.legend()
 
     fname = f'offsets-vs-{xfield}.pdf'
     print('writing:', fname)
@@ -353,6 +418,7 @@ def main():
     if args.bypointing:
         st = load_data_bypointing(ploteach=ploteach)
 
+        plot_trend_bypointing(st, xfield='alt')
         plot_trend_bypointing(st, xfield='dec')
         plot_trend_bypointing(st, xfield='airmass')
     else:
