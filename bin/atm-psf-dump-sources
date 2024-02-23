@@ -14,15 +14,36 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', nargs='+', required=True)
+    parser.add_argument('-F', '--isfile', action='store_true',
+                        help='input is a file holding the input paths')
     parser.add_argument('-o', '--output', required=True)
     parser.add_argument('--airmass-max', type=float)
     return parser.parse_args()
 
 
+def load_flist(args_input):
+    num = len(args_input)
+    if num != 1:
+        raise ValueError(
+            f'when -F/--isfile is sent, the input must '
+            f'be a single path name, got list of length {num}'
+        )
+
+    fname = args_input[0]
+    with open(fname) as fobj:
+        flist = [line.strip() for line in fobj]
+    return flist
+
+
 if __name__ == '__main__':
     args = get_args()
+    if args.isfile:
+        flist = load_flist(args.input)
+    else:
+        flist = args.input
+
     main(
-        flist=args.input,
+        flist=flist,
         outfile=args.output,
         airmass_max=args.airmass_max,
     )

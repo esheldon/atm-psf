@@ -171,9 +171,10 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
     import numpy as np
     import esutil as eu
     from .util import T_to_fwhm
+    from tqdm import tqdm
 
     dlist = []
-    for fname in flist:
+    for fname in tqdm(flist):
         st, alldata = load_sources(fname, get_all=True)
         if airmass_max is not None:
             airmass = alldata['airmass']
