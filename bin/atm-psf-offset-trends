@@ -368,6 +368,7 @@ def plot_trend_bypointing(st, xfield='airmass'):
     ax.set(
         xlabel=xlabel,
         ylabel='offset [arcsec]',
+        ylim=(-0.0165, 0.0115),
     )
 
     ax.errorbar(
