@@ -1,95 +1,6 @@
 #!/usr/bin/env python
 
-
-def main(image_file, truth_file, piff_file, source_file, seed, nstars_min=50):
-    import numpy as np
-    import atm_psf
-
-    rng = np.random.RandomState(seed)
-    alldata = {
-        'seed': seed,
-        'image_file': image_file,
-        'truth_file': truth_file,
-    }
-
-    # loads the image, subtractes the sky using sky_level in truth catalog,
-    # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
-    # detection
-    exp, hdr = atm_psf.exposures.fits_to_exposure(
-        fname=image_file,
-        truth=truth_file,
-        rng=rng,
-    )
-    instcat_meta = load_instcat_meta(image_file)
-
-    detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
-    detmeas.detect()
-    detmeas.measure()
-    sources = detmeas.sources
-
-    # run detection
-    # sources = atm_psf.measure.detect_and_measure(exposure=exp, rng=rng)
-
-    # find stars in the size/flux diagram
-    # note this is a bool array
-    star_select = atm_psf.select.select_stars(sources)
-
-    alldata['sources'] = sources
-    alldata['star_select'] = star_select
-    alldata['airmass'] = hdr['AMSTART']
-    alldata['filter'] = hdr['FILTER']
-    alldata['instcat_meta'] = instcat_meta
-
-    nstars = star_select.sum()
-    if nstars >= nstars_min:
-
-        # split into training and reserved/validation sets
-        # these are again bool arrays with size length(sources)
-        reserved = atm_psf.pifftools.split_candidates(
-            rng=rng, star_select=star_select, reserve_frac=0.2,
-        )
-
-        candidates = atm_psf.pifftools.make_psf_candidates(
-            sources=sources[star_select],
-            exposure=exp,
-        )
-
-        print('running piff')
-        piff_psf, meta, not_kept = atm_psf.pifftools.run_piff(
-            psf_candidates=candidates,
-            reserved=reserved[star_select],
-            exposure=exp,
-        )
-        # star_select is a full boolean, so we need to get the corresponding
-        # indices
-        nout = not_kept.sum()
-        if nout > 0:
-            print('skipped:', nout, 'candidates')
-            ws, = np.where(star_select)
-            star_select[ws[not_kept]] = False
-            reserved[ws[not_kept]] = False
-
-        # remeasure with new psf
-        exp.setPsf(piff_psf)
-        detmeas.measure()
-
-        print('saving piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
-
-        # save sources and candidate list
-        alldata.update({
-            'reserved': reserved,
-            'image_file': image_file,
-            'truth_file': truth_file,
-        })
-        alldata.update(meta)
-    else:
-        print(f'got nstars {nstars} < {nstars_min}')
-        print('saving None piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=None)
-
-    print('saving sources data to:', source_file)
-    atm_psf.io.save_source_data(fname=source_file, data=alldata)
+from atm_psf.process import process_image_with_piff
 
 
 def get_args():
@@ -103,25 +14,9 @@ def get_args():
     return parser.parse_args()
 
 
-def load_instcat_meta(image_file):
-    import os
-    import atm_psf
-
-    dname = os.path.dirname(image_file)
-    if dname == '':
-        dname = './'
-
-    instcat_file = os.path.join(
-        dname,
-        'instcat.txt',
-    )
-    print('loading instcat:', instcat_file)
-    return atm_psf.instcat_tools.read_instcat_meta(instcat_file)
-
-
 if __name__ == '__main__':
     args = get_args()
-    main(
+    process_image_with_piff(
         image_file=args.image,
         truth_file=args.truth,
         piff_file=args.piff,

@@ -22,7 +22,8 @@ instcat=$2
 ccds=$3
 seed=$4
 
-atm-psf-run-sim \
+%(command)s \
+    %(extra)s \
     --opsim-db %(opsim_db)s \
     --imsim-config %(imsim_config)s \
     --obsid ${obsid} \
@@ -66,6 +67,16 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('config')
+    parser.add_argument(
+        '--run-piff',
+        action='store_true',
+        help='if set, also run piff and maybe clean up sim files',
+    )
+    parser.add_argument(
+        '--nocleanup',
+        action='store_true',
+        help='whether to clean up sim files when running piff',
+    )
     return parser.parse_args()
 
 
@@ -97,7 +108,7 @@ def get_args():
 #     with open(outfile, 'w') as fobj:
 #         fobj.write(script)
 #     os.system(f'chmod 755 {outfile}')
-def write_script(config, run_dir):
+def write_script(config, run_dir, command, extra):
     import os
 
     outfile = f'{run_dir}/run.sh'
@@ -107,6 +118,8 @@ def write_script(config, run_dir):
     imsim_config = os.path.basename(config['imsim_config'])
 
     script = SCRIPT % {
+        'command': command,
+        'extra': extra,
         'imsim_config': imsim_config,
         'opsim_db': config['opsim_db'],
     }
@@ -172,6 +185,14 @@ def main():
 
     args = get_args()
 
+    extra = ''
+    if args.run_piff:
+        command = 'atm-psf-run-sim-and-piff'
+        if args.nocleanup:
+            extra = '--nocleanup'
+    else:
+        command = 'atm-psf-run-sim'
+
     config = atm_psf.io.load_config(args.config)
     rng = np.random.default_rng(config['seed'])
 
@@ -184,7 +205,9 @@ def main():
     copy_imsim_config(config, run_dir)
     all_ccds = np.arange(189)
 
-    write_script(config, run_dir)
+    write_script(
+        config=config, run_dir=run_dir, command=command, extra=extra,
+    )
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
