@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+
+from atm_psf.process import run_sim_and_piff
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--opsim-db', required=True)
+    parser.add_argument('--imsim-config', required=True)
+    parser.add_argument('--obsid', type=int, required=True)
+    parser.add_argument('--instcat', required=True)
+    parser.add_argument('--ccds', required=True,
+                        help='e.g. "[35,66]"')
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--nocleanup', action='store_true')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+
+    cleanup = not args.nocleanup
+
+    run_sim_and_piff(
+        imsim_config=args.imsim_config,
+        opsim_db=args.opsim_db,
+        obsid=args.obsid,
+        instcat=args.instcat,
+        ccds=args.ccds,
+        seed=args.seed,
+        cleanup=cleanup,
+    )
