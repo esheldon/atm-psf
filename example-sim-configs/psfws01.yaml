@@ -1,4 +1,14 @@
-# use psf weather station for the atmospheric psf
+# * psf weather station for the atmospheric psf
+# * no tree rings
+# * no sky gradient
+# * no vignetting of sky, so we can use a single number for sky_level
+#   Note this does not prevent vignetting on the ray traced, photon shot
+#   objects, only the sky and FFT objects.
+# * eimage will have variance equal to sky_level
+# * hack to get sky by storing image.sky_level in truth catalog, the same value
+#   for all objects
+# * we can then subtract the sky directly, and set the variance.
+#
 #
 # call as follows.  Note nfiles must match the number of entries in det_num
 #
@@ -11,17 +21,6 @@
 #  outputs to "output", add this for your own directory
 #        output.dir={some_directory}
 #
-# * turn off sky gradient and vignetting so we can use a single number for sky_level
-#   Note this does not prevent vignetting on the ray traced, photon shot objects,
-#   only the sky  and FFT objects.
-# * eimage will have variance equal to sky_level
-# * hack to get sky by storing image.sky_level in truth catalog, the same value
-#   for all objects
-# * we can then subtract the sky directly, and set the variance.
-# * Use the truth catalog as psf candidates rather than run detection,
-#   since we don't have a PSF model for the detection.  Alternatively we might try to
-#   estimate the double gaussian PSF and run detection.  Note we still need to
-#   remove blends
 
 modules:
     - imsim

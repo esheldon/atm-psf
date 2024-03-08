@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+
+import esutil as eu
+
+EXP_RADIUS = 3.5 / 2
+
+
+def run_query(opsimdb, band, max_airmass):
+    if max_airmass is None:
+        max_airmass = 9999
+
+    query = """
+    select
+        fieldRA, fieldDec
+    from
+        observations
+    where
+        target = ''
+        and filter = '%s'
+        and airmass between 1.0 and %g
+    """ % (band, max_airmass)
+
+    conn = eu.sqlite_util.SqliteConnection(opsimdb)
+    return conn.execute(query, asarray=True)
+
+
+def main(opsimdb, max_airmass, nexp, band, nside, seed):
+    import matplotlib.pyplot as mplt
+    import healsparse as hsp
+    import numpy as np
+    from tqdm import trange
+    import skyproj
+
+    if args.output is None and not args.show:
+        raise RuntimeError('send either --output or --show')
+
+    rng = np.random.default_rng(seed)
+    t = run_query(
+        opsimdb=opsimdb,
+        band=band,
+        max_airmass=max_airmass,
+    )
+
+    if nexp is not None:
+        t = rng.choice(t, nexp, replace=False)
+
+    hmap = hsp.HealSparseMap.make_empty(
+        nside_coverage=32,
+        nside_sparse=nside,
+        dtype=np.int32,
+        sentinel=0,
+    )
+
+    for i in trange(t.size):
+        ra, dec = t['fieldra'][i], t['fielddec'][i]
+
+        circle = hsp.Circle(
+            ra=ra,
+            dec=dec,
+            radius=EXP_RADIUS,
+            value=1,
+        )
+        pixels = circle.get_pixels(nside=nside)
+
+        hmap[pixels] += 1
+
+    if False:
+        fig, ax = mplt.subplots()
+        ax.set(
+            xlabel='ra',
+            ylabel='dec',
+        )
+        ax.scatter(t['fieldra'], t['fielddec'], marker='.', s=4)
+        mplt.savefig('coverage-i-am1.1.png', dpi=150)
+    else:
+        fig, ax = mplt.subplots(figsize=(10, 6))
+        m = skyproj.McBrydeSkyproj(ax=ax, autorescale=False)
+        _ = m.draw_hspmap(hmap, cmap='inferno')
+        m.draw_inset_colorbar()
+
+        if args.show:
+            mplt.show()
+        else:
+            print('writing:', args.output)
+            mplt.savefig(args.output, dpi=300)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--opsimdb', required=True)
+    parser.add_argument('--band', required=True)
+    parser.add_argument('--max-airmass', type=float,
+                        help='maximum airmass to use')
+    parser.add_argument('--nexp', type=int,
+                        help='number of unique exposures to plot')
+    parser.add_argument('--nside', type=int, default=1024,
+                        help='nside for map')
+    parser.add_argument('--seed', type=int,
+                        help='seed for rng')
+    parser.add_argument('--output', help='name for output file')
+    parser.add_argument(
+        '--show', action='store_true', help='show interactive plot'
+    )
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        opsimdb=args.opsimdb,
+        max_airmass=args.max_airmass,
+        nexp=args.nexp,
+        band=args.band,
+        nside=args.nside,
+        seed=args.seed,
+    )
