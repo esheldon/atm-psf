@@ -418,3 +418,5 @@ output:
             realized_flux: "@realized_flux"  # The actual flux that was added to the image.
             x: "@xcentroid"
             y: "@ycentroid"
+            xbat: "$image_pos.x"
+            ybat: "$image_pos.y"

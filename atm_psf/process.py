@@ -161,6 +161,7 @@ def run_simulation(imsim_config, opsim_db, obsid, instcat, ccds, seed):
             obsid=obsid,
             output_fname=instcat_out,
             allowed_include=['star'],
+            # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
             selector=lambda d: d['magnorm'] > 17
         )
 

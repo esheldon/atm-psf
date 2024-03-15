@@ -38,6 +38,7 @@ def replace_instcat_from_db(
     obsid,
     output_fname,
     allowed_include=None,
+    sed=None,
     selector=None
 ):
     """
@@ -67,6 +68,9 @@ def replace_instcat_from_db(
         Only includes with a filename that includes the string
         are kept.  For  ['star', 'gal'] we would keep filenames
         that had star or gal in them
+    sed: str
+        Force use if the input SED for all objects
+        e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
     selector: function
         Evaluates True for objects to be kept, e.g.
             f = lambda d: d['magnorm'] > 17
@@ -87,12 +91,14 @@ def replace_instcat_from_db(
         opsim_data=opsim_data,
         output_fname=output_fname,
         allowed_include=allowed_include,
+        sed=sed,
         selector=selector,
     )
 
 
 def replace_instcat(
-    rng, fname, opsim_data, output_fname, allowed_include=None, selector=None
+    rng, fname, opsim_data, output_fname, allowed_include=None, sed=None,
+    selector=None
 ):
     """
     Replace the instacat metadata and positions according to the
@@ -119,6 +125,9 @@ def replace_instcat(
         Only includes with a filename that includes the string
         are kept.  For  ['star', 'gal'] we would keep filenames
         that had star or gal in them
+    sed: str
+        Force use if the input SED for all objects
+        e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
     selector: function
         Evaluates True for objects to be kept, e.g.
             f = lambda d: d['magnorm'] > 17
@@ -126,7 +135,9 @@ def replace_instcat(
 
     assert output_fname != fname
 
-    data, orig_meta = read_instcat(fname, allowed_include=allowed_include)
+    data, orig_meta = read_instcat(
+        fname, allowed_include=allowed_include,
+    )
 
     if selector is not None:
         data = [d for d in data if selector(d)]
@@ -138,6 +149,11 @@ def replace_instcat(
         dec=meta['declination'],
         data=data,
     )
+
+    if sed is not None:
+        print('replacing SED with:', sed)
+        for tdata in data:
+            tdata['sed1'] = sed
 
     write_instcat(output_fname, data, meta)
 
@@ -227,7 +243,9 @@ def read_instcat(fname, allowed_include=None):
     ds.push(dirname)
 
     meta = read_instcat_meta(fname)
-    data = read_instcat_data_as_dicts(fname, allowed_include=allowed_include)
+    data = read_instcat_data_as_dicts(
+        fname, allowed_include=allowed_include,
+    )
 
     ds.pop()
     return data, meta
