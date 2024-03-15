@@ -20,9 +20,10 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     afw.image.ExposureF
     """
     import fitsio
+    import galsim
     from lsst.afw.cameraGeom.testUtils import DetectorWrapper
     import lsst.afw.image as afw_image
-    from .wcs import header_to_wcs
+    from .wcs import fit_gs_wcs, gs_wcs_to_dm_wcs
     from metadetect.lsst.skysub import iterate_detection_and_skysub
     import numpy as np
 
@@ -31,11 +32,15 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
         hdr = fits[0].read_header()
         image = fits[0].read()
 
-    if truth is not None:
-        print('loading:', truth)
-        truth_data = fitsio.read(truth)
+    gsim = galsim.fits.read(fname)
+    orig_gs_wcs = gsim.wcs
 
-    wcs = header_to_wcs(hdr)
+    assert truth is not None, 'need truth for wcs'
+    print('loading:', truth)
+    truth_data = fitsio.read(truth)
+
+    gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
+    wcs = gs_wcs_to_dm_wcs(gs_wcs, gsim.bounds)
 
     ny, nx = image.shape
     masked_image = afw_image.MaskedImageF(nx, ny)
