@@ -46,11 +46,11 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
         ydiff = y[w] - py
         x_std = xdiff.std()
         y_std = ydiff.std()
+        std = min(x_std, y_std)
 
-        wgood, = np.where(
-            (np.abs(xdiff) / x_std < nsig)
-            & (np.abs(ydiff) / y_std < nsig)
-        )
+        xrdiff = np.abs(xdiff) / std
+        yrdiff = np.abs(ydiff) / std
+        wgood, = np.where((xrdiff < nsig) & (yrdiff < nsig))
         if wgood.size == w.size:
             print('    Did not remove any outlier')
             break
