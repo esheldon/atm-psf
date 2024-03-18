@@ -16,22 +16,49 @@ def header_to_wcs(hdr):
     return makeSkyWcs(prop)
 
 
-def fit_gs_wcs(orig_gs_wcs, truth):
+def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
     """
     fit galsim WCS using input ra, dec
     """
     import numpy as np
     import galsim
+
     w, = np.where(np.isfinite(truth['x']))
 
-    return galsim.FittedSIPWCS(
-        truth['x'][w],
-        truth['y'][w],
-        np.radians(truth['ra'][w]),
-        np.radians(truth['dec'][w]),
-        center=orig_gs_wcs.center,
-        order=3,
-    )
+    x, y = truth['x'], truth['y']
+    ra, dec = truth['ra'], truth['dec']
+
+    while True:
+        wcs = galsim.FittedSIPWCS(
+            x[w],
+            y[w],
+            np.radians(ra[w]),
+            np.radians(dec[w]),
+            center=orig_gs_wcs.center,
+            order=3,
+        )
+        px, py = wcs.radecToxy(
+            ra=ra[w],
+            dec=dec[w],
+            units=galsim.degrees,
+        )
+        xdiff = x[w] - px
+        ydiff = y[w] - py
+        x_std = xdiff.std()
+        y_std = ydiff.std()
+
+        wgood, = np.where(
+            (xdiff / x_std < nsig)
+            & (ydiff / y_std < nsig)
+        )
+        if wgood.size == w.size:
+            break
+        else:
+            nd = w.size - wgood.size
+            print(f'removed {nd} on iter {iter}')
+            w = wgood
+
+    return wcs
 
 
 def gs_wcs_to_dm_wcs(gs_wcs, bounds):
