@@ -28,7 +28,7 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
     x, y = truth['x'], truth['y']
     ra, dec = truth['ra'], truth['dec']
 
-    while True:
+    for iiter in range(10):
         wcs = galsim.FittedSIPWCS(
             x[w],
             y[w],
@@ -55,8 +55,11 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
             break
         else:
             nd = w.size - wgood.size
-            print(f'removed {nd} on iter {iter}')
+            print(f'removed {nd} on iter {iiter}')
             w = wgood
+
+    if wgood.size != w.size:
+        raise RuntimeError(f'did not converge after {iiter+1} iterations')
 
     return wcs
 
