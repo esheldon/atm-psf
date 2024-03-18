@@ -22,6 +22,8 @@ def load_data():
 
     dtype = [
         ('airmass', 'f8'),
+        ('alt', 'f8'),
+        ('az', 'f8'),
         ('ra', 'f8'),
         ('dec', 'f8'),
         ('s2n', 'f8'),
@@ -209,6 +211,10 @@ def load_data_bypointing(ploteach=False):
     stlist = []
     for i, d in enumerate(tqdm(dlist)):
         flist = glob(f'{d}/piff-*pkl')
+        if len(flist) == 0:
+            print(f'directory {d} is empty')
+            continue
+
         random.shuffle(flist)
         f = flist[0]
 
