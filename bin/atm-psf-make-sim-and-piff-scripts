@@ -139,6 +139,7 @@ where
     target =''
     and filter='%(filter)s'
     and airmass between %(airmass_low)g and %(airmass_high)g
+    and seeing between 0.6 and 1.5
 """
 
 
