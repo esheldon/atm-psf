@@ -125,7 +125,8 @@ def main():
     )
 
     nbin = 20
-    bins = np.linspace(-0.3, 0.3, nbin)
+    # bins = np.linspace(-0.3, 0.3, nbin)
+    bins = nbin
 
     alpha = 0.5
     axs[0].hist(
