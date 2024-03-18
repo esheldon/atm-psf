@@ -16,7 +16,9 @@ def header_to_wcs(hdr):
     return makeSkyWcs(prop)
 
 
-def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
+def fit_gs_wcs(
+    orig_gs_wcs, truth, nsig=3, maxiter=20, get_indices=False,
+):
     """
     fit galsim WCS using input ra, dec
     """
@@ -39,19 +41,12 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
             center=orig_gs_wcs.center,
             order=3,
         )
-        px, py = wcs.radecToxy(
-            ra=ra[w],
-            dec=dec[w],
-            units=galsim.degrees,
+        wgood, x_std, y_std = get_wcs_non_outliers(
+            wcs=wcs,
+            data=truth[w],
+            nsig=nsig,
         )
-        xdiff = x[w] - px
-        ydiff = y[w] - py
-        x_std = xdiff.std()
-        y_std = ydiff.std()
 
-        xrdiff = np.abs(xdiff) / x_std
-        yrdiff = np.abs(ydiff) / y_std
-        wgood, = np.where((xrdiff < nsig) & (yrdiff < nsig))
         if wgood.size == w.size:
             print('    Did not remove any outlier')
             ok = True
@@ -67,7 +62,33 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
 
     print(f'    kept {w.size}')
 
-    return wcs
+    if get_indices:
+        return wcs, w
+    else:
+        return wcs
+
+
+def get_wcs_non_outliers(wcs, data, nsig=3):
+    import galsim
+    import numpy as np
+
+    px, py = wcs.radecToxy(
+        ra=data['ra'],
+        dec=data['dec'],
+        units=galsim.degrees,
+    )
+    xdiff = data['x'] - px
+    ydiff = data['y'] - py
+    x_std = xdiff.std()
+    y_std = ydiff.std()
+    std = min(x_std, y_std)
+
+    # xrdiff = np.abs(xdiff) / x_std
+    # yrdiff = np.abs(ydiff) / y_std
+    xrdiff = np.abs(xdiff) / std
+    yrdiff = np.abs(ydiff) / std
+    wgood, = np.where((xrdiff < nsig) & (yrdiff < nsig))
+    return wgood, x_std, y_std
 
 
 def gs_wcs_to_dm_wcs(gs_wcs, bounds):

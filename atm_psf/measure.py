@@ -1,16 +1,6 @@
 import logging
 import warnings
 
-import lsst.afw.table as afw_table
-from lsst.meas.algorithms import SourceDetectionTask, SourceDetectionConfig
-from lsst.meas.deblender import SourceDeblendTask, SourceDeblendConfig
-from lsst.meas.base import (
-    SingleFrameMeasurementConfig,
-    SingleFrameMeasurementTask,
-)
-
-from metadetect.lsst.util import ContextNoiseReplacer, get_stats_mask
-
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 LOG = logging.getLogger('atm_psf_measure')
@@ -43,7 +33,16 @@ def detect_and_measure_old(
     sources
         The sources
     """
+    from lsst.meas.algorithms import SourceDetectionTask, SourceDetectionConfig
+    from lsst.meas.deblender import SourceDeblendTask, SourceDeblendConfig
+    from lsst.meas.base import (
+        SingleFrameMeasurementConfig,
+        SingleFrameMeasurementTask,
+    )
+
+    import lsst.afw.table as afw_table
     import lsst.meas.extensions.shapeHSM  # noqa
+    from metadetect.lsst.util import ContextNoiseReplacer, get_stats_mask
 
     schema = afw_table.SourceTable.makeMinimalSchema()
 
@@ -136,6 +135,16 @@ class DetectMeasurer(object):
 
     def detect(self):
         import lsst.meas.extensions.shapeHSM  # noqa
+        import lsst.afw.table as afw_table
+        from lsst.meas.base import (
+            SingleFrameMeasurementConfig,
+            SingleFrameMeasurementTask,
+        )
+        from lsst.meas.algorithms import (
+            SourceDetectionTask, SourceDetectionConfig,
+        )
+        from lsst.meas.deblender import SourceDeblendTask, SourceDeblendConfig
+        from metadetect.lsst.util import get_stats_mask
 
         self._schema = afw_table.SourceTable.makeMinimalSchema()
 
@@ -213,6 +222,8 @@ class DetectMeasurer(object):
         This can be rerun as needed
         """
         import numpy as np
+        from metadetect.lsst.util import ContextNoiseReplacer
+
         # we want this to be repeatable
         rng = np.random.RandomState(self._seed)
         with ContextNoiseReplacer(

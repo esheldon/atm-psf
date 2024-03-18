@@ -10,19 +10,24 @@ import matplotlib.pyplot as mplt
 # import esutil as eu
 from esutil.stat import print_stats
 # from glob import glob
+from atm_psf.wcs import fit_gs_wcs, get_wcs_non_outliers
 
 SCALE = 0.2
 
 
-def read_data():
-    ccd = 'R02_S11-det013'
-    # ccd = 'R13_S11-det058'
-    # ccd = 'R14_S20-det069'
-    # ccd = 'R23_S10-det102'
-    # extra = '-fixsed'
-    extra = ''
-    t = fitsio.read(f'truth-00023308-0-g-{ccd}{extra}.fits')
-    gsim = galsim.fits.read(f'eimage-00023308-0-g-{ccd}{extra}.fits')
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image', required=True)
+    parser.add_argument('--truth', required=True)
+    return parser.parse_args()
+
+
+def read_data(args):
+    print('reading:', args.image)
+    gsim = galsim.fits.read(args.image)
+    print('reading:', args.truth)
+    t = fitsio.read(args.truth)
 
     w, = np.where(
         np.isfinite(t['x']) & np.isfinite(t['y'])
@@ -32,8 +37,8 @@ def read_data():
     return gsim, t
 
 
-def plot_quiver(x, y, dx_arcsec, dy_arcsec):
-    fig, ax = mplt.subplots()
+def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
+    fig, ax = mplt.subplots(figsize=(6, 5))
     ax.set(
         xlim=[-200, 4500],
         ylim=[-200, 4500],
@@ -51,113 +56,104 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec):
         cmap=cmap,
     )
     fig.colorbar(qplt, cmap=cmap)
-    mplt.show()
+    print('saving:', fname)
+    mplt.savefig(fname)
 
 
-rng = np.random.default_rng(1234)
+def main():
+    args = get_args()
 
-gsim, t = read_data()
-x = t['x']
-y = t['y']
-ra = t['ra']
-dec = t['dec']
-# x = t['xbat']
-# y = t['ybat']
+    rng = np.random.default_rng(1234)
 
-r = rng.uniform(size=t.size)
-s = r.argsort()
+    gsim, t = read_data(args)
+    x = t['x']
+    y = t['y']
+    ra = t['ra']
+    dec = t['dec']
+    # x = t['xbat']
+    # y = t['ybat']
 
-frac = 0.5
+    r = rng.uniform(size=t.size)
+    s = r.argsort()
 
-nvalidation = int(s.size * frac)
+    frac = 0.5
 
-# verification
-vi = s[:nvalidation]
-# training
-ti = s[nvalidation:]
+    nvalidation = int(s.size * frac)
 
+    # verification
+    vi = s[:nvalidation]
+    # training
+    ti = s[nvalidation:]
 
-if False:
-    fig, ax = pplt.subplots()
-    ax.scatter(t['ra'], t['dec'])
-    ax.scatter(
-        gsim.wcs.center.ra / degrees, gsim.wcs.center.dec / degrees
+    nsig = 3
+    wcs = fit_gs_wcs(orig_gs_wcs=gsim.wcs, truth=t[ti], nsig=nsig)
+
+    wgood, _, _ = get_wcs_non_outliers(wcs=wcs, data=t[vi], nsig=nsig)
+
+    vi = vi[wgood]
+
+    pra, pdec = wcs.xyToradec(
+        x=x[vi],
+        y=y[vi],
+        units=degrees,
     )
-    pplt.show()
-    pplt.close()
-
-if True:
-    wcs = galsim.FittedSIPWCS(
-        x[ti],
-        y[ti],
-        np.radians(t['ra'][ti]),
-        np.radians(t['dec'][ti]),
-        center=gsim.wcs.center,
-        order=3,
+    px, py = wcs.radecToxy(
+        ra=ra[vi],
+        dec=dec[vi],
+        units=degrees,
     )
-else:
-    wcs = gsim.wcs
+    dx = (px - x[vi])
+    dy = (py - y[vi])
+    ddec = (pdec - t['dec'][vi]) * 3600
 
-pra, pdec = wcs.xyToradec(
-    x=x[vi],
-    y=y[vi],
-    units=galsim.degrees,
-)
-px, py = wcs.radecToxy(
-    ra=ra[vi],
-    dec=dec[vi],
-    units=galsim.degrees,
-)
-dx = (px - x[vi])
-dy = (py - y[vi])
-ddec = (pdec - t['dec'][vi]) * 3600
+    if True:
+        plot_quiver(x[vi], y[vi], dx * SCALE, dy * SCALE, fname='quiver.pdf')
 
-if True:
-    plot_quiver(x[vi], y[vi], dx * SCALE, dy * SCALE)
+    print('dx stats in arcsec')
+    print_stats(dx * SCALE, nsig=4.5)
+    print('dy stats in arcsec')
+    print_stats(dy * SCALE, nsig=4.5)
+    print('ddec stats in arcsec')
+    print_stats(ddec, nsig=4.5)
 
-print('dx stats in arcsec')
-print_stats(dx * SCALE, nsig=4.5)
-print('dy stats in arcsec')
-print_stats(dy * SCALE, nsig=4.5)
-print('ddec stats in arcsec')
-print_stats(ddec, nsig=4.5)
+    fig, axs = pplt.subplots(ncols=2)
+    axs[0].set(
+        xlabel=r'$\Delta$ x [arcsec]',
+    )
+    axs[1].set(
+        xlabel=r'$\Delta$ DEC [arcsec]',
+    )
+
+    nbin = 20
+    bins = np.linspace(-0.3, 0.3, nbin)
+
+    alpha = 0.5
+    axs[0].hist(
+        dx * SCALE,
+        bins=bins,
+        alpha=alpha,
+        label='x',
+    )
+    axs[0].hist(
+        dy * SCALE,
+        bins=bins,
+        alpha=alpha,
+        label='y',
+    )
+    axs[0].legend()
+
+    axs[1].hist(
+        ddec,
+        bins=bins,
+        alpha=alpha,
+        label='DEC',
+    )
+    axs[1].legend()
+
+    fname = 'diffs.pdf'
+    print('writing:', fname)
+    fig.savefig(fname)
+    # pplt.show()
 
 
-fig, axs = pplt.subplots(ncols=2)
-axs[0].set(
-    xlabel=r'$\Delta$ x [arcsec]',
-)
-axs[1].set(
-    xlabel=r'$\Delta$ DEC [arcsec]',
-)
-
-nbin = 20
-bins = np.linspace(-0.3, 0.3, nbin)
-
-alpha = 0.5
-axs[0].hist(
-    dx * SCALE,
-    bins=bins,
-    alpha=alpha,
-    label='x',
-)
-axs[0].hist(
-    dy * SCALE,
-    bins=bins,
-    alpha=alpha,
-    label='y',
-)
-axs[0].legend()
-
-axs[1].hist(
-    ddec,
-    bins=bins,
-    alpha=alpha,
-    label='DEC',
-)
-axs[1].legend()
-
-fname = 'diffs.pdf'
-print('writing:', fname)
-fig.savefig(fname)
-# pplt.show()
+main()
