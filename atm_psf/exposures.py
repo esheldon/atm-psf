@@ -39,6 +39,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     print('loading:', truth)
     truth_data = fitsio.read(truth)
 
+    print('fitting for wcs')
     gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
     wcs = gs_wcs_to_dm_wcs(gs_wcs, gsim.bounds)
 
