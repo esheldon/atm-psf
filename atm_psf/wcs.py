@@ -29,6 +29,7 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
     x, y = truth['x'], truth['y']
     ra, dec = truth['ra'], truth['dec']
 
+    ok = False
     for iiter in range(maxiter):
         wcs = galsim.FittedSIPWCS(
             x[w],
@@ -47,20 +48,21 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
         ydiff = y[w] - py
         x_std = xdiff.std()
         y_std = ydiff.std()
-        std = min(x_std, y_std)
 
-        xrdiff = np.abs(xdiff) / std
-        yrdiff = np.abs(ydiff) / std
+        xrdiff = np.abs(xdiff) / x_std
+        yrdiff = np.abs(ydiff) / y_std
         wgood, = np.where((xrdiff < nsig) & (yrdiff < nsig))
         if wgood.size == w.size:
             print('    Did not remove any outlier')
+            ok = True
             break
         else:
             nd = w.size - wgood.size
-            print(f'    removed {nd} on iter {iiter}')
-            w = wgood
+            print(f'    removed {nd} on iter {iiter},'
+                  f' std: {x_std:.3g}, {y_std:.3g}')
+            w = w[wgood]
 
-    if wgood.size != w.size:
+    if not ok:
         raise RuntimeError(f'did not converge after {iiter+1} iterations')
 
     print(f'    kept {w.size}')
