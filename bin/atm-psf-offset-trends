@@ -39,7 +39,8 @@ def load_data():
         flist = glob(f'{d}/piff-*pkl')
         for f in flist:
 
-            sfile = f.replace('piff-', 'sources-')
+            # sfile = f.replace('piff-', 'sources-')
+            sfile = f.replace('piff-', 'source-')
             sdata = atm_psf.io.load_source_data(sfile)
             if 'reserved' in sdata and sdata['airmass'] >= 1:
 
@@ -211,7 +212,8 @@ def load_data_bypointing(ploteach=False):
         random.shuffle(flist)
         f = flist[0]
 
-        sfile = f.replace('piff-', 'sources-')
+        # sfile = f.replace('piff-', 'sources-')
+        sfile = f.replace('piff-', 'source-')
         sdata = atm_psf.io.load_source_data(sfile)
         if 'reserved' in sdata and sdata['airmass'] >= 1:
 
