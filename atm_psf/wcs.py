@@ -16,7 +16,7 @@ def header_to_wcs(hdr):
     return makeSkyWcs(prop)
 
 
-def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
+def fit_gs_wcs(orig_gs_wcs, truth, nsig=4, maxiter=20):
     """
     fit galsim WCS using input ra, dec
     """
@@ -24,11 +24,12 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
     import galsim
 
     w, = np.where(np.isfinite(truth['x']))
+    print(f'starting with {w.size} stars')
 
     x, y = truth['x'], truth['y']
     ra, dec = truth['ra'], truth['dec']
 
-    for iiter in range(10):
+    for iiter in range(maxiter):
         wcs = galsim.FittedSIPWCS(
             x[w],
             y[w],
@@ -61,6 +62,8 @@ def fit_gs_wcs(orig_gs_wcs, truth, nsig=3.5):
 
     if wgood.size != w.size:
         raise RuntimeError(f'did not converge after {iiter+1} iterations')
+
+    print(f'    kept {w.size}')
 
     return wcs
 
