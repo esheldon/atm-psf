@@ -410,18 +410,18 @@ def plot_trend_bypointing(st, xfield='airmass'):
         stats['voff_err'],
         label=r'$\Delta v$',
     )
-    # ax.errorbar(
-    #     stats[xfield],
-    #     stats['altoff'],
-    #     stats['altoff_err'],
-    #     label=r'$\Delta$ alt',
-    # )
-    # ax.errorbar(
-    #     stats[xfield],
-    #     stats['azoff'],
-    #     stats['azoff_err'],
-    #     label=r'$\Delta$ az',
-    # )
+    ax.errorbar(
+        stats[xfield],
+        stats['altoff'],
+        stats['altoff_err'],
+        label=r'$\Delta$ alt',
+    )
+    ax.errorbar(
+        stats[xfield],
+        stats['azoff'],
+        stats['azoff_err'],
+        label=r'$\Delta$ az',
+    )
 
     ax.axhline(0, color='black')
     ax.legend()
