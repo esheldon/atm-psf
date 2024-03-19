@@ -17,7 +17,7 @@ def header_to_wcs(hdr):
 
 
 def fit_gs_wcs(
-    orig_gs_wcs, truth, nsig=3, maxiter=20, get_indices=False,
+    orig_gs_wcs, truth, nsig=4, maxiter=20, get_indices=False,
 ):
     """
     fit galsim WCS using input ra, dec
@@ -81,12 +81,13 @@ def get_wcs_non_outliers(wcs, data, nsig=3):
     ydiff = data['y'] - py
     x_std = xdiff.std()
     y_std = ydiff.std()
-    std = min(x_std, y_std)
+    # std = min(x_std, y_std)
+    # std = max(x_std, y_std)
 
-    # xrdiff = np.abs(xdiff) / x_std
-    # yrdiff = np.abs(ydiff) / y_std
-    xrdiff = np.abs(xdiff) / std
-    yrdiff = np.abs(ydiff) / std
+    xrdiff = np.abs(xdiff) / x_std
+    yrdiff = np.abs(ydiff) / y_std
+    # xrdiff = np.abs(xdiff) / std
+    # yrdiff = np.abs(ydiff) / std
     wgood, = np.where((xrdiff < nsig) & (yrdiff < nsig))
     return wgood, x_std, y_std
 
