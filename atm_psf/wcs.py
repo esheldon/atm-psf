@@ -17,7 +17,7 @@ def header_to_wcs(hdr):
 
 
 def fit_gs_wcs(
-    orig_gs_wcs, truth, nsig=3, maxiter=20, get_indices=False,
+    orig_gs_wcs, truth, order=3, nsig=3, maxiter=20, get_indices=False,
 ):
     """
     fit galsim WCS using input ra, dec
@@ -39,7 +39,7 @@ def fit_gs_wcs(
             np.radians(ra[w]),
             np.radians(dec[w]),
             center=orig_gs_wcs.center,
-            order=3,
+            order=order,
         )
         wgood, x_std, y_std = get_wcs_non_outliers(
             wcs=wcs,

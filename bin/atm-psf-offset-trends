@@ -13,9 +13,8 @@ def plot_one_cens(cens):
     mplt.show()
 
 
-def load_data():
+def load_data(flist):
     import atm_psf
-    from glob import glob
     import numpy as np
     from tqdm import tqdm
     import esutil as eu
@@ -34,66 +33,62 @@ def load_data():
         ('az_off', 'f8'),
     ]
 
-    dlist = glob('[0-9]*')  # [:200]
-
     stlist = []
-    for i, d in enumerate(tqdm(dlist)):
-        flist = glob(f'{d}/piff-*pkl')
-        for f in flist:
+    for f in tqdm(flist):
 
-            # sfile = f.replace('piff-', 'sources-')
-            sfile = f.replace('piff-', 'source-')
-            sdata = atm_psf.io.load_source_data(sfile)
-            if 'reserved' in sdata and sdata['airmass'] >= 1:
+        # sfile = f.replace('piff-', 'sources-')
+        sfile = f.replace('piff-', 'source-')
+        sdata = atm_psf.io.load_source_data(sfile)
+        if 'reserved' in sdata and sdata['airmass'] >= 1:
 
-                sources = sdata['sources']
-                sc, = np.where(
-                    sdata['star_select']
-                    & ~sdata['reserved']
-                )
+            sources = sdata['sources']
+            sc, = np.where(
+                sdata['star_select']
+                & ~sdata['reserved']
+            )
 
-                p = atm_psf.io.load_stack_piff(f)
-                stars = [
-                    s for s in p.piffResult.stars
-                    if not s.is_reserve and not s.is_flagged
-                ]
+            p = atm_psf.io.load_stack_piff(f)
+            stars = [
+                s for s in p.piffResult.stars
+                if not s.is_reserve and not s.is_flagged
+            ]
 
-                assert sc.size == len(stars)
+            assert sc.size == len(stars)
 
-                alt = sdata['instcat_meta']['altitude']
-                az = sdata['instcat_meta']['azimuth']
+            alt = sdata['instcat_meta']['altitude']
+            az = sdata['instcat_meta']['azimuth']
 
-                for stari, sourcei in enumerate(sc):
+            for stari, sourcei in enumerate(sc):
 
-                    psf_flux = sources['base_PsfFlux_instFlux'][sourcei]
-                    psf_flux_err = sources['base_PsfFlux_instFluxErr'][sourcei]
+                psf_flux = sources['base_PsfFlux_instFlux'][sourcei]
+                psf_flux_err = sources['base_PsfFlux_instFluxErr'][sourcei]
 
-                    if psf_flux_err > 0:
-                        st = np.zeros(1, dtype=dtype)
-                        # print(stari, sourcei)
-                        try:
-                            cen = stars[stari].center
-                        except IndexError:
-                            print(stari, sourcei)
-                            import IPython
-                            IPython.embed()
+                if psf_flux_err > 0:
+                    st = np.zeros(1, dtype=dtype)
+                    # print(stari, sourcei)
+                    try:
+                        cen = stars[stari].center
+                    except IndexError:
+                        print(stari, sourcei)
+                        import IPython
+                        IPython.embed()
 
-                        st['airmass'] = sdata['airmass']
-                        st['alt'] = alt
-                        st['az'] = az
-                        st['ra'] = sources['coord_ra'][sourcei]
-                        st['dec'] = sources['coord_dec'][sourcei]
+                    st['airmass'] = sdata['airmass']
+                    st['alt'] = alt
+                    st['az'] = az
+                    st['ra'] = sources['coord_ra'][sourcei]
+                    st['dec'] = sources['coord_dec'][sourcei]
 
-                        st['s2n'] = psf_flux / psf_flux_err
+                    st['s2n'] = psf_flux / psf_flux_err
 
-                        st['off'] = np.sqrt(cen[0]**2 + cen[1]**2)
-                        st['uoff'] = cen[0]
-                        st['voff'] = cen[1]
-                        st['alt_off'], st['az_off'] = project_one_uv_onto_altaz(  # noqa
-                            alt=alt, az=az, du=cen[0], dv=cen[1],
-                        )
+                    st['off'] = np.sqrt(cen[0]**2 + cen[1]**2)
+                    st['uoff'] = cen[0]
+                    st['voff'] = cen[1]
+                    st['alt_off'], st['az_off'] = project_one_uv_onto_altaz(  # noqa
+                        alt=alt, az=az, du=cen[0], dv=cen[1],
+                    )
 
-                        stlist.append(st)
+                    stlist.append(st)
 
     return eu.numpy_util.combine_arrlist(stlist)
 
@@ -182,9 +177,22 @@ def plot_trend(st, xfield='s2n'):
     mplt.savefig(fname.replace('.pdf', '.png'), dpi=150)
 
 
-def load_data_bypointing(ploteach=False):
+def group_by_id(flist):
+    import os
+
+    data = {}
+    for f in flist:
+        fp = os.path.basename(f).split('-')
+        fid = int(fp[1])
+        if fid in data:
+            data[fid].append(f)
+        else:
+            data[fid] = [f]
+    return data
+
+
+def load_data_bypointing(flist, ploteach=False):
     import atm_psf
-    from glob import glob
     import numpy as np
     import random
     from tqdm import tqdm
@@ -206,64 +214,63 @@ def load_data_bypointing(ploteach=False):
         ('az_off', 'f8'),
     ]
 
-    dlist = glob('[0-9]*')  # [:200]
+    group_data = group_by_id(flist)
 
     stlist = []
-    for i, d in enumerate(tqdm(dlist)):
-        flist = glob(f'{d}/piff-*pkl')
-        if len(flist) == 0:
-            print(f'directory {d} is empty')
-            continue
+    for fid, plist in tqdm(group_data.items()):
 
-        random.shuffle(flist)
-        f = flist[0]
+        random.shuffle(plist)
+        # f = plist[0]
+        # for f in plist[0:0]:
 
-        # sfile = f.replace('piff-', 'sources-')
-        sfile = f.replace('piff-', 'source-')
-        sdata = atm_psf.io.load_source_data(sfile)
-        if 'reserved' in sdata and sdata['airmass'] >= 1:
+        for f in plist:
 
-            st = np.zeros(1, dtype=dtype)
-            p = atm_psf.io.load_stack_piff(f)
-            # these are really offsets in u, v
-            cens = np.array([
-                s.center for s in p.piffResult.stars
-                if not s.is_reserve and not s.is_flagged
-            ])
+            # sfile = f.replace('piff-', 'sources-')
+            sfile = f.replace('piff-', 'source-')
+            sdata = atm_psf.io.load_source_data(sfile)
+            if 'reserved' in sdata and sdata['airmass'] >= 1:
 
-            alt = sdata['instcat_meta']['altitude']
-            az = sdata['instcat_meta']['azimuth']
+                st = np.zeros(1, dtype=dtype)
+                p = atm_psf.io.load_stack_piff(f)
+                # these are really offsets in u, v
+                cens = np.array([
+                    s.center for s in p.piffResult.stars
+                    if not s.is_reserve and not s.is_flagged
+                ])
 
-            st['airmass'] = sdata['airmass']
-            st['alt'] = alt
+                alt = sdata['instcat_meta']['altitude']
+                az = sdata['instcat_meta']['azimuth']
 
-            sc = sdata['star_select']
-            st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
-            off = np.sqrt(
-                cens[:, 0]**2 + cens[:, 1]**2
-            )
+                st['airmass'] = sdata['airmass']
+                st['alt'] = alt
 
-            st['off'], st['off_std'] = eu.stat.sigma_clip(off)
-            st['uoff'], st['uoff_std'] = eu.stat.sigma_clip(cens[:, 0])
-            st['voff'], st['voff_std'] = eu.stat.sigma_clip(cens[:, 1])
+                sc = sdata['star_select']
+                st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
+                off = np.sqrt(
+                    cens[:, 0]**2 + cens[:, 1]**2
+                )
 
-            dalt, daz = project_uv_onto_altaz(
-                alt=alt, az=az, du=cens[:, 0], dv=cens[:, 1],
-            )
-            st['alt_off'], _ = eu.stat.sigma_clip(dalt)
-            st['az_off'], _ = eu.stat.sigma_clip(daz)
+                st['off'], st['off_std'] = eu.stat.sigma_clip(off)
+                st['uoff'], st['uoff_std'] = eu.stat.sigma_clip(cens[:, 0])
+                st['voff'], st['voff_std'] = eu.stat.sigma_clip(cens[:, 1])
 
-            # st['off'] = off.mean()
-            # st['off_std'] = off.std()
-            # st['uoff'] = cens[:, 0].mean()
-            # st['uoff_std'] = cens[:, 0].std()
-            # st['voff'] = cens[:, 1].mean()
-            # st['voff_std'] = cens[:, 1].std()
+                dalt, daz = project_uv_onto_altaz(
+                    alt=alt, az=az, du=cens[:, 0], dv=cens[:, 1],
+                )
+                st['alt_off'], _ = eu.stat.sigma_clip(dalt)
+                st['az_off'], _ = eu.stat.sigma_clip(daz)
 
-            stlist.append(st)
+                # st['off'] = off.mean()
+                # st['off_std'] = off.std()
+                # st['uoff'] = cens[:, 0].mean()
+                # st['uoff_std'] = cens[:, 0].std()
+                # st['voff'] = cens[:, 1].mean()
+                # st['voff_std'] = cens[:, 1].std()
 
-            if ploteach:
-                plot_one_cens(cens)
+                stlist.append(st)
+
+                if ploteach:
+                    plot_one_cens(cens)
 
     return eu.numpy_util.combine_arrlist(stlist)
 
@@ -416,22 +423,26 @@ def plot_trend_bypointing(st, xfield='airmass'):
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--flist', help='piff files', required=True)
     parser.add_argument('--bypointing', action='store_true')
     return parser.parse_args()
 
 
 def main():
     args = get_args()
+    with open(args.flist) as fobj:
+        flist = [line.strip() for line in fobj]
+
     ploteach = False
 
     if args.bypointing:
-        st = load_data_bypointing(ploteach=ploteach)
+        st = load_data_bypointing(flist=flist, ploteach=ploteach)
 
         plot_trend_bypointing(st, xfield='alt')
         plot_trend_bypointing(st, xfield='dec')
         plot_trend_bypointing(st, xfield='airmass')
     else:
-        st = load_data()
+        st = load_data(flist)
         plot_trend(st, xfield='s2n')
 
 

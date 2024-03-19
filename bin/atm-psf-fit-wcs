@@ -5,12 +5,12 @@ import fitsio
 import galsim
 from galsim import degrees
 import numpy as np
-import proplot as pplt
 import matplotlib.pyplot as mplt
 # import esutil as eu
 from esutil.stat import print_stats
 # from glob import glob
-from atm_psf.wcs import fit_gs_wcs, get_wcs_non_outliers
+from atm_psf.wcs import fit_gs_wcs, get_wcs_non_outliers, gs_wcs_to_dm_wcs
+# from lsst.meas.extensions.piff.piffPsfDeterminer import CelestialWcsWrapper
 
 SCALE = 0.2
 
@@ -21,6 +21,20 @@ def get_args():
     parser.add_argument('--image', required=True)
     parser.add_argument('--truth', required=True)
     return parser.parse_args()
+
+
+def get_dm_xy(wcs, ra, dec):
+    import lsst.geom
+    x = np.zeros(ra.size)
+    y = np.zeros(ra.size)
+
+    for i in range(ra.size):
+        skypos = lsst.geom.SpherePoint(ra[i], dec[i], lsst.geom.degrees)
+        impos = wcs.skyToPixel(skypos)
+        x[i] = impos.x
+        y[i] = impos.y
+
+    return x, y
 
 
 def read_data(args):
@@ -45,7 +59,7 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
     )
     M = np.sqrt(dx_arcsec**2 + dy_arcsec**2)
 
-    cmap = pplt.Colormap('inferno')
+    cmap = 'inferno'
     qplt = ax.quiver(
         x, y, dx_arcsec, dy_arcsec,
         M,
@@ -76,21 +90,30 @@ def main():
     r = rng.uniform(size=t.size)
     s = r.argsort()
 
-    frac = 0.5
-
-    nvalidation = int(s.size * frac)
+    # training and validation
+    validation_frac = 0.5
+    nvalidation = int(s.size * validation_frac)
 
     # verification
     vi = s[:nvalidation]
     # training
     ti = s[nvalidation:]
 
-    nsig = 3
-    wcs = fit_gs_wcs(orig_gs_wcs=gsim.wcs, truth=t[ti], nsig=nsig)
+    order = 3
+    nsig = 4.5
+    wcs = fit_gs_wcs(orig_gs_wcs=gsim.wcs, truth=t[ti], nsig=nsig, order=order)
+    dmwcs = gs_wcs_to_dm_wcs(wcs, gsim.bounds)
+    # dmwcs = CelestialWcsWrapper(dmwcs)
 
     wgood, _, _ = get_wcs_non_outliers(wcs=wcs, data=t[vi], nsig=nsig)
 
     vi = vi[wgood]
+
+    dmx, dmy = get_dm_xy(dmwcs, t['ra'][vi], t['dec'][vi])
+    # dmx, dmy = dmwcs.radecToxy(
+    #     ra=t['ra'][vi], dec=t['dec'][vi], units=degrees,
+    # )
+    # import IPython; IPython.embed()
 
     pra, pdec = wcs.xyToradec(
         x=x[vi],
@@ -106,6 +129,9 @@ def main():
     dy = (py - y[vi])
     ddec = (pdec - t['dec'][vi]) * 3600
 
+    dmdx = (dmx - x[vi])
+    dmdy = (dmy - y[vi])
+
     if True:
         plot_quiver(x[vi], y[vi], dx * SCALE, dy * SCALE, fname='quiver.pdf')
 
@@ -116,7 +142,12 @@ def main():
     print('ddec stats in arcsec')
     print_stats(ddec, nsig=4.5)
 
-    fig, axs = pplt.subplots(ncols=2)
+    print('DM dx stats in arcsec')
+    print_stats(dmdx * SCALE, nsig=4.5)
+    print('DM dy stats in arcsec')
+    print_stats(dmdy * SCALE, nsig=4.5)
+
+    fig, axs = mplt.subplots(ncols=2, figsize=(8, 4))
     axs[0].set(
         xlabel=r'$\Delta$ x [arcsec]',
     )
