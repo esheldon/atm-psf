@@ -29,8 +29,8 @@ def load_data(flist):
         ('off', 'f8'),
         ('uoff', 'f8'),
         ('voff', 'f8'),
-        ('alt_off', 'f8'),
-        ('az_off', 'f8'),
+        ('altoff', 'f8'),
+        ('azoff', 'f8'),
     ]
 
     stlist = []
@@ -84,7 +84,7 @@ def load_data(flist):
                     st['off'] = np.sqrt(cen[0]**2 + cen[1]**2)
                     st['uoff'] = cen[0]
                     st['voff'] = cen[1]
-                    st['alt_off'], st['az_off'] = project_one_uv_onto_altaz(  # noqa
+                    st['altoff'], st['azoff'] = project_one_uv_onto_altaz(  # noqa
                         alt=alt, az=az, du=cen[0], dv=cen[1],
                     )
 
@@ -210,8 +210,8 @@ def load_data_bypointing(flist, ploteach=False):
         ('voff', 'f8'),
         ('voff_std', 'f8'),
 
-        ('alt_off', 'f8'),
-        ('az_off', 'f8'),
+        ('altoff', 'f8'),
+        ('azoff', 'f8'),
     ]
 
     group_data = group_by_id(flist)
@@ -257,8 +257,8 @@ def load_data_bypointing(flist, ploteach=False):
                 dalt, daz = project_uv_onto_altaz(
                     alt=alt, az=az, du=cens[:, 0], dv=cens[:, 1],
                 )
-                st['alt_off'], _ = eu.stat.sigma_clip(dalt)
-                st['az_off'], _ = eu.stat.sigma_clip(daz)
+                st['altoff'], _ = eu.stat.sigma_clip(dalt)
+                st['azoff'], _ = eu.stat.sigma_clip(daz)
 
                 # st['off'] = off.mean()
                 # st['off_std'] = off.std()
@@ -352,23 +352,35 @@ def plot_trend_bypointing(st, xfield='airmass'):
 
             stats[xfield][i] = st[xfield][w].mean()
 
-            stats['off'][i] = st['off'][w].mean()
-            stats['off_err'][i] = st['off'][w].std() / np.sqrt(nbin)
+            if True:
+                for front in ['u', 'v', 'alt', 'az']:
+                    n = f'{front}off'
+                    en = f'{front}off_err'
+                    stats[n][i], _, stats[en][i] = eu.stat.sigma_clip(
+                        st[n][w], get_err=True,
+                    )
+            else:
+                stats['off'][i] = st['off'][w].mean()
+                stats['off_err'][i] = st['off'][w].std() / np.sqrt(nbin)
 
-            stats['uoff'][i] = st['uoff'][w].mean()
-            stats['uoff_err'][i] = st['uoff'][w].std() / np.sqrt(nbin)
-            stats['uoff_std'][i] = st['uoff_std'][w].mean()
-            stats['uoff_std_err'][i] = st['uoff_std'][w].std() / np.sqrt(nbin)
+                stats['uoff'][i] = st['uoff'][w].mean()
+                stats['uoff_err'][i] = st['uoff'][w].std() / np.sqrt(nbin)
+                stats['uoff_std'][i] = st['uoff_std'][w].mean()
+                stats['uoff_std_err'][i] = (
+                    st['uoff_std'][w].std() / np.sqrt(nbin)
+                )
 
-            stats['voff'][i] = st['voff'][w].mean()
-            stats['voff_err'][i] = st['voff'][w].std() / np.sqrt(nbin)
-            stats['voff_std'][i] = st['voff_std'][w].mean()
-            stats['voff_std_err'][i] = st['voff_std'][w].std() / np.sqrt(nbin)
+                stats['voff'][i] = st['voff'][w].mean()
+                stats['voff_err'][i] = st['voff'][w].std() / np.sqrt(nbin)
+                stats['voff_std'][i] = st['voff_std'][w].mean()
+                stats['voff_std_err'][i] = (
+                    st['voff_std'][w].std() / np.sqrt(nbin)
+                )
 
-            stats['altoff'][i] = st['alt_off'][w].mean()
-            stats['altoff_err'][i] = st['alt_off'][w].std() / np.sqrt(nbin)
-            stats['azoff'][i] = st['az_off'][w].mean()
-            stats['azoff_err'][i] = st['az_off'][w].std() / np.sqrt(nbin)
+                stats['altoff'][i] = st['altoff'][w].mean()
+                stats['altoff_err'][i] = st['altoff'][w].std() / np.sqrt(nbin)
+                stats['azoff'][i] = st['azoff'][w].mean()
+                stats['azoff_err'][i] = st['azoff'][w].std() / np.sqrt(nbin)
 
     # import IPython; IPython.embed()
 
@@ -383,7 +395,7 @@ def plot_trend_bypointing(st, xfield='airmass'):
     ax.set(
         xlabel=xlabel,
         ylabel='offset [arcsec]',
-        ylim=(-0.0165, 0.0115),
+        # ylim=(-0.0165, 0.0115),
     )
 
     ax.errorbar(
@@ -398,18 +410,18 @@ def plot_trend_bypointing(st, xfield='airmass'):
         stats['voff_err'],
         label=r'$\Delta v$',
     )
-    ax.errorbar(
-        stats[xfield],
-        stats['altoff'],
-        stats['altoff_err'],
-        label=r'$\Delta$ alt',
-    )
-    ax.errorbar(
-        stats[xfield],
-        stats['azoff'],
-        stats['azoff_err'],
-        label=r'$\Delta$ az',
-    )
+    # ax.errorbar(
+    #     stats[xfield],
+    #     stats['altoff'],
+    #     stats['altoff_err'],
+    #     label=r'$\Delta$ alt',
+    # )
+    # ax.errorbar(
+    #     stats[xfield],
+    #     stats['azoff'],
+    #     stats['azoff_err'],
+    #     label=r'$\Delta$ az',
+    # )
 
     ax.axhline(0, color='black')
     ax.legend()
