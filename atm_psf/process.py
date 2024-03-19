@@ -69,9 +69,9 @@ def run_sim_and_piff(
             _remove_file(image_file)
             _remove_file(truth_file)
 
-    if cleanup:
-        instcat_file = _get_instcat_path(obsid)
-        _remove_file(instcat_file)
+    # if cleanup:
+    #     instcat_file = _get_instcat_path(obsid)
+    #     _remove_file(instcat_file)
 
 
 def _remove_file(fname):

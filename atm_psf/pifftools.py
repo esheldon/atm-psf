@@ -23,8 +23,10 @@ def run_piff(psf_candidates, reserved, exposure):
     from lsst.afw.cameraGeom import PIXELS, FIELD_ANGLE
     import galsim
     import piff
+    import pprint
 
-    config = PiffPsfDeterminerConfig()
+    config = PiffPsfDeterminerConfig(useCoordinates='sky')
+    pprint.pprint(config.toDict())
 
     if config.stampSize:
         stampSize = config.stampSize
