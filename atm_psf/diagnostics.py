@@ -36,7 +36,8 @@ def plot_star_stats(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
     s2n_lim = [3, 50000]
     fwhm_lim = [0.3, 2.0]
     Tratio_lim = [-1, 1]
-    Tratio_hist_lim = [-0.05, 0.05]
+    # Tratio_hist_lim = [-0.05, 0.05]
+    Tratio_hist_lim = [-0.1, 0.1]
     ediff_lim = [-0.07, 0.07]
 
     # fwhm
