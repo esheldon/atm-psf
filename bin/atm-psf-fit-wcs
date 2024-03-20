@@ -72,6 +72,9 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
     fig.colorbar(qplt, cmap=cmap)
     print('saving:', fname)
     mplt.savefig(fname)
+    if '.pdf' in fname:
+        png = fname.replace('.pdf', '.png')
+        mplt.savefig(png, dpi=150)
 
 
 def main():
@@ -183,8 +186,10 @@ def main():
     axs[1].legend()
 
     fname = 'diffs.pdf'
+    png_fname = 'diffs.png'
     print('writing:', fname)
     fig.savefig(fname)
+    fig.savefig(png_fname, dpi=150)
     # pplt.show()
 
 

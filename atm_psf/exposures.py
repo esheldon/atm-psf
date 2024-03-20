@@ -2,7 +2,7 @@
 EDGE = 50
 
 
-def fits_to_exposure(fname, truth, rng, fwhm=0.8):
+def fits_to_exposure(fname, truth, rng, fwhm=0.8, no_find_sky=False):
     """
     load an exposure from an eimage fits file.  They sky is subtracted
     if truth is sent
@@ -14,6 +14,12 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     truth: str
         Path to truth file, from which sky is extracted.  It is assumed that
         the sky noise is poisson, so sky var = sky_level
+    rng: np.random.default_rng
+        The random number generator
+    fwhm: float
+        Initial PSF fwhm for detection, default 0.8
+    no_find_sky: bool
+        If set to True, don't find the sky, just use sky from catalog
 
     Returns
     -------
@@ -41,6 +47,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
 
     print('fitting for wcs')
     gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
+    # gs_wcs = orig_gs_wcs
     wcs = gs_wcs_to_dm_wcs(gs_wcs, gsim.bounds)
 
     ny, nx = image.shape
@@ -108,7 +115,7 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8):
     detector = DetectorWrapper(hdr['DET_NAME']).detector
     exp.setDetector(detector)
 
-    if True:
+    if not no_find_sky:
         print('doing iterative detection/sky subtraction')
         iterate_detection_and_skysub(
             exposure=exp,

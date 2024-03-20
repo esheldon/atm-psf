@@ -7,6 +7,8 @@ def run_sim_and_piff(
     seed,
     nstars_min=50,
     cleanup=True,
+    no_find_sky=False,
+    show=False,
 ):
     """
     Run the simulation using galsim and run piff on the image
@@ -30,6 +32,10 @@ def run_sim_and_piff(
     cleanup: bool, optional
         If set to True, remove the simulated data, the image, truth and instcat
         files.  Default True.
+    no_find_sky: bool
+        If set to True, find the sky rather than just use sky from catalog
+    show: bool
+        If set to True, show plots
     """
 
     import numpy as np
@@ -64,6 +70,8 @@ def run_sim_and_piff(
             source_file=source_file,
             seed=pseed,
             nstars_min=nstars_min,
+            no_find_sky=no_find_sky,
+            show=show,
         )
         if cleanup:
             _remove_file(image_file)
@@ -200,6 +208,8 @@ def _run_galsim(imsim_config, instcat, ccds):
 
 def process_image_with_piff(
     image_file, truth_file, piff_file, source_file, seed, nstars_min=50,
+    no_find_sky=False,
+    show=False,
 ):
     """
     process the image using piff
@@ -218,6 +228,10 @@ def process_image_with_piff(
         Seed for random number generator
     nstars_min: int
         Minimum number of stars required to run PIFF, default 50
+    no_find_sky: bool
+        If set to True, find the sky rather than just use sky from catalog
+    show: bool
+        If set to True, show plots
     """
     import numpy as np
     import atm_psf
@@ -236,6 +250,7 @@ def process_image_with_piff(
         fname=image_file,
         truth=truth_file,
         rng=rng,
+        no_find_sky=no_find_sky,
     )
     instcat_meta = _load_instcat_meta_from_dir(image_file)
 
@@ -249,7 +264,7 @@ def process_image_with_piff(
 
     # find stars in the size/flux diagram
     # note this is a bool array
-    star_select = atm_psf.select.select_stars(sources)
+    star_select = atm_psf.select.select_stars(sources, show=show)
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
@@ -276,6 +291,7 @@ def process_image_with_piff(
             psf_candidates=candidates,
             reserved=reserved[star_select],
             exposure=exp,
+            show=show,
         )
         # star_select is a full boolean, so we need to get the corresponding
         # indices

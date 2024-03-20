@@ -11,6 +11,9 @@ def get_args():
     parser.add_argument('--piff', required=True)
     parser.add_argument('--sources', required=True)
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--no-find-sky', action='store_true',
+                        help='just use the sky from the truth catalog')
     return parser.parse_args()
 
 
@@ -22,4 +25,6 @@ if __name__ == '__main__':
         piff_file=args.piff,
         source_file=args.sources,
         seed=args.seed,
+        show=args.show,
+        no_find_sky=args.no_find_sky
     )

@@ -1,6 +1,6 @@
 
 
-def run_piff(psf_candidates, reserved, exposure):
+def run_piff(psf_candidates, reserved, exposure, show=False):
     """
     Run PIFF on the image using the input PSF candidates
 
@@ -25,7 +25,9 @@ def run_piff(psf_candidates, reserved, exposure):
     import piff
     import pprint
 
-    config = PiffPsfDeterminerConfig(useCoordinates='sky')
+    config = PiffPsfDeterminerConfig(
+        useCoordinates='sky',
+    )
     pprint.pprint(config.toDict())
 
     if config.stampSize:
@@ -66,6 +68,11 @@ def run_piff(psf_candidates, reserved, exposure):
         good = getGoodPixels(cmi, config.zeroWeightMaskBits)
         fracGood = np.sum(good)/good.size
         if fracGood < config.minimumUnmaskedFraction:
+            print(
+                'skipping:',
+                ind,
+                f'{fracGood} < {config.minimumUnmaskedFraction}',
+            )
             not_kept[ind] = True
             continue
 
@@ -125,8 +132,15 @@ def run_piff(psf_candidates, reserved, exposure):
     assert len(stars) == len(piffResult.stars)
 
     for i, star in enumerate(piffResult.stars):
-        if star.is_flagged:
+        if star.is_flagged and not star.is_reserve:
+            print('skipping', star.center)
+            # import IPython; IPython.embed()
             not_kept[i] = True
+        elif not star.is_reserve:
+            print('keeping', star.center)
+
+    if show:
+        plot_stats(piffResult.stars, show=show)
 
     drawSize = 2*np.floor(0.5*stampSize/config.samplingSize) + 1
 
@@ -150,6 +164,84 @@ def run_piff(psf_candidates, reserved, exposure):
 
     ppsf = PiffPsf(drawSize, drawSize, piffResult)
     return ppsf, meta, not_kept
+
+
+def plot_stats(stars, show=False):
+    import matplotlib.pyplot as mplt
+    import numpy as np
+
+    alpha = 0.5
+
+    fig, axs = mplt.subplots(nrows=2, ncols=2)
+
+    off = np.array(
+        [np.sqrt(star.center[0]**2 + star.center[1]**2)
+         for star in stars if not star.is_flagged]
+    )
+    uoff = np.array(
+        [star.center[0] for star in stars if not star.is_flagged]
+    )
+    voff = np.array(
+        [star.center[1] for star in stars if not star.is_flagged]
+    )
+    chisq = np.array(
+        [star.fit.chisq for star in stars if not star.is_flagged]
+    )
+
+    foff = np.array(
+        [np.sqrt(star.center[0]**2 + star.center[1]**2)
+         for star in stars
+         if star.is_flagged and not star.is_reserve]
+    )
+    fuoff = np.array(
+        [star.center[0] for star in stars
+         if star.is_flagged and not star.is_reserve]
+    )
+    fvoff = np.array(
+        [star.center[1] for star in stars
+         if star.is_flagged and not star.is_reserve]
+    )
+    fchisq = np.array(
+        [star.fit.chisq for star in stars
+         if star.is_flagged and not star.is_reserve]
+    )
+
+    ax = axs[0, 0]
+    ax.set(xlabel=r'$\Delta u$ [arcsec]')
+
+    bins = np.linspace(-10, 10, 50)
+    ax.hist(uoff, bins=bins, label='unflagged', alpha=alpha)
+    ax.hist(fuoff, bins=bins, label='flagged', alpha=alpha)
+    ax.legend()
+
+    ax = axs[0, 1]
+    ax.set(xlabel=r'$\Delta v$ [arcsec]')
+
+    ax.hist(voff, bins=bins, alpha=alpha)
+    ax.hist(fvoff, bins=bins, alpha=alpha)
+
+    ax = axs[1, 0]
+    ax.set(xlabel=r'log$_{10}|$offset$|$ [arcsec]')
+
+    bins = np.linspace(np.log10(0.001), np.log10(12), 50)
+    ax.hist(np.log10(off), bins=bins, alpha=alpha)
+    ax.hist(np.log10(foff), bins=bins, alpha=alpha)
+
+    ax = axs[1, 1]
+    ax.set(xlabel=r'log$_{10}[ \chi^2 ]$')
+
+    max_chisq = max(chisq.max(), fchisq.max())
+    min_chisq = min(chisq.min(), fchisq.min())
+    bins = np.linspace(np.log10(min_chisq), np.log10(max_chisq), 50)
+    ax.hist(np.log10(chisq), bins=bins, alpha=alpha)
+    ax.hist(np.log10(fchisq), bins=bins, alpha=alpha)
+
+    # axs[1, 1].axis('off')
+
+    if show:
+        mplt.show()
+
+    return fig, ax
 
 
 def run_piff_old(psf_candidates, exposure):

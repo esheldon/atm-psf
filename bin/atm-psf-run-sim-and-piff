@@ -14,6 +14,9 @@ def get_args():
                         help='e.g. "[35,66]"')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--nocleanup', action='store_true')
+    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--no-find-sky', action='store_true',
+                        help='just use the sky from the truth catalog')
     return parser.parse_args()
 
 
@@ -30,4 +33,6 @@ if __name__ == '__main__':
         ccds=args.ccds,
         seed=args.seed,
         cleanup=cleanup,
+        show=args.show,
+        no_find_sky=args.no_find_sky
     )
