@@ -124,9 +124,14 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     }
 
     piffResult = piff.PSF.process(piffConfig)
+
     wcs = {0: gswcs}
 
     piffResult.fit(stars, wcs, pointing)
+
+    # stats plots
+    if show:
+        run_stats(config, piffResult, stars)
 
     # this is indicative of old piff where stars could be dropped
     assert len(stars) == len(piffResult.stars)
@@ -164,6 +169,39 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
 
     ppsf = PiffPsf(drawSize, drawSize, piffResult)
     return ppsf, meta, not_kept
+
+
+def run_stats(config, piffResult, stars):
+    import os
+    import piff
+
+    stats_dir = 'plots'
+    if not os.path.exists(stats_dir):
+        try:
+            os.makedirs(stats_dir)
+        except Exception:
+            pass
+
+    star_file = f'{stats_dir}/starsfile.fits'
+    stats_config = [
+        {
+            'type': 'StarImages',
+            'file_name': star_file,
+            'nplot': 0,  # all stars
+            'adjust_stars': True,
+        },
+    ]
+
+    stats_list = piff.Stats.process(stats_config)
+    print('stats_list:', stats_list)
+    for istat, stat_obj in enumerate(stats_list):
+        stat_obj.compute(piffResult, stars)
+        print('stat:', stat_obj)
+        fig, ax = stat_obj.plot()
+        fname = f'stat-{config.useCoordinates}-{istat:02d}.png'
+        fname = f'{stats_dir}/{fname}'
+        print('writing:', fname)
+        fig.savefig(fname, dpi=150)
 
 
 def plot_stats(stars, show=False):
