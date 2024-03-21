@@ -210,6 +210,9 @@ def main():
         new_header = {}
 
         wcs.writeToFitsHeader(new_header, gsim.bounds)
+        del new_header['GS_XMIN']
+        del new_header['GS_YMIN']
+        del new_header['GS_WCS']
         print('writing:', args.output)
         fitsio.write(args.output, gsim.array, header=new_header, clobber=True)
 
