@@ -25,7 +25,13 @@ def fit_gs_wcs(
     import numpy as np
     import galsim
 
-    w, = np.where(np.isfinite(truth['x']))
+    # flux cut is to work around bug where faint objects
+    # did not have DCR effect
+    w, = np.where(
+        np.isfinite(truth['x'])
+        & (truth['phot_flux'] > 100)
+    )
+
     print(f'starting with {w.size} stars')
 
     x, y = truth['x'], truth['y']
