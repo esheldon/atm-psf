@@ -8,9 +8,14 @@ import numpy as np
 import matplotlib.pyplot as mplt
 # import esutil as eu
 from esutil.stat import print_stats
+from esutil.numpy_util import between
 # from glob import glob
-from atm_psf.wcs import fit_gs_wcs, get_wcs_non_outliers, gs_wcs_to_dm_wcs
-from lsst.meas.extensions.piff.piffPsfDeterminer import CelestialWcsWrapper
+from atm_psf.wcs import (
+    fit_gs_wcs,
+    # get_wcs_non_outliers,
+    # gs_wcs_to_dm_wcs,
+)
+# from lsst.meas.extensions.piff.piffPsfDeterminer import CelestialWcsWrapper
 
 SCALE = 0.2
 
@@ -20,12 +25,13 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', required=True)
     parser.add_argument('--truth', required=True)
-    parser.add_argument('--output', help='write a new image with updated wcs')
+    parser.add_argument('--output-image',
+                        help='write a new image with updated wcs')
 
     args = parser.parse_args()
 
-    assert args.image != args.output
-    assert args.truth != args.output
+    assert args.image != args.output_image
+    assert args.truth != args.output_image
     return args
 
 
@@ -87,10 +93,15 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
 def main():
     args = get_args()
 
-    rng = np.random.default_rng(1234)
+    rng = np.random.default_rng()
 
     gsim, t = read_data(args)
-    w, = np.where(t['phot_flux'] > 100)
+    w, = np.where(
+        np.isfinite(t['x'])
+        & (t['phot_flux'] > 100)
+        & between(t['x'], 1, 4096)
+        & between(t['y'], 1, 4096)
+    )
     t = t[w]
 
     x = t['x']
@@ -112,23 +123,19 @@ def main():
     # training
     ti = s[nvalidation:]
 
-    order = 3
+    order = 2
     nsig = 4
     wcs = fit_gs_wcs(orig_gs_wcs=gsim.wcs, truth=t[ti], nsig=nsig, order=order)
-    dmwcs = gs_wcs_to_dm_wcs(wcs, gsim.bounds)
-    # dmwcs = CelestialWcsWrapper(wcs)
+    # wcs = gsim.wcs
+    # dmwcs = gs_wcs_to_dm_wcs(wcs, gsim.bounds)
 
-    wgood, _, _ = get_wcs_non_outliers(wcs=wcs, data=t[vi], nsig=nsig)
+    # wgood, _, _ = get_wcs_non_outliers(wcs=wcs, data=t[vi], nsig=nsig)
+    #
+    # vi = vi[wgood]
 
-    vi = vi[wgood]
-
-    dmx, dmy = get_dm_xy(dmwcs, ra[vi], dec[vi])
-    dmx += 1
-    dmy += 1
-    # dmx, dmy = dmwcs.radecToxy(
-    #     ra=t['ra'][vi], dec=t['dec'][vi], units=degrees,
-    # )
-    # import IPython; IPython.embed()
+    # dmx, dmy = get_dm_xy(dmwcs, ra[vi], dec[vi])
+    # dmx += 1
+    # dmy += 1
 
     pra, pdec = wcs.xyToradec(
         x=x[vi],
@@ -144,59 +151,79 @@ def main():
     dy = (py - y[vi])
     ddec = (pdec - t['dec'][vi]) * 3600
 
-    dmdx = (dmx - x[vi])
-    dmdy = (dmy - y[vi])
+    dxs = dx * SCALE
+    dys = dy * SCALE
+    ds = np.sqrt(dxs**2 + dys**2)
+
+    # dmdx = (dmx - x[vi])
+    # dmdy = (dmy - y[vi])
     # import IPython; IPython.embed()
 
     if True:
-        plot_quiver(x[vi], y[vi], dx * SCALE, dy * SCALE, fname='quiver.pdf')
+        plot_quiver(x[vi], y[vi], dxs, dys, fname='quiver.pdf')
 
     print('dx stats in arcsec')
-    print_stats(dx * SCALE, nsig=4.5)
+    print_stats(dxs, nsig=4.5)
     print('dy stats in arcsec')
-    print_stats(dy * SCALE, nsig=4.5)
+    print_stats(dys, nsig=4.5)
     print('ddec stats in arcsec')
     print_stats(ddec, nsig=4.5)
 
-    print('DM dx stats in arcsec')
-    print_stats(dmdx * SCALE, nsig=4.5)
-    print('DM dy stats in arcsec')
-    print_stats(dmdy * SCALE, nsig=4.5)
-
-    fig, axs = mplt.subplots(ncols=2, figsize=(8, 4))
-    axs[0].set(
+    fig, axs = mplt.subplots(ncols=2, nrows=2, figsize=(6, 6))
+    axs[0, 0].set(
         xlabel=r'$\Delta$ x [arcsec]',
     )
-    axs[1].set(
+    axs[0, 1].set(
         xlabel=r'$\Delta$ DEC [arcsec]',
     )
+    axs[1, 0].set(
+        xlabel=r'log$_{10}$ $|$offset$|$ [arcsec]',
+    )
+    axs[1, 1].axis('off')
 
-    nbin = 30
-    bins = np.linspace(-0.1, 0.1, nbin)
-    # bins = nbin
+    # binsize = 0.005
+    maxval = max(dxs.max(), dys.max())
+    minval = min(dxs.min(), dys.min())
+    # nbin = int((maxval - minval) / binsize)
+
+    nbin = 50
+    bins = np.linspace(minval, maxval, nbin)
+    print(minval, maxval)
 
     alpha = 0.5
-    axs[0].hist(
-        dx * SCALE,
+    axs[0, 0].hist(
+        dxs,
         bins=bins,
         alpha=alpha,
         label='x',
     )
-    axs[0].hist(
-        dy * SCALE,
+    axs[0, 0].hist(
+        dys,
         bins=bins,
         alpha=alpha,
         label='y',
     )
-    axs[0].legend()
+    axs[0, 0].legend()
 
-    axs[1].hist(
+    axs[0, 1].hist(
         ddec,
         bins=bins,
         alpha=alpha,
         label='DEC',
     )
-    axs[1].legend()
+    axs[0, 1].legend()
+
+    logds = np.log10(ds)
+
+    # minval = logds.min()
+    maxval = logds.max()
+    bins = np.linspace(np.log10(0.001), maxval, 50)
+
+    axs[1, 0].hist(
+        logds,
+        bins=bins,
+        alpha=alpha,
+    )
 
     fname = 'diffs.pdf'
     png_fname = 'diffs.png'
@@ -204,17 +231,22 @@ def main():
     fig.savefig(fname)
     print('writing:', png_fname)
     fig.savefig(png_fname, dpi=150)
-    # pplt.show()
 
-    if args.output is not None:
+    if args.output_image is not None:
         new_header = {}
+
+        sky = t['sky_level'][0] * 0.2**2
+        gsim.array[:, :] -= sky
+        weight = gsim.array[:, :] * 0 + 1/sky
 
         wcs.writeToFitsHeader(new_header, gsim.bounds)
         del new_header['GS_XMIN']
         del new_header['GS_YMIN']
         del new_header['GS_WCS']
-        print('writing:', args.output)
-        fitsio.write(args.output, gsim.array, header=new_header, clobber=True)
+        print('writing:', args.output_image)
+        with fitsio.FITS(args.output_image, 'rw', clobber=True) as fits:
+            fits.write(gsim.array, header=new_header, extname='image')
+            fits.write(weight, extname='weight')
 
 
 main()

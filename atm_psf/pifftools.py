@@ -195,10 +195,9 @@ def run_stats(config, piffResult, stars):
     ]
 
     stats_list = piff.Stats.process(stats_config)
-    print('stats_list:', stats_list)
+
     for istat, stat_obj in enumerate(stats_list):
         stat_obj.compute(piffResult, stars)
-        print('stat:', stat_obj)
         fig, ax = stat_obj.plot()
         fname = f'stat-{config.useCoordinates}-{istat:02d}.png'
         fname = f'{stats_dir}/{fname}'

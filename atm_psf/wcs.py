@@ -24,11 +24,14 @@ def fit_gs_wcs(
     """
     import numpy as np
     import galsim
+    from esutil.numpy_util import between
 
     # flux cut is to work around bug where faint objects
     # did not have DCR effect
     w, = np.where(
         np.isfinite(truth['x'])
+        & between(truth['x'], 0, 4096)
+        & between(truth['y'], 0, 4096)
         & (truth['phot_flux'] > 100)
     )
 
@@ -47,11 +50,24 @@ def fit_gs_wcs(
             center=orig_gs_wcs.center,
             order=order,
         )
-        wgood, x_std, y_std = get_wcs_non_outliers(
-            wcs=wcs,
-            data=truth[w],
-            nsig=nsig,
-        )
+        try:
+            wgood, x_std, y_std = get_wcs_non_outliers(
+                wcs=wcs,
+                data=truth[w],
+                nsig=nsig,
+            )
+        except galsim.errors.GalSimError as err:
+            if iiter == 0:
+                print('caught error on first iter:', err)
+                # sometimes the first fit is really bad, try using the orig
+                wcs = orig_gs_wcs
+                wgood, x_std, y_std = get_wcs_non_outliers(
+                    wcs=wcs,
+                    data=truth[w],
+                    nsig=nsig,
+                )
+            else:
+                raise err
 
         if wgood.size == w.size:
             print('    Did not remove any outlier')
