@@ -27,6 +27,8 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
 
     config = PiffPsfDeterminerConfig(
         useCoordinates='sky',
+        # spatialOrder=3,
+        # interpolant='Lanczos(5)',
     )
     pprint.pprint(config.toDict())
 
