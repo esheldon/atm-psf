@@ -150,7 +150,6 @@ def main():
     dx = (px - x[vi])
     dy = (py - y[vi])
     ddec = (pdec - t['dec'][vi]) * 3600 * 1000
-    dra = (pra - t['ra'][vi]) * 3600 * 1000 * np.cos(t['dec'][vi])
 
     dxs = dx * SCALE * 1000
     dys = dy * SCALE * 1000
@@ -173,13 +172,10 @@ def main():
     ystats = print_stats(dys)
     print('ddec stats in mas')
     decstats = print_stats(ddec)
-    print('dra stats in mas')
-    rastats = print_stats(dra)
 
     xtext = f'RMS: {xstats["std"]:.2g} mas'
     ytext = f'RMS: {ystats["std"]:.2g} mas'
     dectext = f'RMS: {decstats["std"]:.2g} mas'
-    # ratext = f'RMS: {rastats["std"]:.2g} mas'
 
     fig, axs = mplt.subplots(ncols=2, nrows=2, figsize=(6, 6))
     axs[0, 0].set(
@@ -226,12 +222,6 @@ def main():
         alpha=alpha,
         label=f'DEC {dectext}',
     )
-    # axs[0, 1].hist(
-    #     dra,
-    #     bins=bins,
-    #     alpha=alpha,
-    #     label=f'RA {ratext}',
-    # )
 
     axs[0, 1].legend()
 
