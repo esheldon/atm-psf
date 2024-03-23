@@ -6,7 +6,7 @@ import galsim
 from galsim import degrees
 import numpy as np
 import matplotlib.pyplot as mplt
-# import esutil as eu
+import esutil as eu
 from esutil.stat import print_stats
 from esutil.numpy_util import between
 # from glob import glob
@@ -149,11 +149,16 @@ def main():
     )
     dx = (px - x[vi])
     dy = (py - y[vi])
-    ddec = (pdec - t['dec'][vi]) * 3600
+    ddec = (pdec - t['dec'][vi]) * 3600 * 1000
+    dra = (pra - t['ra'][vi]) * 3600 * 1000 * np.cos(t['dec'][vi])
 
-    dxs = dx * SCALE
-    dys = dy * SCALE
+    dxs = dx * SCALE * 1000
+    dys = dy * SCALE * 1000
     ds = np.sqrt(dxs**2 + dys**2)
+    sphdist = eu.coords.sphdist(
+        t['ra'][vi], t['dec'][vi],
+        pra, pdec,
+    ) * 3600 * 1000
 
     # dmdx = (dmx - x[vi])
     # dmdy = (dmy - y[vi])
@@ -162,31 +167,41 @@ def main():
     if True:
         plot_quiver(x[vi], y[vi], dxs, dys, fname='quiver.pdf')
 
-    print('dx stats in arcsec')
-    print_stats(dxs, nsig=4.5)
-    print('dy stats in arcsec')
-    print_stats(dys, nsig=4.5)
-    print('ddec stats in arcsec')
-    print_stats(ddec, nsig=4.5)
+    print('dx stats in mas')
+    xstats = print_stats(dxs)
+    print('dy stats in mas')
+    ystats = print_stats(dys)
+    print('ddec stats in mas')
+    decstats = print_stats(ddec)
+    print('dra stats in mas')
+    rastats = print_stats(dra)
+
+    xtext = f'RMS: {xstats["std"]:.2g} mas'
+    ytext = f'RMS: {ystats["std"]:.2g} mas'
+    dectext = f'RMS: {decstats["std"]:.2g} mas'
+    # ratext = f'RMS: {rastats["std"]:.2g} mas'
 
     fig, axs = mplt.subplots(ncols=2, nrows=2, figsize=(6, 6))
     axs[0, 0].set(
-        xlabel=r'$\Delta$ x [arcsec]',
+        xlabel=r'$\Delta$ x [mas]',
     )
     axs[0, 1].set(
-        xlabel=r'$\Delta$ DEC [arcsec]',
+        xlabel=r'$\Delta$ DEC [mas]',
     )
     axs[1, 0].set(
-        xlabel=r'log$_{10}$ $|$offset$|$ [arcsec]',
+        xlabel=r'log$_{10}$ $|$pix offset$|$ [mas]',
     )
-    axs[1, 1].axis('off')
+    axs[1, 1].set(
+        xlabel=r'log$_{10}$ $|$sph offset$|$ [mas]',
+    )
+    # axs[1, 1].axis('off')
 
     # binsize = 0.005
     maxval = max(dxs.max(), dys.max())
     minval = min(dxs.min(), dys.min())
     # nbin = int((maxval - minval) / binsize)
 
-    nbin = 50
+    nbin = 35
     bins = np.linspace(minval, maxval, nbin)
     print(minval, maxval)
 
@@ -195,13 +210,13 @@ def main():
         dxs,
         bins=bins,
         alpha=alpha,
-        label='x',
+        label=f'x {xtext}',
     )
     axs[0, 0].hist(
         dys,
         bins=bins,
         alpha=alpha,
-        label='y',
+        label=f'y {ytext}',
     )
     axs[0, 0].legend()
 
@@ -209,18 +224,34 @@ def main():
         ddec,
         bins=bins,
         alpha=alpha,
-        label='DEC',
+        label=f'DEC {dectext}',
     )
+    # axs[0, 1].hist(
+    #     dra,
+    #     bins=bins,
+    #     alpha=alpha,
+    #     label=f'RA {ratext}',
+    # )
+
     axs[0, 1].legend()
 
     logds = np.log10(ds)
 
-    # minval = logds.min()
-    maxval = logds.max()
-    bins = np.linspace(np.log10(0.001), maxval, 50)
+    maxval = logds.max() * 1.1
+    bins = np.linspace(np.log10(1), maxval, nbin)
 
     axs[1, 0].hist(
         logds,
+        bins=bins,
+        alpha=alpha,
+    )
+
+    logsph = np.log10(sphdist)
+    maxval = logsph.max() * 1.1
+    bins = np.linspace(np.log10(1), maxval, nbin)
+
+    axs[1, 1].hist(
+        logsph,
         bins=bins,
         alpha=alpha,
     )
