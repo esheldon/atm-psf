@@ -197,21 +197,22 @@ def load_data_bypointing(flist, ploteach=False):
     import random
     from tqdm import tqdm
     import esutil as eu
+    from esutil.stat import sigma_clip
 
     dtype = [
         ('airmass', 'f8'),
         ('alt', 'f8'),
         ('dec', 'f8'),
 
-        ('off', 'f8'),
-        ('off_std', 'f8'),
         ('uoff', 'f8'),
         ('uoff_std', 'f8'),
         ('voff', 'f8'),
         ('voff_std', 'f8'),
 
         ('altoff', 'f8'),
+        ('altoff_std', 'f8'),
         ('azoff', 'f8'),
+        ('azoff_std', 'f8'),
     ]
 
     group_data = group_by_id(flist)
@@ -246,26 +247,15 @@ def load_data_bypointing(flist, ploteach=False):
 
                 sc = sdata['star_select']
                 st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
-                off = np.sqrt(
-                    cens[:, 0]**2 + cens[:, 1]**2
-                )
 
-                st['off'], st['off_std'] = eu.stat.sigma_clip(off)
-                st['uoff'], st['uoff_std'] = eu.stat.sigma_clip(cens[:, 0])
-                st['voff'], st['voff_std'] = eu.stat.sigma_clip(cens[:, 1])
+                st['uoff'], st['uoff_std'] = sigma_clip(cens[:, 0])
+                st['voff'], st['voff_std'] = sigma_clip(cens[:, 1])
 
                 dalt, daz = project_uv_onto_altaz(
                     alt=alt, az=az, du=cens[:, 0], dv=cens[:, 1],
                 )
-                st['altoff'], _ = eu.stat.sigma_clip(dalt)
-                st['azoff'], _ = eu.stat.sigma_clip(daz)
-
-                # st['off'] = off.mean()
-                # st['off_std'] = off.std()
-                # st['uoff'] = cens[:, 0].mean()
-                # st['uoff_std'] = cens[:, 0].std()
-                # st['voff'] = cens[:, 1].mean()
-                # st['voff_std'] = cens[:, 1].std()
+                st['altoff'], st['altoff_std'] = sigma_clip(dalt)
+                st['azoff'], st['azoff_std'] = sigma_clip(daz)
 
                 stlist.append(st)
 
@@ -323,18 +313,11 @@ def plot_trend_bypointing(st, xfield='airmass'):
     dtype = [
         (xfield, 'f8'),
 
-        ('off', 'f8'),
-        ('off_err', 'f8'),
-
         ('uoff', 'f8'),
         ('uoff_err', 'f8'),
-        ('uoff_std', 'f8'),
-        ('uoff_std_err', 'f8'),
 
         ('voff', 'f8'),
         ('voff_err', 'f8'),
-        ('voff_std', 'f8'),
-        ('voff_std_err', 'f8'),
 
         ('altoff', 'f8'),
         ('altoff_err', 'f8'),
@@ -345,6 +328,8 @@ def plot_trend_bypointing(st, xfield='airmass'):
         nbin,
         dtype=dtype,
     )
+
+    rng = np.random.default_rng()
     rev = xbs['rev']
     for i in range(nbin):
         if rev[i] != rev[i+1]:
@@ -352,39 +337,15 @@ def plot_trend_bypointing(st, xfield='airmass'):
 
             stats[xfield][i] = st[xfield][w].mean()
 
-            if True:
-                for front in ['u', 'v', 'alt', 'az']:
-                    n = f'{front}off'
-                    en = f'{front}off_err'
-                    stats[n][i], _, stats[en][i] = eu.stat.sigma_clip(
-                        st[n][w], get_err=True,
-                    )
-            else:
-                stats['off'][i] = st['off'][w].mean()
-                stats['off_err'][i] = st['off'][w].std() / np.sqrt(nbin)
-
-                stats['uoff'][i] = st['uoff'][w].mean()
-                stats['uoff_err'][i] = st['uoff'][w].std() / np.sqrt(nbin)
-                stats['uoff_std'][i] = st['uoff_std'][w].mean()
-                stats['uoff_std_err'][i] = (
-                    st['uoff_std'][w].std() / np.sqrt(nbin)
+            for front in ['u', 'v', 'alt', 'az']:
+                name = f'{front}off'
+                ename = f'{front}off_err'
+                signame = f'{front}off_std'
+                wts = 1/(0.003**2 + st[signame][w]**2)
+                stats[name][i], stats[ename][i] = bootstrap(
+                    data=st[name][w], weights=wts, rng=rng, nrand=100,
                 )
 
-                stats['voff'][i] = st['voff'][w].mean()
-                stats['voff_err'][i] = st['voff'][w].std() / np.sqrt(nbin)
-                stats['voff_std'][i] = st['voff_std'][w].mean()
-                stats['voff_std_err'][i] = (
-                    st['voff_std'][w].std() / np.sqrt(nbin)
-                )
-
-                stats['altoff'][i] = st['altoff'][w].mean()
-                stats['altoff_err'][i] = st['altoff'][w].std() / np.sqrt(nbin)
-                stats['azoff'][i] = st['azoff'][w].mean()
-                stats['azoff_err'][i] = st['azoff'][w].std() / np.sqrt(nbin)
-
-    # import IPython; IPython.embed()
-
-    # fig, axs = mplt.subplots(nrows=2, figsize=(6, 6))
     fig, ax = mplt.subplots()
 
     if xfield == 'alt':
@@ -430,6 +391,19 @@ def plot_trend_bypointing(st, xfield='airmass'):
     print('writing:', fname)
     mplt.savefig(fname)
     mplt.savefig(fname.replace('.pdf', '.png'), dpi=150)
+
+
+def bootstrap(data, weights, rng, nrand):
+    from esutil.stat import sigma_clip
+    import numpy as np
+
+    vals = np.zeros(nrand)
+    for i in range(nrand):
+        ind = rng.integers(0, data.size, size=data.size)
+        # vals[i], _ = sigma_clip(data[ind], weights=weights[ind])
+        vals[i] = (data[ind] * weights[ind]).sum() / weights[ind].sum()
+
+    return vals.mean(), vals.std()
 
 
 def get_args():
