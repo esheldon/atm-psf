@@ -140,11 +140,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
 
     for i, star in enumerate(piffResult.stars):
         if star.is_flagged and not star.is_reserve:
-            print('skipping', star.center)
-            # import IPython; IPython.embed()
             not_kept[i] = True
-        elif not star.is_reserve:
-            print('keeping', star.center)
 
     if show:
         plot_stats(piffResult.stars, show=show)
