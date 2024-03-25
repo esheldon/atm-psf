@@ -221,10 +221,7 @@ def load_data_bypointing(flist, ploteach=False):
     for fid, plist in tqdm(group_data.items()):
 
         random.shuffle(plist)
-        # f = plist[0]
-        # for f in plist[0:0]:
-
-        for f in plist:
+        for f in plist[:1]:
 
             # sfile = f.replace('piff-', 'sources-')
             sfile = f.replace('piff-', 'source-')
