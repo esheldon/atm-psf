@@ -7,7 +7,7 @@ from galsim import degrees
 import numpy as np
 import matplotlib.pyplot as mplt
 import esutil as eu
-from esutil.stat import print_stats
+from esutil.stat import get_stats
 from esutil.numpy_util import between
 # from glob import glob
 from atm_psf.wcs import (
@@ -163,11 +163,11 @@ def main():
         plot_quiver(x[vi], y[vi], dxs, dys, fname='quiver.pdf')
 
     print('dx stats in mas')
-    xstats = print_stats(dxs, get=True)
+    xstats = get_stats(dxs, doprint=True)
     print('dy stats in mas')
-    ystats = print_stats(dys, get=True)
+    ystats = get_stats(dys, doprint=True)
     print('ddec stats in mas')
-    decstats = print_stats(ddec, get=True)
+    decstats = get_stats(ddec, doprint=True)
 
     xtext = f'RMS: {xstats["std"]:.2g} mas'
     ytext = f'RMS: {ystats["std"]:.2g} mas'
