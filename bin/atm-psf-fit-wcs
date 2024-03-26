@@ -159,19 +159,15 @@ def main():
         pra, pdec,
     ) * 3600 * 1000
 
-    # dmdx = (dmx - x[vi])
-    # dmdy = (dmy - y[vi])
-    # import IPython; IPython.embed()
-
     if True:
         plot_quiver(x[vi], y[vi], dxs, dys, fname='quiver.pdf')
 
     print('dx stats in mas')
-    xstats = print_stats(dxs)
+    xstats = print_stats(dxs, get=True)
     print('dy stats in mas')
-    ystats = print_stats(dys)
+    ystats = print_stats(dys, get=True)
     print('ddec stats in mas')
-    decstats = print_stats(ddec)
+    decstats = print_stats(ddec, get=True)
 
     xtext = f'RMS: {xstats["std"]:.2g} mas'
     ytext = f'RMS: {ystats["std"]:.2g} mas'
@@ -238,7 +234,7 @@ def main():
 
     logsph = np.log10(sphdist)
     maxval = logsph.max() * 1.1
-    bins = np.linspace(np.log10(1), maxval, nbin)
+    bins = np.linspace(logsph.min(), maxval, nbin)
 
     axs[1, 1].hist(
         logsph,
