@@ -1,5 +1,5 @@
 # run both sim and the piff
-run: "run-g-newcen-nodcr-simpiff-01"
+run: "run-g-psfws-newcen-nodcr-simpiff-01"
 seed: 3012
 
 memory: "12G"
