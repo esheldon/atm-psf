@@ -1,3 +1,8 @@
+import lsst.pex.config as pexConfig
+from lsst.meas.algorithms.psfDeterminer import BasePsfDeterminerTask
+from lsst.meas.extensions.piff.piffPsfDeterminer import (
+    _validateGalsimInterpolant
+)
 
 
 def run_piff(psf_candidates, reserved, exposure, show=False):
@@ -14,7 +19,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     """
     import numpy as np
     from lsst.meas.extensions.piff.piffPsfDeterminer import (
-        PiffPsfDeterminerConfig,
+        # PiffPsfDeterminerConfig,
         getGoodPixels, computeWeight,
         CelestialWcsWrapper, UVWcsWrapper,
     )
@@ -25,21 +30,25 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     import piff
     import pprint
 
-    config = PiffPsfDeterminerConfig(
+    # config = PiffPsfDeterminerConfig(
+    #     useCoordinates='sky',
+    #     # spatialOrder=3,
+    #     # interpolant='Lanczos(5)',
+    # )
+    config = MyPiffPsfDeterminerConfig(
         useCoordinates='sky',
-        # spatialOrder=3,
-        # interpolant='Lanczos(5)',
     )
     pprint.pprint(config.toDict())
 
-    if config.stampSize:
-        stampSize = config.stampSize
-        if stampSize > psf_candidates[0].getWidth():
-            print('stampSize is larger than the PSF candidate '
-                  'size.  Using candidate size.')
-            stampSize = psf_candidates[0].getWidth()
-    else:  # TODO: Only the if block should stay after DM-36311
-        stampSize = psf_candidates[0].getWidth()
+    stampSize = config.stampSize
+    psize = psf_candidates[0].getWidth()
+    print('psize:', psize)
+    if stampSize > psize:
+        raise ValueError(
+            f'stampSize {stampSize} is larger than the PSF candidate '
+            f'size {psize}'
+        )
+        # stampSize = psf_candidates[0].getWidth()
 
     scale = exposure.getWcs().getPixelScale().asArcseconds()
     match config.useCoordinates:
@@ -111,7 +120,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
         'model': {
             'type': 'PixelGrid',
             'scale': scale * config.samplingSize,
-            'size': stampSize,
+            'size': config.modelSize,
             'interp': config.interpolant
         },
         'interp': {
@@ -167,6 +176,69 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
 
     ppsf = PiffPsf(drawSize, drawSize, piffResult)
     return ppsf, meta, not_kept
+
+
+class MyPiffPsfDeterminerConfig(BasePsfDeterminerTask.ConfigClass):
+    spatialOrder = pexConfig.Field[int](
+        doc="specify spatial order for PSF kernel creation",
+        default=2,
+    )
+    samplingSize = pexConfig.Field[float](
+        doc="Resolution of the internal PSF model relative to the pixel size; "
+        "e.g. 0.5 is equal to 2x oversampling",
+        default=1,
+    )
+    modelSize = pexConfig.Field[int](
+        doc="Internal model size for PIFF",
+        default=25,
+    )
+    outlierNSigma = pexConfig.Field[float](
+        doc="n sigma for chisq outlier rejection",
+        default=4.0
+    )
+    outlierMaxRemove = pexConfig.Field[float](
+        doc="Max fraction of stars to remove as outliers each iteration",
+        default=0.05
+    )
+    maxSNR = pexConfig.Field[float](
+        doc="Rescale the weight of bright stars such that their SNR is less "
+            "than this value.",
+        default=200.0
+    )
+    zeroWeightMaskBits = pexConfig.ListField[str](
+        doc="List of mask bits for which to set pixel weights to zero.",
+        default=['BAD', 'CR', 'INTRP', 'SAT', 'SUSPECT', 'NO_DATA']
+    )
+    minimumUnmaskedFraction = pexConfig.Field[float](
+        doc="Minimum fraction of unmasked pixels required to use star.",
+        default=0.5
+    )
+    interpolant = pexConfig.Field[str](
+        doc="GalSim interpolant name for Piff to use. "
+            "Options include 'Lanczos(N)', where N is an integer, along with "
+            "galsim.Cubic, galsim.Delta, galsim.Linear, galsim.Nearest, "
+            "galsim.Quintic, and galsim.SincInterpolant.",
+        check=_validateGalsimInterpolant,
+        default="Lanczos(11)",
+    )
+    debugStarData = pexConfig.Field[bool](
+        doc="Include star images used for fitting in PSF model object.",
+        default=False
+    )
+    useCoordinates = pexConfig.ChoiceField[str](
+        doc="Which spatial coordinates to regress against in PSF modeling.",
+        allowed=dict(
+            pixel='Regress against pixel coordinates',
+            field='Regress against field angles',
+            sky='Regress against RA/Dec'
+        ),
+        default='pixel'
+    )
+
+    def setDefaults(self):
+        super().setDefaults()
+        self.modelSize = 25
+        self.stampSize = 35
 
 
 def run_stats(config, piffResult, stars):
@@ -265,8 +337,12 @@ def plot_stats(stars, show=False):
     ax = axs[1, 1]
     ax.set(xlabel=r'log$_{10}[ \chi^2 ]$')
 
-    max_chisq = max(chisq.max(), fchisq.max())
-    min_chisq = min(chisq.min(), fchisq.min())
+    max_chisq = chisq.max()
+    min_chisq = chisq.min()
+    if fchisq.size > 0:
+        max_chisq = max(max_chisq, fchisq.max())
+        min_chisq = min(min_chisq, fchisq.min())
+
     bins = np.linspace(np.log10(min_chisq), np.log10(max_chisq), 50)
     ax.hist(np.log10(chisq), bins=bins, alpha=alpha)
     ax.hist(np.log10(fchisq), bins=bins, alpha=alpha)
@@ -321,9 +397,16 @@ def make_psf_candidates(sources, exposure):
     -------
     list of lsst.meas.algorithms.PsfCandidateF
     """
-    from lsst.meas.algorithms.makePsfCandidates import MakePsfCandidatesTask
+    from lsst.meas.algorithms.makePsfCandidates import (
+        MakePsfCandidatesTask,
+        MakePsfCandidatesConfig,
+    )
 
-    task = MakePsfCandidatesTask()
+    # this needs to be at least as big as stampSize in the piff wrapper config
+    config = MakePsfCandidatesConfig(
+        kernelSize=35,
+    )
+    task = MakePsfCandidatesTask(config)
     res = task.makePsfCandidates(sources, exposure)
     return res.psfCandidates
 
