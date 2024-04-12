@@ -26,7 +26,9 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     import pprint
 
     config = PiffPsfDeterminerConfig(
-        useCoordinates='sky',
+        modelSize=25,
+        stampSize=35,
+        # useCoordinates='sky',
         # spatialOrder=3,
         # interpolant='Lanczos(5)',
     )
