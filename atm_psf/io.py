@@ -103,8 +103,8 @@ def _make_output_source_data(data):
         ('dec', 'f8'),
         ('star_select', bool),
         ('reserved', bool),
-        ('x', 'f8'),
-        ('y', 'f8'),
+        ('x', 'f4'),
+        ('y', 'f4'),
         ('psf_flux', 'f4'),
         ('psf_flux_err', 'f4'),
     ]

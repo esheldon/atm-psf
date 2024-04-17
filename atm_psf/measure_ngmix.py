@@ -105,15 +105,15 @@ def get_ngmix_output_struct():
     dtype = [
         ('am_flags', 'i4'),
         ('am_e1', 'f8'),
-        ('am_e1_err', 'f8'),
+        ('am_e1_err', 'f4'),
         ('am_e2', 'f8'),
-        ('am_e2_err', 'f8'),
-        ('am_T', 'f8'),
-        ('am_T_err', 'f8'),
+        ('am_e2_err', 'f4'),
+        ('am_T', 'f4'),
+        ('am_T_err', 'f4'),
         ('am_psf_flags', 'i4'),
         ('am_psf_e1', 'f8'),
         ('am_psf_e2', 'f8'),
-        ('am_psf_T', 'f8'),
+        ('am_psf_T', 'f4'),
     ]
     st = np.zeros(1, dtype=dtype)
 
