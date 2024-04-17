@@ -47,10 +47,7 @@ def ngmix_measure(exp, sources, stamp_size, rng):
 
         results.append(res)
 
-    if len(results) > 0:
-        results = eu.numpy_util.combine_arrlist(results)
-    else:
-        results = None
+    results = eu.numpy_util.combine_arrlist(results)
 
     return results
 

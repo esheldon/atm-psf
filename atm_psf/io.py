@@ -81,6 +81,7 @@ def save_source_data(fname, data):
     eu.ostools.makedirs_fromfile(fname)
 
     st, hdr = _make_output_source_data(data)
+
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
         fits.write(st, header=hdr, extname='sources')
 
