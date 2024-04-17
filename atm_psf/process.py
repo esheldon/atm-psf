@@ -119,7 +119,11 @@ def _get_paths(obsid, ccd):
         'eimage', 'piff'
     )
     assert piff_name != bname
-    source_name = piff_name.replace('piff', 'source')
+    source_name = piff_name.replace(
+        'piff', 'source',
+    ).replace(
+        '.pkl', '.fits',
+    )
     assert source_name != piff_name
     piff_file = os.path.join(dname, piff_name)
     source_file = os.path.join(dname, source_name)
