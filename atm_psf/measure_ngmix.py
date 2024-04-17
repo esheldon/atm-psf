@@ -24,14 +24,7 @@ def ngmix_measure(exp, sources, stamp_size, rng):
     """
     import esutil as eu
     from metadetect.fitting import get_admom_runner
-    from metadetect.lsst.measure import (
-        AllZeroWeightError, CentroidFailError,
-    )
-    from metadetect.procflags import (
-        EDGE_HIT, ZERO_WEIGHTS, CENTROID_FAILURE,
-        OBJ_FAILURE, PSF_FAILURE,
-    )
-    from lsst.pex.exceptions import LengthError
+    from metadetect.procflags import NO_ATTEMPT
 
     if len(sources) == 0:
         return None
@@ -42,39 +35,13 @@ def ngmix_measure(exp, sources, stamp_size, rng):
     for i, source in enumerate(sources):
 
         if source.get('deblend_nChild') != 0:
-            continue
-
-        flags = 0
-        try:
-            obs = _get_stamp_obs(
-                exp=exp, source=source, stamp_size=stamp_size,
-            )
-        except LengthError as err:
-            # This is raised when a bbox hits an edge
-            LOG.debug('%s', err)
-            flags |= EDGE_HIT
-        except AllZeroWeightError as err:
-            # failure creating some observation due to zero weights
-            LOG.info('%s', err)
-            flags |= ZERO_WEIGHTS
-        except CentroidFailError as err:
-            # failure in the center finding
-            LOG.info(str(err))
-            flags |= CENTROID_FAILURE
-
-        if flags == 0:
-            try:
-                psf_am_res = runner.go(obs.psf)
-            except Exception:
-                psf_am_res = {'flags': PSF_FAILURE}
-
-            try:
-                obj_am_res = runner.go(obs)
-            except Exception:
-                obj_am_res = {'flags': OBJ_FAILURE}
+            psf_am_res = {'flags': NO_ATTEMPT}
+            obj_am_res = {'flags': NO_ATTEMPT}
         else:
-            psf_am_res = {'flags': flags}
-            obj_am_res = {'flags': flags}
+            psf_am_res, obj_am_res = _do_meas(
+                exp=exp, source=source, stamp_size=stamp_size,
+                runner=runner,
+            )
 
         res = get_ngmix_output(res=obj_am_res, pres=psf_am_res)
 
@@ -86,6 +53,51 @@ def ngmix_measure(exp, sources, stamp_size, rng):
         results = None
 
     return results
+
+
+def _do_meas(exp, source, stamp_size, runner):
+    from metadetect.lsst.measure import (
+        AllZeroWeightError, CentroidFailError,
+    )
+    from metadetect.procflags import (
+        EDGE_HIT, ZERO_WEIGHTS, CENTROID_FAILURE,
+        OBJ_FAILURE, PSF_FAILURE
+    )
+    from lsst.pex.exceptions import LengthError
+
+    flags = 0
+    try:
+        obs = _get_stamp_obs(
+            exp=exp, source=source, stamp_size=stamp_size,
+        )
+    except LengthError as err:
+        # This is raised when a bbox hits an edge
+        LOG.debug('%s', err)
+        flags |= EDGE_HIT
+    except AllZeroWeightError as err:
+        # failure creating some observation due to zero weights
+        LOG.info('%s', err)
+        flags |= ZERO_WEIGHTS
+    except CentroidFailError as err:
+        # failure in the center finding
+        LOG.info(str(err))
+        flags |= CENTROID_FAILURE
+
+    if flags == 0:
+        try:
+            psf_am_res = runner.go(obs.psf)
+        except Exception:
+            psf_am_res = {'flags': PSF_FAILURE}
+
+        try:
+            obj_am_res = runner.go(obs)
+        except Exception:
+            obj_am_res = {'flags': OBJ_FAILURE}
+    else:
+        psf_am_res = {'flags': flags}
+        obj_am_res = {'flags': flags}
+
+    return psf_am_res, obj_am_res
 
 
 def get_ngmix_output_struct():
