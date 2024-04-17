@@ -6,6 +6,7 @@ from . import wcs
 from . import util
 from . import sxtools
 from . import measure
+from . import measure_ngmix
 from . import select
 from . import pifftools
 from . import io

@@ -305,6 +305,7 @@ def process_image_with_piff(
         # remeasure with new psf
         exp.setPsf(piff_psf)
         detmeas.measure()
+        detmeas.measure_ngmix()
 
         print('saving piff to:', piff_file)
         atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
@@ -314,6 +315,7 @@ def process_image_with_piff(
             'reserved': reserved,
             'image_file': image_file,
             'truth_file': truth_file,
+            'ngmix_result': detmeas.ngmix_result,
         })
         alldata.update(meta)
     else:

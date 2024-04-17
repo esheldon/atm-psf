@@ -131,6 +131,7 @@ class DetectMeasurer(object):
     def __init__(self, exposure, rng, thresh=5):
         self._exposure = exposure
         self._thresh = thresh
+        self._rng = rng
         self._seed = rng.randint(0, 2**20)
 
     def detect(self):
@@ -216,6 +217,15 @@ class DetectMeasurer(object):
             sources = []
 
         self.sources = sources
+
+    def measure_ngmix(self):
+        from .measure_ngmix import ngmix_measure
+        self.ngmix_result = ngmix_measure(
+            exp=self._exposure,
+            sources=self.sources,
+            stamp_size=32,
+            rng=self._rng,
+        )
 
     def measure(self):
         """
