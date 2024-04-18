@@ -81,6 +81,7 @@ def save_source_data(fname, data):
     eu.ostools.makedirs_fromfile(fname)
 
     st, hdr = _make_output_source_data(data)
+
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
         fits.write(st, header=hdr, extname='sources')
 
@@ -188,13 +189,20 @@ def load_source_data(fname):
               metadata from piff runsuch as spatialFitChi2, numAvailStars,
               numGoodStars, avgX, avgY
     """
-    import pickle
+    import fitsio
+    with fitsio.FITS(fname) as fits:
+        hdu = fits['sources']
+        hdr = hdu.read_header()
+        data = hdu.read()
 
-    with open(fname, 'rb') as fobj:
-        s = fobj.read()
-        data = pickle.loads(s)
-
-    return data
+    return data, hdr
+    # import pickle
+    #
+    # with open(fname, 'rb') as fobj:
+    #     s = fobj.read()
+    #     data = pickle.loads(s)
+    #
+    # return data
 
 
 _name_map = {
@@ -228,7 +236,7 @@ def make_star_struct(n):
     return np.zeros(n, dtype=dtype)
 
 
-def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
+def load_sources_many(flist, nstars_min=50, fwhm_min=0.11, airmass_max=None):
     """
     load star data from multiple files.  See load_sources for details.
 
@@ -250,9 +258,9 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
 
     dlist = []
     for fname in tqdm(flist):
-        st, alldata = load_sources(fname, get_all=True)
+        st, hdr = load_source_data(fname)
         if airmass_max is not None:
-            airmass = alldata['airmass']
+            airmass = hdr['airmass']
             if airmass > airmass_max:
                 print(f'    skipping airmass {airmass} > {airmass_max}')
                 continue
@@ -264,7 +272,7 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
             continue
 
         res = st['reserved']
-        fwhms = T_to_fwhm(st['psfrec_T'][res])
+        fwhms = T_to_fwhm(st['am_psf_T'][res])
         fwhm = np.median(fwhms)
         if fwhm < fwhm_min:
             print(f'    skipping fwhm {fwhm:.3f} < {fwhm_min:.3f}')
