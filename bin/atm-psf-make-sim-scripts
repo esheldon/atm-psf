@@ -1,20 +1,5 @@
 #!/usr/bin/env python
 
-# SCRIPT = r"""#!/usr/bin/bash
-# # make sure to source ~/imsim-setup/imsim-setup.sh first
-# instcat=$1
-# ccds=$2
-#
-# ncomma=$(echo -n $ccds | grep -Fo "," | wc -l)
-# nfiles=$((ncomma + 1))
-#
-# echo "nfiles: $nfiles"
-#
-# galsim %(imsim_config)s \
-#     input.instance_catalog.file_name="${instcat}" \
-#     output.nfiles=${nfiles} \
-#     output.det_num="${ccds}"
-# """
 SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 obsid=$1
@@ -24,8 +9,9 @@ seed=$4
 
 %(command)s \
     %(extra)s \
-    --opsim-db %(opsim_db)s \
+    --run-config %(run_config)s \
     --imsim-config %(imsim_config)s \
+    --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
     --instcat ${instcat} \
     --ccds ${ccds} \
@@ -51,11 +37,6 @@ kill_sig = SIGINT
 
 """
 
-# JOB_TEMPLATE = r"""
-# +job_name = "%(job_name)s"
-# arguments = %(instcat)s %(ccds)s
-# Queue
-# """
 JOB_TEMPLATE = r"""
 +job_name = "%(job_name)s"
 arguments = %(obsid)d %(instcat)s %(ccds)s %(seed)d
@@ -66,7 +47,7 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('config')
+    parser.add_argument('run_config')
     parser.add_argument(
         '--run-piff',
         action='store_true',
@@ -80,64 +61,38 @@ def get_args():
     return parser.parse_args()
 
 
-# def load_instcat_paths(fname):
-#     with open(fname) as fobj:
-#         paths = [line.strip() for line in fobj]
-#     return paths
-#
-
-# def load_opsim_info(fname, filter):
-#     import fitsio
-#     import numpy as np
-#
-#     data = fitsio.read(fname)
-#     w, = np.where(data['filter'] == filter)
-#     return data[w]
-#
-
-# def write_script(config, run_dir):
-#     import os
-#
-#     outfile = f'{run_dir}/run.sh'
-#     print('writing:', outfile)
-#
-#     # we copied it local to run_dir
-#     imsim_config = os.path.basename(config['imsim_config'])
-#
-#     script = SCRIPT % {'imsim_config': imsim_config}
-#     with open(outfile, 'w') as fobj:
-#         fobj.write(script)
-#     os.system(f'chmod 755 {outfile}')
-def write_script(config, run_dir, command, extra):
+def write_script(args, config, run_dir, command, extra):
     import os
 
     outfile = f'{run_dir}/run.sh'
     print('writing:', outfile)
 
-    # we copied it local to run_dir
+    # we copied these to the local run_dir
+    run_config = os.path.basename(args.run_config)
     imsim_config = os.path.basename(config['imsim_config'])
 
     script = SCRIPT % {
         'command': command,
         'extra': extra,
+        'run_config': run_config,
         'imsim_config': imsim_config,
         'opsim_db': config['opsim_db'],
     }
+
     with open(outfile, 'w') as fobj:
         fobj.write(script)
+
     os.system(f'chmod 755 {outfile}')
 
 
-def copy_imsim_config(config, run_dir):
+def copy_file(path, run_dir):
     import shutil
-    print(f'copying {config["imsim_config"]} -> {run_dir}')
-    shutil.copy(config['imsim_config'], run_dir)
+    print(f'copying {path} -> {run_dir}')
+    shutil.copy(path, run_dir)
 
 
 def write_condor_head(condorf, config):
-    # import os
     head = CONDOR_HEAD % {
-        # 'imsim_config': os.path.basename(config['imsim_config']),
         'memory': config['memory'],
     }
     condorf.write(head)
@@ -193,20 +148,25 @@ def main():
     else:
         command = 'atm-psf-run-sim'
 
-    config = atm_psf.io.load_config(args.config)
-    rng = np.random.default_rng(config['seed'])
+    run_config = atm_psf.io.load_config(args.config)
+    rng = np.random.default_rng(run_config['seed'])
 
-    run_dir = os.path.join(config['base_dir'], config['run'])
+    run_dir = os.path.join(run_config['base_dir'], run_config['run'])
     atm_psf.util.makedir(run_dir)
 
-    instcats = atm_psf.io.load_instcat_paths(config['instcats'])
-    obsids = get_random_obsids(config=config, rng=rng)
+    instcats = atm_psf.io.load_instcat_paths(run_config['instcats'])
+    obsids = get_random_obsids(config=run_config, rng=rng)
 
-    copy_imsim_config(config, run_dir)
+    copy_path(args.run_config, run_dir)
+    copy_path(run_config['imsim_config'], run_dir)
     all_ccds = np.arange(189)
 
     write_script(
-        config=config, run_dir=run_dir, command=command, extra=extra,
+        args=args,
+        config=config,
+        run_dir=run_dir,
+        command=command,
+        extra=extra,
     )
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)

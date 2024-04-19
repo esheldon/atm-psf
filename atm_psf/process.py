@@ -1,4 +1,5 @@
 def run_sim_and_piff(
+    run_config,
     imsim_config,
     opsim_db,
     obsid,
@@ -15,6 +16,8 @@ def run_sim_and_piff(
 
     Parameters
     ----------
+    run_config: dict
+        The run configuration
     imsim_config: str
         Path to galsim config file to run imsim
     opsim_db: str
@@ -44,6 +47,7 @@ def run_sim_and_piff(
 
     sseed = rng.integers(0, 2**31)
     run_simulation(
+        run_config=run_config,
         imsim_config=imsim_config,
         opsim_db=opsim_db,
         obsid=obsid,
@@ -131,12 +135,16 @@ def _get_paths(obsid, ccd):
     return image_file, truth_file, piff_file, source_file
 
 
-def run_simulation(imsim_config, opsim_db, obsid, instcat, ccds, seed):
+def run_simulation(
+    run_config, imsim_config, opsim_db, obsid, instcat, ccds, seed,
+):
     """
     Run the simulation using galsim
 
     Parameters
     ----------
+    run_config: dict
+        The run configuration
     imsim_config: str
         Path to galsim config file to run imsim
     opsim_db: str
@@ -172,7 +180,7 @@ def run_simulation(imsim_config, opsim_db, obsid, instcat, ccds, seed):
             conn=conn,
             obsid=obsid,
             output_fname=instcat_out,
-            allowed_include=['star'],
+            allowed_include=run_config['allowed_include'],
             # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
             selector=lambda d: d['magnorm'] > 17
         )
