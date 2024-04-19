@@ -2,8 +2,8 @@
 # using pixel coords
 # tree rings (astrometric)
 # outputting ngmix shapes and subset of data
-run: "run-g-psfws-pixtree-simpiff-01"
-seed: 3192
+run: "run-g-psfws-pixtree-gal-simpiff-01"
+seed: 19
 
 memory: "12G"
 

@@ -148,7 +148,7 @@ def main():
     else:
         command = 'atm-psf-run-sim'
 
-    run_config = atm_psf.io.load_config(args.config)
+    run_config = atm_psf.io.load_config(args.run_config)
     rng = np.random.default_rng(run_config['seed'])
 
     run_dir = os.path.join(run_config['base_dir'], run_config['run'])
@@ -157,13 +157,13 @@ def main():
     instcats = atm_psf.io.load_instcat_paths(run_config['instcats'])
     obsids = get_random_obsids(config=run_config, rng=rng)
 
-    copy_path(args.run_config, run_dir)
-    copy_path(run_config['imsim_config'], run_dir)
+    copy_file(args.run_config, run_dir)
+    copy_file(run_config['imsim_config'], run_dir)
     all_ccds = np.arange(189)
 
     write_script(
         args=args,
-        config=config,
+        config=run_config,
         run_dir=run_dir,
         command=command,
         extra=extra,
@@ -172,17 +172,17 @@ def main():
     print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
 
-        write_condor_head(condorf, config)
+        write_condor_head(condorf, run_config)
 
         for obsid in tqdm(obsids):
             this_seed = rng.integers(0, 2**30)
-            job_name = f'{config["run"]}-{obsid:08d}'
+            job_name = f'{run_config["run"]}-{obsid:08d}'
 
             instcat = rng.choice(instcats)
 
             ccds = rng.choice(
                 all_ccds,
-                size=config['ccds_per_pointing'],
+                size=run_config['ccds_per_pointing'],
                 replace=False,
             )
 
