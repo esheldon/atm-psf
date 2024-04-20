@@ -382,6 +382,8 @@ def replace_instcat_streamed(
         Evaluates True for objects to be kept, e.g.
             f = lambda d: d['magnorm'] > 17
     """
+    import os
+    from esutil.ostools import DirStack
 
     assert output_fname != fname
 
@@ -394,14 +396,24 @@ def replace_instcat_streamed(
         dec=meta['declination'],
     )
 
-    with open(output_fname, 'w') as fout:
-        _write_instcat_meta(meta)
+    print('writing new instcat:', output_fname)
 
+    with open(output_fname, 'w') as fout:
+        _write_instcat_meta(fout=fout, meta=meta)
+
+        ds = DirStack()
+        dirname = os.path.dirname(fname)
+        ds.push(dirname)
+
+        # the include files are only the base name, easiest to just
+        # chdir into the same directory as the main file
         _copy_objects(
             fout=fout, fname=fname, selector=selector,
             allowed_include=allowed_include, sed=sed,
             radec_gen=radec_gen,
         )
+
+        ds.pop()
 
 
 def _copy_objects(
@@ -426,7 +438,7 @@ def _copy_objects(
                     if sed is not None:
                         entry['sed1'] = sed
 
-                    _write_instcat_line(entry)
+                    _write_instcat_line(fout=fout, entry=entry)
 
             elif ls[0] == 'includeobj':
                 include_fname = ls[1]
@@ -440,10 +452,10 @@ def _copy_objects(
                     keep = True
 
                 if keep:
-                    print('copying from included:', include_fname)
                     _copy_objects(
                         fout=fout, fname=include_fname, selector=selector,
                         allowed_include=allowed_include, sed=sed,
+                        radec_gen=radec_gen,
                     )
 
 
