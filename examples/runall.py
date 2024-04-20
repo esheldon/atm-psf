@@ -57,4 +57,4 @@ alldata = {
 }
 alldata.update(meta)
 
-atm_psf.io.save_source_data(fname='/tmp/test-data.pkl', data=alldata)
+atm_psf.io.save_source_data(fname='/tmp/test-data.fits', data=alldata)

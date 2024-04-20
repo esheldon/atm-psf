@@ -38,10 +38,9 @@ def load_data(flist):
 
         # sfile = f.replace('piff-', 'sources-')
         sfile = f.replace('piff-', 'source-')
-        sdata = atm_psf.io.load_source_data(sfile)
-        if 'reserved' in sdata and sdata['airmass'] >= 1:
+        sdata, hdr = atm_psf.io.load_source_data(sfile)
+        if hdr['airmass'] >= 1:
 
-            sources = sdata['sources']
             sc, = np.where(
                 sdata['star_select']
                 & ~sdata['reserved']
@@ -55,13 +54,13 @@ def load_data(flist):
 
             assert sc.size == len(stars)
 
-            alt = sdata['instcat_meta']['altitude']
-            az = sdata['instcat_meta']['azimuth']
+            alt = hdr['altitude']
+            az = hdr['azimuth']
 
             for stari, sourcei in enumerate(sc):
 
-                psf_flux = sources['base_PsfFlux_instFlux'][sourcei]
-                psf_flux_err = sources['base_PsfFlux_instFluxErr'][sourcei]
+                psf_flux = sdata['psf_flux'][sourcei]
+                psf_flux_err = sdata['psf_flux_err'][sourcei]
 
                 if psf_flux_err > 0:
                     st = np.zeros(1, dtype=dtype)
@@ -73,11 +72,11 @@ def load_data(flist):
                         import IPython
                         IPython.embed()
 
-                    st['airmass'] = sdata['airmass']
+                    st['airmass'] = hdr['airmass']
                     st['alt'] = alt
                     st['az'] = az
-                    st['ra'] = sources['coord_ra'][sourcei]
-                    st['dec'] = sources['coord_dec'][sourcei]
+                    st['ra'] = sdata['ra'][sourcei]
+                    st['dec'] = sdata['dec'][sourcei]
 
                     st['s2n'] = psf_flux / psf_flux_err
 
@@ -223,10 +222,9 @@ def load_data_bypointing(flist, ploteach=False):
         random.shuffle(plist)
         for f in plist[:1]:
 
-            # sfile = f.replace('piff-', 'sources-')
             sfile = f.replace('piff-', 'source-')
-            sdata = atm_psf.io.load_source_data(sfile)
-            if 'reserved' in sdata and sdata['airmass'] >= 1:
+            sdata, hdr = atm_psf.io.load_source_data(sfile)
+            if hdr['airmass'] >= 1:
 
                 st = np.zeros(1, dtype=dtype)
                 p = atm_psf.io.load_stack_piff(f)
@@ -236,14 +234,14 @@ def load_data_bypointing(flist, ploteach=False):
                     if not s.is_reserve and not s.is_flagged
                 ])
 
-                alt = sdata['instcat_meta']['altitude']
-                az = sdata['instcat_meta']['azimuth']
+                alt = hdr['altitude']
+                az = hdr['azimuth']
 
-                st['airmass'] = sdata['airmass']
+                st['airmass'] = hdr['airmass']
                 st['alt'] = alt
 
                 sc = sdata['star_select']
-                st['dec'] = np.median(sdata['sources']['coord_dec'][sc])
+                st['dec'] = np.median(sdata['dec'][sc])
 
                 st['uoff'], st['uoff_std'] = sigma_clip(cens[:, 0])
                 st['voff'], st['voff_std'] = sigma_clip(cens[:, 1])

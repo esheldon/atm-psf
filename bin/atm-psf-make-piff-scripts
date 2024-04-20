@@ -138,6 +138,11 @@ def main():
             )
             assert piff_name != bname
             sources_name = piff_name.replace('piff', 'sources')
+            sources_name = piff_name.replace(
+                'piff', 'source'
+            ).replace(
+                '.pkl', '.fits',
+            )
             assert sources_name != piff_name
 
             piff_file = os.path.join(outdir, piff_name)

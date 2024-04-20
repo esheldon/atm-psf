@@ -17,15 +17,15 @@ def plot_star_stats(st, pixel_scale=0.2, nbin=30, show=False, frac=None):
 
     s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
 
-    fwhm = T_to_fwhm(st['T'][w])
+    fwhm = T_to_fwhm(st['am_T'][w])
     # fwhm = T_to_fwhm(st['psfrec_T'][w])
-    T = st['T'][w]
-    Tpsf = st['psfrec_T'][w]
+    T = st['am_T'][w]
+    Tpsf = st['am_psf_T'][w]
     Tratio = T / Tpsf - 1
-    e1 = st['e1'][w]
-    e1psf = st['psfrec_e1'][w]
-    e2 = st['e2'][w]
-    e2psf = st['psfrec_e2'][w]
+    e1 = st['am_e1'][w]
+    e1psf = st['am_psf_e1'][w]
+    e2 = st['am_e2'][w]
+    e2psf = st['am_psf_e2'][w]
 
     wnostar, = np.where(~st['star_select'][w[sind]])
     wstar, = np.where(st['star_select'][w[sind]])
@@ -200,8 +200,8 @@ def plot_star_stats_bys2n(st, pixel_scale=0.2, show=False, frac=None, nbin=5):
     w, = np.where(logic)
 
     s2n = st['psf_flux'][w] / st['psf_flux_err'][w]
-    T = st['T'][w]
-    Tpsf = st['psfrec_T'][w]
+    T = st['am_T'][w]
+    Tpsf = st['am_psf_T'][w]
     Tratio = T / Tpsf - 1
 
     nperbin = int(s2n.size / nbin)
@@ -265,8 +265,8 @@ def plot_star_stats_bys2n(st, pixel_scale=0.2, show=False, frac=None, nbin=5):
 
 def get_logic(st):
     return (
-        (st['flags'] == 0)
-        & (st['psfrec_flags'] == 0)
+        (st['am_flags'] == 0)
+        & (st['am_psf_flags'] == 0)
         & (st['psf_flux_err'] > 0)
     )
 

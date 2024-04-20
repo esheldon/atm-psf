@@ -75,6 +75,82 @@ def save_source_data(fname, data):
                metadata from piff run, such as spatialFitChi2, numAvailStars,
                numGoodStars, avgX, avgY
     """
+    import esutil as eu
+    import fitsio
+
+    eu.ostools.makedirs_fromfile(fname)
+
+    st, hdr = _make_output_source_data(data)
+
+    with fitsio.FITS(fname, 'rw', clobber=True) as fits:
+        fits.write(st, header=hdr, extname='sources')
+
+
+def _make_output_source_data(data):
+    import numpy as np
+    import esutil as eu
+
+    hdr = data['instcat_meta'].copy()
+    for key in [
+        'seed', 'image_file', 'truth_file', 'airmass', 'filter',
+        'spatialFitChi2', 'numAvailStars', 'numGoodStars', 'avgX', 'avgY',
+    ]:
+        hdr[key] = data[key]
+
+    add_dt = [
+        ('id', 'i4'),
+        ('parent', 'i4'),
+        ('ra', 'f8'),
+        ('dec', 'f8'),
+        ('star_select', bool),
+        ('reserved', bool),
+        ('x', 'f4'),
+        ('y', 'f4'),
+        ('psf_flux', 'f4'),
+        ('psf_flux_err', 'f4'),
+    ]
+    sources = data['sources']
+    st = eu.numpy_util.add_fields(data['ngmix_result'], add_dt)
+
+    st['id'] = sources['id']
+    st['parent'] = sources['parent']
+    st['ra'] = np.degrees(sources['coord_ra'])
+    st['dec'] = np.degrees(sources['coord_dec'])
+    st['star_select'] = data['star_select']
+    st['reserved'] = data['reserved']
+    st['x'] = sources['base_SdssShape_x']
+    st['y'] = sources['base_SdssShape_y']
+    st['psf_flux'] = sources['base_PsfFlux_instFlux']
+    st['psf_flux_err'] = sources['base_PsfFlux_instFluxErr']
+
+    return st, hdr
+
+
+def save_source_data_pkl(fname, data):
+    """
+    save stars and training/reserve samples
+
+    Parameters
+    ----------
+    fname: str
+        Path for file to write
+    data: dict
+        Should have entries
+            sources: SourceCatalog
+                The result of detection and measurement, including all objects
+                not just star candidates
+            star_select: array
+                Bool array, True if the object was a psf candidate
+            reserved: list of PsfCandidateF
+                Bool array, True if the object was reserved for validation
+            seed: int
+                Seed used in processing
+            image_file, truth_file: str
+                The input files
+            additional entries:
+               metadata from piff run, such as spatialFitChi2, numAvailStars,
+               numGoodStars, avgX, avgY
+    """
     import pickle
     import esutil as eu
 
@@ -113,13 +189,20 @@ def load_source_data(fname):
               metadata from piff runsuch as spatialFitChi2, numAvailStars,
               numGoodStars, avgX, avgY
     """
-    import pickle
+    import fitsio
+    with fitsio.FITS(fname) as fits:
+        hdu = fits['sources']
+        hdr = hdu.read_header()
+        data = hdu.read()
 
-    with open(fname, 'rb') as fobj:
-        s = fobj.read()
-        data = pickle.loads(s)
-
-    return data
+    return data, hdr
+    # import pickle
+    #
+    # with open(fname, 'rb') as fobj:
+    #     s = fobj.read()
+    #     data = pickle.loads(s)
+    #
+    # return data
 
 
 _name_map = {
@@ -153,7 +236,7 @@ def make_star_struct(n):
     return np.zeros(n, dtype=dtype)
 
 
-def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
+def load_sources_many(flist, nstars_min=50, fwhm_min=0.11, airmass_max=None):
     """
     load star data from multiple files.  See load_sources for details.
 
@@ -175,9 +258,9 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
 
     dlist = []
     for fname in tqdm(flist):
-        st, alldata = load_sources(fname, get_all=True)
+        st, hdr = load_source_data(fname)
         if airmass_max is not None:
-            airmass = alldata['airmass']
+            airmass = hdr['airmass']
             if airmass > airmass_max:
                 print(f'    skipping airmass {airmass} > {airmass_max}')
                 continue
@@ -189,7 +272,7 @@ def load_sources_many(flist, nstars_min=50, fwhm_min=0.55, airmass_max=None):
             continue
 
         res = st['reserved']
-        fwhms = T_to_fwhm(st['psfrec_T'][res])
+        fwhms = T_to_fwhm(st['am_psf_T'][res])
         fwhm = np.median(fwhms)
         if fwhm < fwhm_min:
             print(f'    skipping fwhm {fwhm:.3f} < {fwhm_min:.3f}')

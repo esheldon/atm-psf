@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
 from atm_psf.process import run_simulation
+from atm_psf.io import load_config
 
 
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--opsim-db', required=True)
+    parser.add_argument('--run-config', required=True)
     parser.add_argument('--imsim-config', required=True)
+    parser.add_argument('--opsim-db', required=True)
     parser.add_argument('--obsid', type=int, required=True)
     parser.add_argument('--instcat', required=True)
     parser.add_argument('--ccds', required=True,
@@ -18,7 +20,11 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
+
+    run_config = load_config(args.run_config)
+
     run_simulation(
+        run_config=run_config,
         imsim_config=args.imsim_config,
         opsim_db=args.opsim_db,
         obsid=args.obsid,
