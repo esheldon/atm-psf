@@ -85,7 +85,8 @@ def replace_instcat_from_db(
     assert len(data) == 1
 
     opsim_data = data[0]
-    replace_instcat(
+    # replace_instcat(
+    replace_instcat_streamed(
         rng=rng,
         fname=fname,
         opsim_data=opsim_data,
@@ -222,6 +223,37 @@ def replace_instcat_radec(rng, ra, dec, data):
         d['dec'] = rdec[i]
 
 
+class RadecGenerator():
+    """
+    generate new positions for objects centered at the ra, dec
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    ra: float
+        The ra of the new pointing
+    dec: float
+        The dec of the new pointing
+    """
+    def __init__(self, rng, ra, dec):
+        self.rng = rng
+        self.ra = ra
+        self.dec = dec
+
+    def __call__(self):
+        from esutil.coords import randcap
+
+        ra, dec = randcap(
+            nrand=1,
+            ra=self.ra,
+            dec=self.dec,
+            rad=INSTCAT_RADIUS,
+            rng=self.rng,
+        )
+        return ra[0], dec[0]
+
+
 def read_instcat(fname, allowed_include=None):
     """
     Read data and metadata from an instcat
@@ -307,6 +339,152 @@ def read_instcat_data_as_dicts(fname, allowed_include=None):
                     entries += read_instcat_data_as_dicts(fname)
 
     return entries
+
+
+def replace_instcat_streamed(
+    rng,
+    fname,
+    opsim_data,
+    output_fname,
+    allowed_include=None,
+    sed=None,
+    selector=None
+):
+    """
+    Replace the instacat metadata and positions according to the
+    input opsim data
+
+    The ra/dec are generated uniformly in a disc centered at the
+    boresight from the opsim data.
+
+    One can limit the objects in the output file with the input selector
+    function and/or by limiting included source files with a list
+    of strings for matching with allowed_include
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    fname: str
+        The input instcat filename
+    opsim_data: mapping
+        E.g. a sqlite.Row read from an opsim database.
+    output_fname: str
+        Name for new output instcat file
+    allowed_include: list of strings
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+    sed: str
+        Force use if the input SED for all objects
+        e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
+    selector: function
+        Evaluates True for objects to be kept, e.g.
+            f = lambda d: d['magnorm'] > 17
+    """
+
+    assert output_fname != fname
+
+    orig_meta = read_instcat_meta(fname)
+    meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
+
+    radec_gen = RadecGenerator(
+        rng=rng,
+        ra=meta['rightascension'],
+        dec=meta['declination'],
+    )
+
+    with open(output_fname, 'w') as fout:
+        _write_instcat_meta(meta)
+
+        _copy_objects(
+            fout=fout, fname=fname, selector=selector,
+            allowed_include=allowed_include, sed=sed,
+            radec_gen=radec_gen,
+        )
+
+
+def _copy_objects(
+    fout, fname, selector, allowed_include, sed, radec_gen,
+):
+
+    opener, mode = _get_opener(fname)
+
+    print('opening:', fname)
+    with opener(fname, mode) as fobj:
+        for line in fobj:
+
+            ls = line.split()
+
+            if ls[0] == 'object':
+                entry = _read_instcat_object_line_as_dict(ls)
+                if selector(entry):
+                    ra, dec = radec_gen()
+                    entry['ra'] = ra
+                    entry['dec'] = dec
+
+                    if sed is not None:
+                        entry['sed1'] = sed
+
+                    _write_instcat_line(entry)
+
+            elif ls[0] == 'includeobj':
+                include_fname = ls[1]
+                if allowed_include is not None:
+                    keep = False
+                    for allowed in allowed_include:
+                        if allowed in include_fname:
+                            keep = True
+                            break
+                else:
+                    keep = True
+
+                if keep:
+                    print('copying from included:', include_fname)
+                    _copy_objects(
+                        fout=fout, fname=include_fname, selector=selector,
+                        allowed_include=allowed_include, sed=sed,
+                    )
+
+
+def _write_instcat_meta(fout, meta):
+    for key, value in meta.items():
+        line = f'{key} {value}\n'
+        fout.write(line)
+
+
+def _write_instcat_line(fout, entry):
+    line = ['object'] + [str(v) for k, v in entry.items()]
+    line = ' '.join(line)
+    fout.write(line)
+    fout.write('\n')
+
+
+def _read_instcat_object_line_as_dict(ls):
+    """
+    Read object entries from an instcat
+
+    Parameters
+    ----------
+    ls: sequence
+        the split line from the instcat
+    Returns
+    -------
+    entry: dict holding data
+    """
+
+    return {
+        'objid': int(ls[1]),
+        'ra': float(ls[2]),
+        'dec': float(ls[3]),
+        'magnorm': float(ls[4]),
+        'sed1': ls[5],
+        'sed2': float(ls[6]),
+        'gamma1': float(ls[7]),
+        'gamma2': float(ls[8]),
+        'kappa': float(ls[9]),
+        'rest': ' '.join(ls[10:]),
+    }
 
 
 def read_instcat_meta(fname):
