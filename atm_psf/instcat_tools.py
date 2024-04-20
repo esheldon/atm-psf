@@ -439,7 +439,7 @@ def _copy_objects(
                     if sed is not None:
                         entry['sed1'] = sed
 
-                    _write_instcat_line(fout=fout, entry=entry)
+                    # _write_instcat_line(fout=fout, entry=entry)
 
             elif ls[0] == 'includeobj':
                 include_fname = ls[1]
