@@ -419,12 +419,13 @@ def replace_instcat_streamed(
 def _copy_objects(
     fout, fname, selector, allowed_include, sed, radec_gen,
 ):
+    from tqdm import tqdm
 
     opener, mode = _get_opener(fname)
 
-    print('opening:', fname)
+    print('\nopening:', fname)
     with opener(fname, mode) as fobj:
-        for line in fobj:
+        for line in tqdm(fobj):
 
             ls = line.split()
 
