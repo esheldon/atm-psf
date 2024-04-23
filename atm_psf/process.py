@@ -173,17 +173,18 @@ def run_simulation(
 
         instcat_out = os.path.join(outdir, 'instcat.txt')
 
-        print('making instcat')
-        atm_psf.instcat_tools.replace_instcat_from_db(
-            rng=rng,
-            fname=instcat,
-            conn=conn,
-            obsid=obsid,
-            output_fname=instcat_out,
-            allowed_include=run_config['allowed_include'],
-            # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
-            selector=lambda d: d['magnorm'] > 17
-        )
+        if not os.path.exists(instcat_out):
+            print('making instcat')
+            atm_psf.instcat_tools.replace_instcat_from_db(
+                rng=rng,
+                fname=instcat,
+                conn=conn,
+                obsid=obsid,
+                output_fname=instcat_out,
+                allowed_include=run_config['allowed_include'],
+                # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
+                selector=lambda d: d['magnorm'] > 17
+            )
 
     # galsim will write to subdir, so chdir to it
     print('running galsim')
