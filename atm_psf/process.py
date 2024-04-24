@@ -61,16 +61,15 @@ def run_sim_and_piff(
             ccds=ccds,
             seed=sseed,
         )
+
+    ccdstr = '[' + ','.join([str(ccd) for ccd in ccds]) + ']'
     run_galsim(
         imsim_config=imsim_config,
         instcat=instcat_out,
-        ccds=ccds,
+        ccds=ccdstr,
     )
 
-    tmp = ccds.replace('[', '').replace(']', '')
-    ccdnums = [int(s) for s in tmp.split(',')]
-
-    for ccd in ccdnums:
+    for ccd in ccds:
 
         image_file, truth_file, piff_file, source_file = _get_paths(
             obsid=obsid, ccd=ccd,
