@@ -41,7 +41,7 @@ if __name__ == '__main__':
         opsim_db=args.opsim_db,
         obsid=args.obsid,
         instcat=args.instcat,
-        ccds=args.ccds,
+        ccds=ccds,
         seed=args.seed,
         cleanup=cleanup,
         show=args.show,
