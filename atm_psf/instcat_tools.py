@@ -9,6 +9,15 @@ FILTERMAP = {
     'y': 5,
 }
 
+RFILTERMAP = {
+    0: 'u',
+    1: 'g',
+    2: 'r',
+    3: 'i',
+    4: 'z',
+    5: 'y',
+}
+
 NAME_MAP = {
     'rightascension': 'fieldra',
     'declination': 'fieldDec',
@@ -352,6 +361,191 @@ def read_instcat_data_as_dicts(fname, allowed_include=None):
     return entries
 
 
+def instcat_to_fits(fname, out_fname, allowed_include=None):
+    """
+    Read data and metadata from an instcat and write to fits file
+
+    Parameters
+    ----------
+    fname: str
+        The instcat file name
+    out_fname: str
+        The output fits file name
+    allowed_include: list of strings
+        Only includes with a filename that includes the string
+        are kept.  For  ['star', 'gal'] we would keep filenames
+        that had star or gal in them
+    """
+    import fitsio
+    import os
+    from esutil.ostools import DirStack
+
+    if allowed_include is None:
+        allowed_include = ['star', 'gal', 'knots']
+
+    assert fname != out_fname
+
+    ds = DirStack()
+    dirname = os.path.dirname(fname)
+    ds.push(dirname)
+
+    meta = read_instcat_meta(fname)
+
+    print('opening output:', out_fname)
+    with fitsio.FITS(out_fname, 'rw', clobber=True) as fits:
+
+        print('\nopening:', fname)
+        with open(fname, 'r') as main_fobj:
+            for mline in main_fobj:
+
+                ls = mline.split()
+
+                if ls[0] == 'includeobj':
+
+                    include_fname = ls[1]
+                    if _check_allowed_include(allowed_include, include_fname):
+
+                        print('    reading from:', include_fname)
+                        ns = include_fname.split('_')
+                        ind = ns.index('cat')
+                        extname = '_'.join(ns[:ind])
+                        _copy_include_to_fits(
+                            fits=fits, fname=include_fname, meta=meta,
+                            extname=extname,
+                        )
+
+                        # dlist = _load_include_dlist(include_fname)
+                        #
+                        # print('    writing ext:', extname)
+                        # _write_dlist_to_fits(
+                        #      fits=fits, meta=meta,
+                        #      dlist=dlist, extname=extname,
+                        # )
+
+    ds.pop()
+
+
+# def _write_dlist_to_fits(fits, meta, dlist, extname):
+#     from tqdm import trange
+#     chunksize = 10000
+#     nchunks = len(dlist) // chunksize
+#     if len(dlist) % chunksize != 0:
+#         nchunks += 1
+#
+#     dtype = _get_dtype(dlist)
+#
+#     for ichunk in trange(nchunks):
+#         start = ichunk * chunksize
+#         end = (ichunk + 1) * chunksize
+#         sublist = dlist[start:end]
+#
+#         outdata = _dlist_to_np(dlist=sublist, dtype=dtype)
+#         if ichunk == 0:
+#             fits.write(outdata, header=meta, extname=extname)
+#         else:
+#             fits[-1].append(outdata)
+
+
+def _check_allowed_include(allowed_include, string):
+    if allowed_include is not None:
+        keep = False
+        for allowed in allowed_include:
+            if allowed in string:
+                keep = True
+                break
+    else:
+        keep = True
+
+    return keep
+
+
+def _copy_include_to_fits(fits, fname, meta, extname):
+    from tqdm import tqdm
+    opener, mode = _get_opener(fname)
+    dlist = []
+
+    sed_len = 0
+    rest_len = 0
+    chunksize = 10_000
+
+    first = True
+    ntot = 0
+
+    for ipass in [1, 2]:
+        print(f'ipass {ipass}')
+        if ipass == 2:
+            dtype = _get_dtype(sed_len=sed_len, rest_len=rest_len)
+
+        with opener(fname, mode) as fobj:
+
+            num = 0
+            dlist = []
+            for line in tqdm(fobj):
+                ntot += 1
+                ls = line.split()
+                entry = _read_instcat_object_line_as_dict(ls)
+
+                if ipass == 1:
+                    ntot += 1
+                    sed_len = max(sed_len, len(entry['sed1']))
+                    rest_len = max(rest_len, len(entry['rest']))
+                else:
+                    num += 1
+                    dlist.append(entry)
+                    if len(dlist) == chunksize or num == ntot:
+                        data = _dlist_to_np(dlist=dlist, dtype=dtype)
+                        if first:
+                            fits.write(data, header=meta, extname=extname)
+                            first = False
+                        else:
+                            fits[-1].append(data)
+                        del dlist
+                        dlist = []
+
+
+# def _load_include_dlist(fname, nokeep):
+#     from tqdm import tqdm
+#     opener, mode = _get_opener(fname)
+#     dlist = []
+#     with opener(fname, mode) as fobj:
+#         for line in tqdm(fobj):
+#             ls = line.split()
+#             entry = _read_instcat_object_line_as_dict(ls)
+#             dlist.append(entry)
+#
+#     return dlist
+
+
+def _dlist_to_np(dlist, dtype):
+    import numpy as np
+
+    out = np.zeros(len(dlist), dtype=dtype)
+    for i, d in enumerate(dlist):
+        for name in d.keys():
+            out[name][i] = d[name]
+
+    return out
+
+
+def _get_dtype(sed_len, rest_len):
+    sed_dt = f'U{sed_len}'
+    rest_dt = f'U{rest_len}'
+
+    dtype = [
+        ('objid', 'i8'),
+        ('ra', 'f8'),
+        ('dec', 'f8'),
+        ('magnorm', 'f4'),
+        ('sed1', sed_dt),
+        ('sed2', 'f4'),
+        ('gamma1', 'f4'),
+        ('gamma2', 'f4'),
+        ('kappa', 'f4'),
+        ('rest', rest_dt),
+    ]
+    return dtype
+
+
 def replace_instcat_streamed(
     rng,
     fname,
@@ -538,6 +732,44 @@ def read_instcat_meta(fname):
 
     s = '{' + ',\n'.join(entries) + '}'
     return yaml.safe_load(s)
+
+
+def instcat_meta_to_wcs(meta, detnum):
+    """
+    Create an approximate WCS using the metadata
+
+    Parameters
+    ----------
+    meta: dict
+        Metadata read from instcat
+    detnum: int
+        Detector number, 1-189
+    """
+    import galsim
+    from .instcat_tools import RFILTERMAP
+    from astropy.time import Time
+    from imsim.telescope_loader import load_telescope
+    from imsim.camera import get_camera
+    from imsim.batoid_wcs import BatoidWCSBuilder
+
+    camera_name = 'LsstCam'
+    filt = meta['filter']
+    band = RFILTERMAP[filt]
+
+    obstime = Time(meta['mjd'], format='mjd')
+    boresight = galsim.CelestialCoord(
+        meta['rightascension'] * galsim.degrees,
+        meta['declination'] * galsim.degrees,
+    )
+    rot = meta['rottelpos'] * galsim.degrees
+    telescope = load_telescope(f"LSST_{band}.yaml", rotTelPos=rot)
+    factory = BatoidWCSBuilder().makeWCSFactory(
+        boresight, obstime, telescope, bandpass=band, camera=camera_name,
+    )
+
+    camera = get_camera(camera_name)
+    det = camera[detnum]
+    return factory.getWCS(det)
 
 
 def write_instcat(fname, data, meta):
