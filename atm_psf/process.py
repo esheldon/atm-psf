@@ -182,7 +182,6 @@ def run_make_instcat(
     print('connecting to:', opsim_db)
 
     with sqlite3.connect(opsim_db) as conn:
-        print('making instcat')
         atm_psf.instcat_tools.replace_instcat_from_db(
             rng=rng,
             fname=instcat,

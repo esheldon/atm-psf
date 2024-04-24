@@ -265,18 +265,29 @@ class RadecGenerator():
         self.rng = rng
         self.ra = ra
         self.dec = dec
+        self.cache_size = 1_000_000
+        self._cache_radec()
 
-    def __call__(self):
+    def _cache_radec(self):
         from esutil.coords import randcap
-
-        ra, dec = randcap(
-            nrand=1,
+        self.rra, self.rdec = randcap(
+            nrand=self.cache_size,
             ra=self.ra,
             dec=self.dec,
             rad=INSTCAT_RADIUS,
             rng=self.rng,
         )
-        return ra[0], dec[0]
+        self.used = 0
+
+    def __call__(self):
+
+        if self.used >= self.cache_size:
+            self._cache_radec()
+
+        index = self.used
+        ra, dec = self.rra[index], self.rdec[index]
+        self.used += 1
+        return ra, dec
 
 
 class CCDRadecGenerator():
