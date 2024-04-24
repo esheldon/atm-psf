@@ -42,6 +42,7 @@ def run_sim_and_piff(
         If set to True, show plots
     """
 
+    import os
     import numpy as np
 
     rng = np.random.default_rng(seed)

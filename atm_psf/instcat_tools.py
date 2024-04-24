@@ -93,6 +93,11 @@ def replace_instcat_from_db(
     selector: function
         Evaluates True for objects to be kept, e.g.
             f = lambda d: d['magnorm'] > 17
+    galaxy_file: str
+        Path to the file for galaxies
+    ccds: list
+        List off CCDS, only used when galaxy_file is sent, to limit
+        random ra/dec to the specified ccds
     """
 
     import sqlite3
@@ -319,7 +324,7 @@ class CCDRadecGenerator():
         x = self.rng.uniform(low=1, high=4096, size=n)
         y = self.rng.uniform(low=1, high=4096, size=n)
 
-        ra, dec = self.wcs.xyToRadec(
+        ra, dec = self.wcs.xyToradec(
             x=x,
             y=y,
             units=galsim.degrees,
@@ -350,11 +355,13 @@ def read_instcat(fname, allowed_include=None):
 
     ds = DirStack()
     dirname = os.path.dirname(fname)
+    bname = os.path.basename(fname)
     ds.push(dirname)
 
-    meta = read_instcat_meta(fname)
+    meta = read_instcat_meta(bname)
     data = read_instcat_data_as_dicts(
-        fname, allowed_include=allowed_include,
+        bname,
+        allowed_include=allowed_include,
     )
 
     ds.pop()
@@ -648,9 +655,14 @@ def replace_instcat_streamed(
     selector: function
         Evaluates True for objects to be kept, e.g.
             f = lambda d: d['magnorm'] > 17
+    galaxy_file: str
+        Path to the file for galaxies
+    ccds: list
+        List off CCDS, only used when galaxy_file is sent, to limit
+        random ra/dec to the specified ccds
     """
     import os
-    from esutil.ostools import DirStack
+    from esutil.ostools import DirStack, makedirs_fromfile
 
     assert output_fname != fname
 
@@ -665,6 +677,7 @@ def replace_instcat_streamed(
     )
 
     print('writing new instcat:', output_fname)
+    makedirs_fromfile(output_fname, allow_fail=True)
 
     with open(output_fname, 'w') as fout:
         _write_instcat_meta(fout=fout, meta=meta)
@@ -682,7 +695,7 @@ def replace_instcat_streamed(
         )
 
         if galaxy_file is not None:
-            print('getting alaxies from:', galaxy_file)
+            print('getting galaxies from:', galaxy_file)
             _copy_galaxies_ccds(
                 meta=meta,
                 fout=fout,
@@ -764,16 +777,20 @@ def _copy_galaxies_ccds(
         for i in range(len(wcss))
     ]
     ntot = sum(nums)
+    nccd = len(ccds)
 
     with fitsio.FITS(fname) as fits:
         # get all indices first
         nrows = fits['disk_gal'].get_nrows()
-        all_indices = rng.randint(0, nrows, size=ntot)
+        all_indices = rng.integers(0, nrows, size=ntot)
         all_indices.sort()
 
         # now for each CCD
         start = 0
-        for radec_gen, num in zip(radec_generators, nums):
+        for i, ccd, radec_gen, num in zip(
+            range(nccd), ccds, radec_generators, nums,
+        ):
+            print(f'ccd: {ccd} {i+1}/{nccd}')
 
             end = start + num
             indices = all_indices[start:end]
@@ -809,9 +826,10 @@ def _write_instcat_line(fout, entry):
 
 
 def _write_instcat_lines_from_array(fout, data):
+    from tqdm import tqdm
     names = data.dtype.names
 
-    for d in data:
+    for d in tqdm(data):
         line = ['object']
         for name in names:
             line += [str(d[name])]

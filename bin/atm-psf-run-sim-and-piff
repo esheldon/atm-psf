@@ -2,6 +2,7 @@
 
 from atm_psf.process import run_sim_and_piff
 from atm_psf.io import load_config
+from atm_psf.util import split_ccds_string
 
 
 def get_args():
@@ -33,6 +34,7 @@ if __name__ == '__main__':
     run_config = load_config(args.run_config)
     cleanup = not args.nocleanup
 
+    ccds = split_ccds_string(args.ccds)
     run_sim_and_piff(
         run_config=run_config,
         imsim_config=args.imsim_config,

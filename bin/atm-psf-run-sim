@@ -5,6 +5,7 @@ from atm_psf.process import (
     run_make_instcat, run_galsim, get_instcat_output_path,
 )
 from atm_psf.io import load_config
+from atm_psf.util import split_ccds_string
 
 
 def get_args():
@@ -34,12 +35,14 @@ if __name__ == '__main__':
     instcat_out = get_instcat_output_path(args.obsid)
 
     if not os.path.exists(instcat_out) or not args.use_existing:
+        ccds = split_ccds_string(args.ccds)
         run_make_instcat(
             run_config=run_config,
             opsim_db=args.opsim_db,
             obsid=args.obsid,
+            instcat=args.instcat,
             instcat_out=instcat_out,
-            ccds=args.ccds,
+            ccds=ccds,
             seed=args.seed,
         )
 
