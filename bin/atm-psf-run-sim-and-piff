@@ -19,6 +19,11 @@ def get_args():
     parser.add_argument('--show', action='store_true')
     parser.add_argument('--no-find-sky', action='store_true',
                         help='just use the sky from the truth catalog')
+    parser.add_argument(
+        '--use-existing',
+        action='store_true',
+        help='Re-use instcat if it already exists',
+    )
     return parser.parse_args()
 
 
@@ -38,5 +43,6 @@ if __name__ == '__main__':
         seed=args.seed,
         cleanup=cleanup,
         show=args.show,
-        no_find_sky=args.no_find_sky
+        no_find_sky=args.no_find_sky,
+        use_existing=args.use_existing,
     )

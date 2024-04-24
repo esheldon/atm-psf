@@ -9,6 +9,7 @@ def run_sim_and_piff(
     nstars_min=50,
     cleanup=True,
     no_find_sky=False,
+    use_existing=False,
     show=False,
 ):
     """
@@ -49,15 +50,16 @@ def run_sim_and_piff(
 
     sseed = rng.integers(0, 2**31)
 
-    run_make_instcat(
-        run_config=run_config,
-        opsim_db=opsim_db,
-        obsid=obsid,
-        instcat=instcat,
-        instcat_out=instcat_out,
-        ccds=ccds,
-        seed=sseed,
-    )
+    if not os.path.exists(instcat_out) or not use_existing:
+        run_make_instcat(
+            run_config=run_config,
+            opsim_db=opsim_db,
+            obsid=obsid,
+            instcat=instcat,
+            instcat_out=instcat_out,
+            ccds=ccds,
+            seed=sseed,
+        )
     run_galsim(
         imsim_config=imsim_config,
         instcat=instcat_out,
