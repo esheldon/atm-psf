@@ -109,7 +109,6 @@ def replace_instcat_from_db(
     assert len(data) == 1
 
     opsim_data = data[0]
-    # replace_instcat(
     replace_instcat_streamed(
         rng=rng,
         fname=fname,
@@ -933,35 +932,35 @@ def instcat_meta_to_wcs(meta, detnum):
     return factory.getWCS(det)
 
 
-def write_instcat(fname, data, meta):
-    """
-    Write an instcat
-
-    Parameters
-    ----------
-    fname: str
-        Path to output file
-    data: list
-        List of dict representing instcat objects
-    meta: dict
-        Metadata to be written in header
-    """
-    import esutil as eu
-
-    eu.ostools.makedirs_fromfile(fname, allow_fail=True)
-
-    print('writing:', fname)
-    with open(fname, 'w') as fobj:
-        for key, value in meta.items():
-            line = f'{key} {value}\n'
-            fobj.write(line)
-
-        # this relies on dicts being ordered
-        for d in data:
-            line = ['object'] + [str(v) for k, v in d.items()]
-            line = ' '.join(line)
-            fobj.write(line)
-            fobj.write('\n')
+# def write_instcat(fname, data, meta):
+#     """
+#     Write an instcat
+#
+#     Parameters
+#     ----------
+#     fname: str
+#         Path to output file
+#     data: list
+#         List of dict representing instcat objects
+#     meta: dict
+#         Metadata to be written in header
+#     """
+#     import esutil as eu
+#
+#     eu.ostools.makedirs_fromfile(fname, allow_fail=True)
+#
+#     print('writing:', fname)
+#     with open(fname, 'w') as fobj:
+#         for key, value in meta.items():
+#             line = f'{key} {value}\n'
+#             fobj.write(line)
+#
+#         # this relies on dicts being ordered
+#         for d in data:
+#             line = ['object'] + [str(v) for k, v in d.items()]
+#             line = ' '.join(line)
+#             fobj.write(line)
+#             fobj.write('\n')
 
 
 def _get_opener(fname):
