@@ -62,11 +62,10 @@ def run_sim_and_piff(
             seed=sseed,
         )
 
-    ccdstr = '[' + ','.join([str(ccd) for ccd in ccds]) + ']'
     run_galsim(
         imsim_config=imsim_config,
         instcat=instcat_out,
-        ccds=ccdstr,
+        ccds=ccds,
     )
 
     for ccd in ccds:
@@ -209,13 +208,15 @@ galsim %(imsim_config)s \
 
 def run_galsim(imsim_config, instcat, ccds):
     import os
-    nfiles = len(ccds.split(','))
+    nfiles = len(ccds)
+
+    ccdstr = '[' + ','.join([str(ccd) for ccd in ccds]) + ']'
 
     command = GALSIM_COMMAND % {
         'imsim_config': imsim_config,
         'instcat': instcat,
         'nfiles': nfiles,
-        'ccds': ccds,
+        'ccds': ccdstr,
     }
     print(command)
     res = os.system(command)

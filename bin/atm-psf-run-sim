@@ -34,8 +34,9 @@ if __name__ == '__main__':
 
     instcat_out = get_instcat_output_path(args.obsid)
 
+    ccds = split_ccds_string(args.ccds)
+
     if not os.path.exists(instcat_out) or not args.use_existing:
-        ccds = split_ccds_string(args.ccds)
         run_make_instcat(
             run_config=run_config,
             opsim_db=args.opsim_db,
@@ -49,5 +50,5 @@ if __name__ == '__main__':
     run_galsim(
         imsim_config=args.imsim_config,
         instcat=instcat_out,
-        ccds=args.ccds,
+        ccds=ccds,
     )
