@@ -1,5 +1,11 @@
 # radius for disc of random points
 INSTCAT_RADIUS = 2.1
+
+# (4096 * 0.2 / 60)**2
+CCD_AREA = 186.4  # arcmin
+GAL_DISK_DENSITY = 600  # per sq arcmin
+MEAN_DISK_CCD_NUM = 111341
+
 FILTERMAP = {
     'u': 0,
     'g': 1,
@@ -48,7 +54,9 @@ def replace_instcat_from_db(
     output_fname,
     allowed_include=None,
     sed=None,
-    selector=None
+    selector=None,
+    galaxy_file=None,
+    ccds=None,
 ):
     """
     Replace the instacat metadata and positions according to
@@ -66,7 +74,9 @@ def replace_instcat_from_db(
     rng: np.random.default_rng
         The random number generator
     fname: str
-        The input instcat filename
+        The input instcat filename, typically only used for stars
+    gals_fname: str
+        The input fits file for galaxies
     conn: connection to opsim db
         e.g. a sqlite3 connection
     obsid: int
@@ -103,69 +113,75 @@ def replace_instcat_from_db(
         allowed_include=allowed_include,
         sed=sed,
         selector=selector,
+        galaxy_file=galaxy_file,
+        ccds=ccds,
     )
 
 
-def replace_instcat(
-    rng, fname, opsim_data, output_fname, allowed_include=None, sed=None,
-    selector=None
-):
-    """
-    Replace the instacat metadata and positions according to the
-    input opsim data
-
-    The ra/dec are generated uniformly in a disc centered at the
-    boresight from the opsim data.
-
-    One can limit the objects in the output file with the input selector
-    function and/or by limiting included source files with a list
-    of strings for matching with allowed_include
-
-    Parameters
-    ----------
-    rng: np.random.default_rng
-        The random number generator
-    fname: str
-        The input instcat filename
-    opsim_data: mapping
-        E.g. a sqlite.Row read from an opsim database.
-    output_fname: str
-        Name for new output instcat file
-    allowed_include: list of strings
-        Only includes with a filename that includes the string
-        are kept.  For  ['star', 'gal'] we would keep filenames
-        that had star or gal in them
-    sed: str
-        Force use if the input SED for all objects
-        e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
-    selector: function
-        Evaluates True for objects to be kept, e.g.
-            f = lambda d: d['magnorm'] > 17
-    """
-
-    assert output_fname != fname
-
-    data, orig_meta = read_instcat(
-        fname, allowed_include=allowed_include,
-    )
-
-    if selector is not None:
-        data = [d for d in data if selector(d)]
-
-    meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
-    replace_instcat_radec(
-        rng=rng,
-        ra=meta['rightascension'],
-        dec=meta['declination'],
-        data=data,
-    )
-
-    if sed is not None:
-        print('replacing SED with:', sed)
-        for tdata in data:
-            tdata['sed1'] = sed
-
-    write_instcat(output_fname, data, meta)
+# def replace_instcat(
+#     rng, fname, opsim_data, output_fname, allowed_include=None, sed=None,
+#     selector=None
+# ):
+#     """
+#     Replace the instacat metadata and positions according to the
+#     input opsim data
+#
+#     The ra/dec are generated uniformly in a disc centered at the
+#     boresight from the opsim data.
+#
+#     One can limit the objects in the output file with the input selector
+#     function and/or by limiting included source files with a list
+#     of strings for matching with allowed_include
+#
+#     Parameters
+#     ----------
+#     rng: np.random.default_rng
+#         The random number generator
+#     fname: str
+#         The input instcat filename
+#     opsim_data: mapping
+#         E.g. a sqlite.Row read from an opsim database.
+#     output_fname: str
+#         Name for new output instcat file
+#     allowed_include: list of strings
+#         Only includes with a filename that includes the string
+#         are kept.  For  ['star', 'gal'] we would keep filenames
+#         that had star or gal in them
+#     sed: str
+#         Force use if the input SED for all objects
+#         e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
+#     selector: function
+#         Evaluates True for objects to be kept, e.g.
+#             f = lambda d: d['magnorm'] > 17
+#     """
+#
+#     assert output_fname != fname
+#
+#     data, orig_meta = read_instcat(
+#         fname, allowed_include=allowed_include,
+#     )
+#
+#     if selector is not None:
+#         data = [d for d in data if selector(d)]
+#
+#    meta = replace_instcat_meta(
+#        rng=rng,
+#        meta=orig_meta,
+#        opsim_data=opsim_data,
+#    )
+#     replace_instcat_radec(
+#         rng=rng,
+#         ra=meta['rightascension'],
+#         dec=meta['declination'],
+#         data=data,
+#     )
+#
+#     if sed is not None:
+#         print('replacing SED with:', sed)
+#         for tdata in data:
+#             tdata['sed1'] = sed
+#
+#     write_instcat(output_fname, data, meta)
 
 
 def replace_instcat_meta(rng, meta, opsim_data):
@@ -261,6 +277,48 @@ class RadecGenerator():
             rng=self.rng,
         )
         return ra[0], dec[0]
+
+
+class CCDRadecGenerator():
+    """
+    generate new positions for objects centered at the ra, dec
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    ra: float
+        The ra of the new pointing
+    dec: float
+        The dec of the new pointing
+    """
+    def __init__(self, rng, wcs):
+        self.rng = rng
+        self.wcs = wcs
+
+    def __call__(self, n=None):
+        import galsim
+
+        if n is None:
+            is_scalar = True
+            n = 1
+        else:
+            is_scalar = False
+
+        x = self.rng.uniform(low=1, high=4096, size=n)
+        y = self.rng.uniform(low=1, high=4096, size=n)
+
+        ra, dec = self.wcs.xyToRadec(
+            x=x,
+            y=y,
+            units=galsim.degrees,
+        )
+
+        if is_scalar:
+            ra = ra[0]
+            dec = dec[0]
+
+        return ra, dec
 
 
 def read_instcat(fname, allowed_include=None):
@@ -542,14 +600,18 @@ def replace_instcat_streamed(
     output_fname,
     allowed_include=None,
     sed=None,
-    selector=None
+    selector=None,
+    galaxy_file=None,
+    ccds=None,
 ):
     """
-    Replace the instacat metadata and positions according to the
-    input opsim data
+    Replace the instacat metadata and positions according to the input opsim
+    data.  Normally only stars are read from the instcat using
+    allowed_include=['star'], galaxies should be provided through the
+    galaxy_file option and limited to the CCDs associated with the wcss input
 
-    The ra/dec are generated uniformly in a disc centered at the
-    boresight from the opsim data.
+    The ra/dec for stars are generated uniformly in a disc centered at the
+    boresight from the opsim data, while galaxies get limited to CCDs
 
     One can limit the objects in the output file with the input selector
     function and/or by limiting included source files with a list
@@ -584,6 +646,7 @@ def replace_instcat_streamed(
     orig_meta = read_instcat_meta(fname)
     meta = replace_instcat_meta(rng=rng, meta=orig_meta, opsim_data=opsim_data)
 
+    # ra/dec gen in full circle, only used for stars
     radec_gen = RadecGenerator(
         rng=rng,
         ra=meta['rightascension'],
@@ -606,6 +669,18 @@ def replace_instcat_streamed(
             allowed_include=allowed_include, sed=sed,
             radec_gen=radec_gen,
         )
+
+        if galaxy_file is not None:
+            print('getting alaxies from:', galaxy_file)
+            _copy_galaxies_ccds(
+                meta=meta,
+                fout=fout,
+                rng=rng,
+                fname=galaxy_file,
+                selector=selector,
+                sed=sed,
+                ccds=ccds,
+            )
 
         ds.pop()
 
@@ -654,6 +729,61 @@ def _copy_objects(
                     )
 
 
+def _copy_galaxies_ccds(
+    meta,
+    fout,
+    fname,
+    rng,
+    selector,
+    ccds,
+    sed=None,
+):
+    import numpy as np
+    import fitsio
+
+    wcss = [
+        instcat_meta_to_wcs(meta, ccd) for ccd in ccds
+    ]
+    radec_generators = [
+        CCDRadecGenerator(rng=rng, wcs=wcs)
+        for wcs in wcss
+    ]
+    nums = [
+        rng.poisson(111341)
+        for i in range(len(wcss))
+    ]
+    ntot = sum(nums)
+
+    with fitsio.FITS(fname) as fits:
+        # get all indices first
+        nrows = fits['disk_gal'].get_nrows()
+        all_indices = rng.randint(0, nrows, size=ntot)
+        all_indices.sort()
+
+        # now for each CCD
+        start = 0
+        for radec_gen, num in zip(radec_generators, nums):
+
+            end = start + num
+            indices = all_indices[start:end]
+
+            data = fits['disk_gal'][indices]
+
+            w, = np.where(selector(data))
+            data = data[w]
+
+            ra, dec = radec_gen(data.size)
+            data['ra'] = ra
+            data['dec'] = dec
+
+            if sed is not None:
+                data['sed1'] = sed
+
+            _write_instcat_lines_from_array(fout=fout, data=data)
+
+            start = end
+
+
 def _write_instcat_meta(fout, meta):
     for key, value in meta.items():
         line = f'{key} {value}\n'
@@ -665,6 +795,19 @@ def _write_instcat_line(fout, entry):
     line = ' '.join(line)
     fout.write(line)
     fout.write('\n')
+
+
+def _write_instcat_lines_from_array(fout, data):
+    names = data.dtype.names
+
+    for d in data:
+        line = ['object']
+        for name in names:
+            line += [str(d[name])]
+
+        line = ' '.join(line)
+        fout.write(line)
+        fout.write('\n')
 
 
 def _read_instcat_object_line_as_dict(ls):
