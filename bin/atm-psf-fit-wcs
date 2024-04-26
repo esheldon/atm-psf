@@ -27,6 +27,13 @@ def get_args():
     parser.add_argument('--truth', required=True)
     parser.add_argument('--output-image',
                         help='write a new image with updated wcs')
+    parser.add_argument('--batoid', action='store_true',
+                        help='use original wrong batoid positions')
+    parser.add_argument('--frac',
+                        help='fraction used for validation',
+                        type=float,
+                        default=0.2)
+    parser.add_argument('--seed', type=int)
 
     args = parser.parse_args()
 
@@ -77,8 +84,7 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
         M,
         angles='xy',
         scale_units='xy',
-        scale=0.0005,
-        # scale=0.005,
+        scale=0.05,
         cmap=cmap,
     )
     fig.colorbar(qplt, cmap=cmap)
@@ -93,7 +99,7 @@ def plot_quiver(x, y, dx_arcsec, dy_arcsec, fname):
 def main():
     args = get_args()
 
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(args.seed)
 
     gsim, t = read_data(args)
     w, = np.where(
@@ -104,19 +110,21 @@ def main():
     )
     t = t[w]
 
-    x = t['x']
-    y = t['y']
+    if args.batoid:
+        x = t['xbat']
+        y = t['ybat']
+    else:
+        x = t['x']
+        y = t['y']
+
     ra = t['ra']
     dec = t['dec']
-    # x = t['xbat']
-    # y = t['ybat']
 
     r = rng.uniform(size=t.size)
     s = r.argsort()
 
     # training and validation
-    validation_frac = 0.5
-    nvalidation = int(s.size * validation_frac)
+    nvalidation = int(s.size * args.frac)
 
     # verification
     vi = s[:nvalidation]
