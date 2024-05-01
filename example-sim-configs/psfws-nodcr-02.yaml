@@ -1,0 +1,416 @@
+# * psf weather station for the atmospheric psf
+# * no tree rings (only astrometric effect)
+# * No DCR
+# * no sky gradient
+# * no vignetting of sky, so we can use a single number for sky_level
+#   Note this does not prevent vignetting on the ray traced, photon shot
+#   objects, only the sky and FFT objects.
+# * eimage will have variance equal to sky_level
+# * hack to get sky by storing image.sky_level in truth catalog, the same value
+#   for all objects
+# * we can then subtract the sky directly, and set the variance.
+#
+#
+# call as follows.  Note nfiles must match the number of entries in det_num
+#
+#    galsim this_filename \
+#        input.instance_catalog.file_name={path_to_instcat} \
+#        output.nproc=2 \
+#        output.nfiles=2 \
+#        output.det_num="[3,4]"
+#
+#  outputs to "output", add this for your own directory
+#        output.dir={some_directory}
+#
+
+modules:
+    - imsim
+    - astropy.time  # Need this for an Eval.  Tell GalSim to have it loaded.
+    - psfws.simulate_atm_psf
+
+# Anything set here can be used in any Eval (usually a string that starts with $) as a variable.
+# This is often convenient, so they can be set just once (probably from the command line) and
+# used in multiple places.
+eval_variables:
+    # The first letters of these variables indicates the type.
+    # c = CelestialCoord
+    # a = Angle
+    # s = string
+    # f = float
+    # So to use one of these in an Eval string, you would write just boresight,
+    # not cboresight.
+    cboresight:
+        type: RADec
+        ra:
+            type: Degrees
+            theta: { type: OpsimData, field: fieldRA }
+        dec:
+            type: Degrees
+            theta: { type: OpsimData, field: fieldDec }
+
+    aazimuth:
+        type: Degrees
+        theta: { type: OpsimData, field: azimuth }
+    aaltitude:
+        type: Degrees
+        theta: { type: OpsimData, field: altitude }
+    arotTelPos:
+        type: Degrees
+        theta: { type: OpsimData, field: rotTelPos }
+
+    sband: { type: OpsimData, field: band }
+
+    fexptime: { type: OpsimData, field: exptime }
+
+    # Note: Another value we use in many eval items is det_name.  If using the LSST_CCD
+    #       output type, as we do here, it's automatically added as an availble eval variable.
+    #       Otherwise you should set sdet_name here manually to e.g. 'R22_S11' or whatever.
+
+
+# Any input data is set here.  These are read in at the start of the program and
+# potentially updated for each output file. Also includes things that need some
+# set up at the start of an exposure, like the atmospheric PSF.
+input:
+
+    telescope:
+        file_name:
+            type: FormattedStr
+            format : LSST_%s.yaml
+            items:
+                - "$band"
+        rotTelPos: $rotTelPos
+
+    sky_model:
+        # Use the rubin_sim.skybrightness model to compute the sky
+        # background level.
+        exptime: $exptime
+        mjd: { type: OpsimData, field: mjd }
+
+    # ESS
+    atm_psf:
+        # This enables the AtmosphericPSF type for the PSF
+
+        # ESS
+        # airmass: { type: OpsimData, field: airmass }
+        rawSeeing:  { type: OpsimData, field: rawSeeing }
+        band: "$band"
+        boresight: "$boresight"
+
+        # Optional parameters:  (Unless otherwise stated, these are the default values.)
+        t0: 0               # seconds
+        exptime: $exptime
+        kcrit: 0.2          # in units of 1/r0
+        alt: "$altitude"
+        az: "$azimuth"
+        screen_size: 800
+        # ESS
+        # screen_size: 200
+        # screen_scale: 0.1   # meters
+        # doOpt: False
+        # nproc: 1            # Default (None) means one proc per screen.
+
+        # TODO:
+        #save_file: {}        # This is currently set of the imsim command line, so we could keep
+                              # doing that, but we could also base this name off of
+                              # input.instance_catalog.file_name, or even just have `save: True`
+                              # and let the atm_psf figure out a unique name from the input params.
+
+    # checkpoint:
+    #     dir: checkpoint
+    #     file_name:
+    #       type: FormattedStr
+    #       format : checkpoint_%08d-%s.hdf
+    #       items:
+    #           - { type: OpsimData, field: observationId }
+    #           - "$det_name"
+
+    # turn off vignetting so we can use sky_level * pixel_area to get the background
+    # note does not turn of vignetting on photon shot objects
+    # vignetting:
+    #     file_name: LSSTCam_vignetting_data.json
+
+    # ESS
+    instance_catalog:
+        # override at the command line
+        file_name: test-replace.txt
+
+        sed_dir: $os.environ.get('SIMS_SED_LIBRARY_DIR')
+        # what is this?
+        sort_mag: False
+
+    # ESS
+    opsim_data:
+        # Read the visit meta data. By default, we use the same file as the above
+        # instance catalog with the object information. However, you could specify
+        # an opsim file or another instance catalog instead.
+        file_name: '@input.instance_catalog.file_name'
+
+# ESS
+# Define the galaxy type and positions to use
+gal:
+    type: InstCatObj
+
+# Define how the objects are placed on the image.  This refers to a single CCD.
+image:
+    type: LSST_Image
+
+    random_seed: { type: OpsimData, field: seed }
+
+    nproc: 1    # Can set this to -1 to use all CPUs if you want.  That probably won't be
+                # particularly efficient until we switch to using MakePhot rather than DrawImage.
+                # Right now, there is a significant overhead passing the drawn stamps back to
+                # the main process for all of the (many) vert faint sources, which only shoot
+                # a small numer of photons.
+
+    # The objects are processed in batches.
+    # If checkpointing is turned on, then the checkpoint file will be updated after each batch.
+    # Even if not checkpointing, using batches helps keep the memory down, since a bunch of
+    # temporary data can be purged after each batch.
+    # The default number of batches is 100, but you can change it if desired.
+    nbatch: 100
+
+    det_name: "$det_name"
+
+    bandpass: { type: RubinBandpass, band: "$band" }
+
+    wcs:
+        type: Batoid
+
+        # These are required:
+        camera: "@output.camera"
+        boresight: "$boresight"
+
+        obstime:
+            type: Eval
+            str: "astropy.time.Time(mjd_val, format='mjd', scale='tai')"
+            fmjd_val: { type: OpsimData, field: mjd }
+
+        det_name: $det_name
+        wavelength: "$(@image.bandpass).effective_wavelength"
+
+        # The rest can be omitted, since these are the default values, but shown here
+        # for reference.
+        temperature: 280  # Kelvin
+        pressure: 72.7    # kPa
+        H2O_pressure: 1.0 # kPa
+        order: 3          # Order of the SIP polynomial
+
+    camera: "@output.camera"
+
+    noise:
+        type: CCD
+        gain: 1
+        read_noise: 0  # The read noise is applied later.  Only sky noise here.
+
+    sky_level: { type: SkyLevel }  # Computed from input.sky_model.
+
+    apply_sky_gradient: False
+
+    apply_fringing: "$band == 'y'" # Only set to True if simulating y-bands images!
+
+    boresight: "$boresight"
+
+    use_flux_sky_areas: False   # This means don't bother with the BFE from sky flux when computing
+                                # the pixel areas for drawing the sky.
+                                # This is the default.  But set to true to get BF in sky.
+                                # TODO: The True option is a one step flux calculation, so it's not
+                                # yet right for doing flats.  Aspirationally, I'd like it to be
+                                # possible to make flats simply by setting this to true and
+                                # cranking up the sky flux to something appropriate.
+
+    sensor:
+        type: Silicon
+        strength: 1.0e-06
+        index_key: image_num    # This tells GalSim that this only changes with a new image num.
+
+
+# Define the PSF to use in the normal case (LSST_Silicon will override if doing a saturated star)
+psf:
+    type: Convolve
+    items:
+        -
+            # Note: This type requires the "input" type atm_psf.
+            #       It's not really an input in the normal sense, since it doesn't read
+            #       in a file.  But it needs to do some setup at the start, which all
+            #       objects will use.  So functionally, this works like an input type.
+            #       All of the relevant configurable parameters are set there.
+            # ESS
+            # type: AtmosphericPSF
+            # type: Gaussian
+            # fwhm: 0.6
+            type: PsfwsAtmosphericPSF
+        # -
+        #     # An additional Gaussian profile to represent contributions of physical effects
+        #     # not otherwise explicitly modeled in either the Optical or Atmospheric parts.
+        #     # This value of 0.3 arcsec is appropriate when doOpt=True and sensor effects are
+        #     # being modeled. If this is not the case, then it may be appropriate to increase
+        #     # this value to account for the missing contribution of these effects.
+        #     type: Gaussian
+        #     fwhm: 0.35
+
+stamp:
+    type: LSST_Silicon
+
+    fft_sb_thresh: 2.e5   # When to switch to fft and a simpler PSF and skip silicon
+    max_flux_simple: 100  # When to switch to simple SED
+    airmass: { type: OpsimData, field: airmass }
+    rawSeeing:  { type: OpsimData, field: rawSeeing }
+    band: "$band"
+    camera: "@output.camera"
+    det_name: "$det_name"  # This is automatically defined by the LSST_CCD output type.
+
+    # calculate a centroid from shot photons
+    centroid:
+        n_photons: 100000
+
+    diffraction_fft:
+      exptime: { type: OpsimData, field: exptime }
+      azimuth:
+        type: Degrees
+        theta: { type: OpsimData, field: azimuth }
+      altitude:
+        type: Degrees
+        theta: { type: OpsimData, field: altitude }
+      rotTelPos:
+        type: Degrees
+        theta: { type: OpsimData, field: rotTelPos }
+
+    photon_ops:
+        -
+            type: TimeSampler
+            t0: 0.0
+            exptime: $exptime
+        -
+            type: PupilAnnulusSampler
+            R_outer: 4.18
+            R_inner: 2.55  # M1 inner diameter is 2.558, but we need a bit of slack for off-axis rays
+        # -
+        #     type: PhotonDCR
+        #     base_wavelength: $bandpass.effective_wavelength
+        #     latitude: -30.24463 degrees
+        #     HA:
+        #         type: Degrees
+        #         theta: { type: OpsimData, field: HA }
+        -
+            type: RubinDiffractionOptics
+            det_name: "$det_name"
+            boresight: "$boresight"
+            camera: "@output.camera"
+            altitude: $altitude
+            azimuth: $azimuth
+        -
+            # Note: If FocusDepth is before Refraction, then the depth is the amount of focus
+            #       change required relative to the rays coming to a focus at the surface.
+            #       If FocusDepth is after Refraction, then the depth is the actual depth in
+            #       the silicon where the (refracted) rays come to a focus.
+            type: FocusDepth
+            depth:
+                type: Eval
+                str: depth_dict[band]
+                # TODO: Figure out the depth to use for other bands.  Josh found -0.6 for y.
+                # These numbers are in units of pixels.
+                ddepth_dict: {'u':0, 'g':0, 'r':0, 'i':0, 'z':0, 'y':-0.6}
+        -
+            type: Refraction
+            index_ratio: 3.9  # TODO: This is what Josh used for y band.
+                              # I assume it's wavelength dependent...
+                              # Probably need to use the same kind of pattern as above for depth.
+
+    # ESS
+    world_pos:
+        type: InstCatWorldPos
+
+# This defines both the output files and some basic things about the overall exposure/fov.
+output:
+    type: LSST_CCD
+
+    camera: LsstCam
+
+    exptime: $exptime
+
+    cosmic_ray_rate: 0.2
+
+    # ESS
+    # override at command line
+    det_num: [101]
+    nfiles: 1   # Must match length of det_num
+    nproc: 1    # Change this to work on multiple CCDs at once.
+    # det_num:
+    #     type: Sequence
+    #     nitems: 189
+    #     first: 94  # Can set first to something if you want to do a specific sensor.
+
+    # ESS
+    # dir: output
+    dir:
+        type: FormattedStr
+        format : "%08d"
+        items:
+            - { type: OpsimData, field: observationId }
+
+    file_name:
+        type: FormattedStr
+        format : eimage-%08d-%1d-%s-%s-det%03d.fits
+        items:
+            - { type: OpsimData, field: observationId }
+            - { type: OpsimData, field: snap }
+            - "$band"
+            - "$det_name"   # A value stored in the dict by LSST_CCD
+            - "@output.det_num"
+
+    # ESS
+    # this is slow
+    # readout:
+    #     # Convert from e-image to realized amp images
+    #     readout_time: 3.
+    #     dark_current: 0.02
+    #     bias_level: 1000.
+    #     pcti: 1.e-6
+    #     scti: 1.e-6
+    #     bias_levels_file: LSSTCam_bias_levels_run_13421.json
+    #
+    #     file_name:
+    #         type: FormattedStr
+    #         format : amp_%08d-%1d-%s-%s-det%03d.fits.fz
+    #         items:
+    #             - { type: OpsimData, field: observationId }
+    #             - { type: OpsimData, field: snap }
+    #             - "$band"
+    #             - "$det_name"
+    #             - "@output.det_num"
+
+    truth:
+        # dir: output
+        dir:
+            type: FormattedStr
+            format : "%08d"
+            items:
+                - { type: OpsimData, field: observationId }
+
+        file_name:
+            type: FormattedStr
+            # format : centroid_%08d-%1d-%s-%s-det%03d.txt.gz
+            format : truth-%08d-%1d-%s-%s-det%03d.fits
+            items:
+                - { type: OpsimData, field: observationId }
+                - { type: OpsimData, field: snap }
+                - "$band"
+                - "$det_name"
+                - "@output.det_num"
+        columns:
+            # object_id: "@object_id"
+            ra: "$sky_pos.ra.deg"
+            dec: "$sky_pos.dec.deg"
+            sky_level: "@image.sky_level"
+
+            # Note: these will only work if using the LSST_Silicon stamp type.
+            nominal_flux: "@nominal_flux"  # The nominal "expectation value" flux.
+            phot_flux: "@phot_flux"  # The realized flux for photon shooting.
+            fft_flux: "@fft_flux"  # If FFT rendering, then the flux used, including vignetting.
+            realized_flux: "@realized_flux"  # The actual flux that was added to the image.
+            x: "@xcentroid"
+            x_err: "@xcentroid_err"
+            y: "@ycentroid"
+            y_err: "@ycentroid_err"
+            xbat: "$image_pos.x"
+            ybat: "$image_pos.y"
