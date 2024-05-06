@@ -30,7 +30,8 @@ instcats: /astro/u/esheldon/imsim_outputs/instcats.txt
 
 # Object types allowed to be extracted from instcat.
 # possibilities are star, gal, knots, sne
-allowed_include: ['star', 'gal']
+allowed_include: ['star']
+galaxy_file: /astro/u/esheldon/oh2/rubin_sim_data/example_instance_catalogs/instcat_y01_191109/00230218/cat_230218.fits
 
 # data from this run will be located in base_dir/{run_name}
 base_dir: /astro/u/esheldon/imsim_outputs/sim-runs
