@@ -349,12 +349,10 @@ def read_instcat(fname, allowed_include=None):
         are kept.  For  ['star', 'gal'] we would keep filenames
         that had star or gal in them
     """
-    import os
     from esutil.ostools import DirStack
 
     ds = DirStack()
-    dirname = os.path.dirname(fname)
-    bname = os.path.basename(fname)
+    dirname, bname = path_split(fname)
     ds.push(dirname)
 
     meta = read_instcat_meta(bname)
@@ -441,7 +439,6 @@ def instcat_to_fits(fname, out_fname, allowed_include=None):
         that had star or gal in them
     """
     import fitsio
-    import os
     from esutil.ostools import DirStack
 
     if allowed_include is None:
@@ -450,16 +447,16 @@ def instcat_to_fits(fname, out_fname, allowed_include=None):
     assert fname != out_fname
 
     ds = DirStack()
-    dirname = os.path.dirname(fname)
+    dirname, bname = path_split(fname)
     ds.push(dirname)
 
-    meta = read_instcat_meta(fname)
+    meta = read_instcat_meta(bname)
 
     print('opening output:', out_fname)
     with fitsio.FITS(out_fname, 'rw', clobber=True) as fits:
 
         print('\nopening:', fname)
-        with open(fname, 'r') as main_fobj:
+        with open(bname, 'r') as main_fobj:
             for mline in main_fobj:
 
                 ls = mline.split()
@@ -974,3 +971,12 @@ def _get_opener(fname):
         mode = 'r'
 
     return opener, mode
+
+
+def path_split(fname):
+    import os
+
+    dirname, basename = os.path.split(fname)
+    if dirname == '':
+        dirname = './'
+    return dirname, fname
