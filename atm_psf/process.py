@@ -182,6 +182,7 @@ def run_make_instcat(
 
     print('connecting to:', opsim_db)
 
+    magmin = run_config.get('magmin', -1000)
     with sqlite3.connect(opsim_db) as conn:
         atm_psf.instcat_tools.replace_instcat_from_db(
             rng=rng,
@@ -192,7 +193,7 @@ def run_make_instcat(
             allowed_include=run_config['allowed_include'],
             # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
             sed=run_config.get('sed', None),
-            selector=lambda d: d['magnorm'] > 17,
+            selector=lambda d: d['magnorm'] > magmin,
             galaxy_file=run_config.get('galaxy_file', None),
             ccds=ccds,
         )
