@@ -270,8 +270,8 @@ stamp:
     det_name: "$det_name"  # This is automatically defined by the LSST_CCD output type.
 
     # calculate a centroid from shot photons
-    centroid:
-        n_photons: 100000
+    # centroid:
+    #     n_photons: 100000
 
     diffraction_fft:
       exptime: { type: OpsimData, field: exptime }
@@ -399,7 +399,6 @@ output:
 
         file_name:
             type: FormattedStr
-            # format : centroid_%08d-%1d-%s-%s-det%03d.txt.gz
             format : truth-%08d-%1d-%s-%s-det%03d.fits
             items:
                 - { type: OpsimData, field: observationId }
@@ -418,9 +417,5 @@ output:
             phot_flux: "@phot_flux"  # The realized flux for photon shooting.
             fft_flux: "@fft_flux"  # If FFT rendering, then the flux used, including vignetting.
             realized_flux: "@realized_flux"  # The actual flux that was added to the image.
-            x: "@xcentroid"
-            x_err: "@xcentroid_err"
-            y: "@ycentroid"
-            y_err: "@ycentroid_err"
-            xbat: "$image_pos.x"
-            ybat: "$image_pos.y"
+            x: "$image_pos.x"
+            y: "$image_pos.y"
