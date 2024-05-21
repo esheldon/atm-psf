@@ -13,8 +13,10 @@ def get_args():
     parser.add_argument('--opsim-db', required=True)
     parser.add_argument('--obsid', type=int, required=True)
     parser.add_argument('--instcat', required=True)
-    parser.add_argument('--ccds', type=int, nargs='+', required=True,
-                        help='e.g. "35 66"')
+    parser.add_argument('--nccds', type=int,
+                        help='simulate this many random ccds')
+    parser.add_argument('--ccds', type=int, nargs='+',
+                        help='simulate these ccds, e.g. "35 66"')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument(
         '--use-existing',
@@ -27,7 +29,15 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
 
+    if args.nccds is None and args.ccds is None:
+        raise RuntimeError('send either ccds or nccds')
+
     rng = np.random.default_rng(args.seed)
+
+    if args.ccds is not None:
+        ccds = args.ccds
+    else:
+        ccds = rng.integers(189, size=args.nccds, replace=False)
 
     # generate these now so runs with and without existing instcat
     # are consistent
@@ -47,12 +57,12 @@ if __name__ == '__main__':
             obsid=args.obsid,
             instcat=args.instcat,
             instcat_out=instcat_out,
-            ccds=args.ccds,
+            ccds=ccds,
         )
 
     atm_psf.process.run_mimsim(
         rng=sim_rng,
         config=sim_config,
         instcat=instcat_out,
-        ccds=args.ccds,
+        ccds=ccds,
     )
