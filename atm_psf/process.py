@@ -9,6 +9,7 @@ def run_mimsim(rng, config, instcat, ccds):
     mimsim.logging.setup_logging('info')
     logger = logging.getLogger('run_mimsim')
 
+    logger.info('config:')
     logger.info(pformat(config))
 
     gs_rng = galsim.BaseDeviate(rng.integers(0, 2**60))
@@ -52,7 +53,10 @@ def run_mimsim(rng, config, instcat, ccds):
     else:
         tree_rings = None
 
-    for ccd in ccds:
+    for iccd, ccd in enumerate(ccds):
+        logger.info('-' * 70)
+        logger.info('ccd: {ccd} {iccd+1}/{len(ccds)}')
+
         diffraction_fft = imsim.stamp.DiffractionFFT(
             exptime=obsdata['exptime'],
             altitude=obsdata['altitude'],
