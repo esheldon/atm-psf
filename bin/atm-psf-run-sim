@@ -37,7 +37,7 @@ if __name__ == '__main__':
     if args.ccds is not None:
         ccds = args.ccds
     else:
-        ccds = rng.integers(189, size=args.nccds, replace=False)
+        ccds = rng.choice(189, size=args.nccds, replace=False)
 
     # generate these now so runs with and without existing instcat
     # are consistent
