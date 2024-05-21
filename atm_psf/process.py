@@ -55,7 +55,7 @@ def run_mimsim(rng, config, instcat, ccds):
 
     for iccd, ccd in enumerate(ccds):
         logger.info('-' * 70)
-        logger.info('ccd: {ccd} {iccd+1}/{len(ccds)}')
+        logger.info(f'ccd: {ccd} {iccd+1}/{len(ccds)}')
 
         diffraction_fft = imsim.stamp.DiffractionFFT(
             exptime=obsdata['exptime'],
