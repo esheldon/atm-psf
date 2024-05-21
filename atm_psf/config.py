@@ -4,7 +4,7 @@ def get_default_sim_config():
     return {
         'sky_gradient': True,
         'vignetting': True,
-        'apply_pixel_area': True,
+        'apply_pixel_areas': True,
         'dcr': True,
         'tree_rings': True,
         'cosmic_ray_rate': mimsim.defaults.DEFAULT_COSMIC_RAY_RATE,
