@@ -412,8 +412,72 @@ def load_opsim_info(fname, filter=None):
     return data
 
 
-def load_config(fname):
+def load_yaml(fname):
     import yaml
     with open(fname) as fobj:
         data = yaml.safe_load(fobj)
     return data
+
+
+def get_obsid_dirname(obsid):
+    """
+    get obsid formatted as 08d
+    """
+    return f'{obsid:08d}'
+
+
+def get_sim_output_fname(obsid, dm_detector, band):
+    """
+    Get the relative output path, e.g.
+        00355204/simdata-00355204-0-i-R14_S00-det063.fits
+
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    dm_detector: lsst.afw.cameraGeom.Detector
+        Data management detector object.  Use make_dm_detector(detnum)
+    band: str
+        e.g. 'r'
+
+    Returns
+    --------
+    path
+    """
+    import os
+
+    detname = dm_detector.getName()
+    detnum = dm_detector.getId()
+
+    # simdata-00355204-0-i-R14_S00-det063.fits
+    dirname = get_obsid_dirname(obsid)
+    fname = f'simdata-{dirname}-0-{band}-{detname}-det{detnum:03d}.fits'
+    return os.path.join(dirname, fname)
+
+
+def save_sim_data(fname, image, sky_image, truth):
+    """
+    Save the data to a FITS file.  The wcs is written to the header
+    for the 'image' extension.
+
+    Parameters
+    ----------
+    fname: str
+        The path to the output file
+    image: galsim.Image
+        The image to write. Will be written to extension name 'image'
+    sky_image: galsim.Image
+        The sky image to write. Will be written to extension name 'sky'
+    truth: array
+        The array with fields holding truth data
+    """
+    import fitsio
+
+    header = {}
+    image.wcs.writeToFitsHeader(header, image.bounds)
+
+    with fitsio.FITS(fname, 'rw', clobber=True) as fits:
+        fits.write(image.array, extname='image', header=header)
+        fits.write(sky_image.array, extname='sky')
+        if truth is not None:
+            fits.write(truth, extname='truth')

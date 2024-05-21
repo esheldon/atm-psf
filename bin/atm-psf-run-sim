@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
+import numpy as np
+import atm_psf
 import os
-from atm_psf.process import (
-    run_make_instcat, run_galsim, get_instcat_output_path,
-)
-from atm_psf.io import load_config
-from atm_psf.util import split_ccds_string
 
 
 def get_args():
@@ -16,8 +13,8 @@ def get_args():
     parser.add_argument('--opsim-db', required=True)
     parser.add_argument('--obsid', type=int, required=True)
     parser.add_argument('--instcat', required=True)
-    parser.add_argument('--ccds', required=True,
-                        help='e.g. "[35,66]"')
+    parser.add_argument('--ccds', type=int, nargs='+', required=True,
+                        help='e.g. "35 66"')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument(
         '--use-existing',
@@ -30,25 +27,32 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
 
-    run_config = load_config(args.run_config)
+    rng = np.random.default_rng(args.seed)
 
-    instcat_out = get_instcat_output_path(args.obsid)
+    # generate these now so runs with and without existing instcat
+    # are consistent
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
 
-    ccds = split_ccds_string(args.ccds)
+    run_config = atm_psf.io.load_yaml(args.run_config)
+    sim_config = atm_psf.config.load_sim_config(args.sim_config)
+
+    instcat_out = atm_psf.process.get_instcat_output_path(args.obsid)
 
     if not os.path.exists(instcat_out) or not args.use_existing:
-        run_make_instcat(
+        atm_psf.process.run_make_instcat(
+            rng=instcat_rng,
             run_config=run_config,
             opsim_db=args.opsim_db,
             obsid=args.obsid,
             instcat=args.instcat,
             instcat_out=instcat_out,
-            ccds=ccds,
-            seed=args.seed,
+            ccds=args.ccds,
         )
 
-    run_galsim(
-        imsim_config=args.imsim_config,
+    atm_psf.process.run_mimsim(
+        rng=sim_rng,
+        config=sim_config,
         instcat=instcat_out,
-        ccds=ccds,
+        ccds=args.ccds,
     )

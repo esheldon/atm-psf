@@ -1,3 +1,136 @@
+def run_mimsim(rng, config, instcat, ccds):
+    import logging
+    import galsim
+    import imsim
+    import mimsim
+    from . import io
+    from pprint import pformat
+
+    mimsim.logging.setup_logging('info')
+    logger = logging.getLogger('run_mimsim')
+
+    logger.info(pformat(config))
+
+    gs_rng = galsim.BaseDeviate(rng.integers(0, 2**60))
+
+    logger.info(f'loading opsim data from {instcat}')
+    obsdata = mimsim.opsim_data.load_obsdata_from_instcat(instcat)
+
+    assert config['psf']['type'] == 'psfws'
+    psf = mimsim.psfws.make_psfws_psf(
+        obsdata=obsdata,
+        gs_rng=gs_rng,
+        psf_config=config['psf']['options'],
+    )
+
+    sky_model = imsim.SkyModel(
+        exptime=obsdata['exptime'],
+        mjd=obsdata['mjd'],
+        bandpass=obsdata['bandpass'],
+    )
+    if config['sky_gradient']:
+        sky_gradient = mimsim.sky.FixedSkyGradient(sky_model)
+    else:
+        sky_gradient = None
+
+    if config['dcr']:
+        dcr = mimsim.dcr.DCRMaker(
+            bandpass=obsdata['bandpass'],
+            hour_angle=obsdata['HA'],
+        )
+    else:
+        dcr = None
+
+    cosmics = mimsim.cosmic_rays.CosmicRays(
+        cosmic_ray_rate=config['cosmic_ray_rate'],
+        exptime=obsdata['exptime'],
+        gs_rng=gs_rng,
+    )
+
+    if config['tree_rings']:
+        tree_rings = mimsim.tree_rings.make_tree_rings(ccds)
+    else:
+        tree_rings = None
+
+    for ccd in ccds:
+        diffraction_fft = imsim.stamp.DiffractionFFT(
+            exptime=obsdata['exptime'],
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            rotTelPos=obsdata['rotTelPos'],
+        )
+
+        dm_detector = mimsim.camera.make_dm_detector(ccd)
+
+        wcs, icrf_to_field = mimsim.wcs.make_batoid_wcs(
+            obsdata=obsdata, dm_detector=dm_detector,
+        )
+        cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
+
+        if config['vignetting']:
+            vignetter = mimsim.vignetting.Vignetter(dm_detector)
+        else:
+            vignetter = None
+
+        sensor = mimsim.sensor.make_sensor(
+            dm_detector=dm_detector,
+            tree_rings=tree_rings,
+            gs_rng=gs_rng,
+        )
+
+        optics = mimsim.optics.OpticsMaker(
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            boresight=obsdata['boresight'],
+            rot_tel_pos=obsdata['rotTelPos'],
+            band=obsdata['band'],
+            dm_detector=dm_detector,
+            wcs=wcs,
+            icrf_to_field=icrf_to_field,
+        )
+
+        photon_ops_maker = mimsim.photon_ops.PhotonOpsMaker(
+            exptime=obsdata['exptime'],
+            band=obsdata['band'],
+            dcr=dcr,
+            optics=optics,
+        )
+
+        artist = mimsim.artist.Artist(
+            bandpass=obsdata['bandpass'],
+            sensor=sensor,
+            photon_ops_maker=photon_ops_maker,
+            diffraction_fft=diffraction_fft,
+            gs_rng=gs_rng,
+        )
+
+        image, sky_image, truth = mimsim.runner.run_sim(
+            rng=rng,
+            cat=cat,
+            obsdata=obsdata,
+            artist=artist,
+            psf=psf,
+            wcs=wcs,
+            sky_model=sky_model,
+            sensor=sensor,
+            dm_detector=dm_detector,
+            cosmics=cosmics,
+            sky_gradient=sky_gradient,
+            vignetting=vignetter,
+            apply_pixel_areas=False,  # for speed
+        )
+        # e.g. simdata-00355204-0-i-R14_S00-det063.fits
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            dm_detector=dm_detector,
+            band=obsdata['band'],
+        )
+        logging.info(f'writing to: {fname}')
+        io.save_sim_data(
+            fname=fname, image=image, sky_image=sky_image, truth=truth,
+        )
+
+
 def run_sim_and_piff(
     run_config,
     imsim_config,
@@ -151,7 +284,7 @@ def _get_paths(obsid, ccd):
 
 
 def run_make_instcat(
-    run_config, opsim_db, obsid, instcat, instcat_out, ccds, seed,
+    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
@@ -159,6 +292,8 @@ def run_make_instcat(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        The random number generator
     run_config: dict
         The run configuration
     opsim_db: str
@@ -171,14 +306,9 @@ def run_make_instcat(
         Path for the output instcat
     ccds: list of int
         List of CCD numbers
-    seed: int
-        Seed for random number generator
     """
     import sqlite3
     import atm_psf
-    import numpy as np
-
-    rng = np.random.default_rng(seed)
 
     print('connecting to:', opsim_db)
 
