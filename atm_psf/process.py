@@ -9,8 +9,8 @@ def run_mimsim(rng, config, instcat, ccds):
     mimsim.logging.setup_logging('info')
     logger = logging.getLogger('run_mimsim')
 
-    logger.info('config:')
-    logger.info(pformat(config))
+    logger.info('sim config:')
+    logger.info('\n' + pformat(config))
 
     gs_rng = galsim.BaseDeviate(rng.integers(0, 2**60))
 
