@@ -18,6 +18,7 @@ def run_mimsim(rng, config, instcat, ccds):
     obsdata = mimsim.opsim_data.load_obsdata_from_instcat(instcat)
 
     assert config['psf']['type'] == 'psfws'
+    logger.info('making psfws PSF')
     psf = mimsim.psfws.make_psfws_psf(
         obsdata=obsdata,
         gs_rng=gs_rng,
@@ -69,12 +70,22 @@ def run_mimsim(rng, config, instcat, ccds):
         wcs, icrf_to_field = mimsim.wcs.make_batoid_wcs(
             obsdata=obsdata, dm_detector=dm_detector,
         )
+        logger.info(f'loading objects from {instcat}')
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
 
         if config['vignetting']:
             vignetter = mimsim.vignetting.Vignetter(dm_detector)
         else:
             vignetter = None
+
+        if mimsim.fringing.should_apply_fringing(
+            band=obsdata['band'], dm_detector=dm_detector,
+        ):
+            fringer = mimsim.fringing.Fringer(
+                boresight=obsdata['boresight'], dm_detector=dm_detector,
+            )
+        else:
+            fringer = None
 
         sensor = mimsim.sensor.make_sensor(
             dm_detector=dm_detector,
@@ -121,7 +132,8 @@ def run_mimsim(rng, config, instcat, ccds):
             cosmics=cosmics,
             sky_gradient=sky_gradient,
             vignetting=vignetter,
-            apply_pixel_areas=False,  # for speed
+            fringing=fringer,
+            apply_pixel_areas=config['apply_pixel_areas'],
         )
         # e.g. simdata-00355204-0-i-R14_S00-det063.fits
         fname = io.get_sim_output_fname(
