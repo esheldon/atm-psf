@@ -16,7 +16,7 @@ def get_default_sim_config():
     }
 
 
-def load_sim_config(fname):
+def load_sim_config(fname=None):
     """
     Load config.  Elements in the input will override the defaults. For
     defaults see get_default_config()
@@ -33,7 +33,10 @@ def load_sim_config(fname):
     """
     from .io import load_yaml
 
-    data = load_yaml(fname)
+    if fname is not None:
+        data = load_yaml(fname)
+    else:
+        data = {}
 
     config = get_default_sim_config()
     config.update(data)
