@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
-from atm_psf.process import run_simulation
+import os
+from atm_psf.process import (
+    run_make_instcat, run_galsim, get_instcat_output_path,
+)
 from atm_psf.io import load_config
+from atm_psf.util import split_ccds_string
 
 
 def get_args():
@@ -15,6 +19,11 @@ def get_args():
     parser.add_argument('--ccds', required=True,
                         help='e.g. "[35,66]"')
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument(
+        '--use-existing',
+        action='store_true',
+        help='Re-use instcat if it already exists',
+    )
     return parser.parse_args()
 
 
@@ -23,12 +32,23 @@ if __name__ == '__main__':
 
     run_config = load_config(args.run_config)
 
-    run_simulation(
-        run_config=run_config,
+    instcat_out = get_instcat_output_path(args.obsid)
+
+    ccds = split_ccds_string(args.ccds)
+
+    if not os.path.exists(instcat_out) or not args.use_existing:
+        run_make_instcat(
+            run_config=run_config,
+            opsim_db=args.opsim_db,
+            obsid=args.obsid,
+            instcat=args.instcat,
+            instcat_out=instcat_out,
+            ccds=ccds,
+            seed=args.seed,
+        )
+
+    run_galsim(
         imsim_config=args.imsim_config,
-        opsim_db=args.opsim_db,
-        obsid=args.obsid,
-        instcat=args.instcat,
-        ccds=args.ccds,
-        seed=args.seed,
+        instcat=instcat_out,
+        ccds=ccds,
     )

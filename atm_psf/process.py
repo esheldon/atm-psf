@@ -9,6 +9,7 @@ def run_sim_and_piff(
     nstars_min=50,
     cleanup=True,
     no_find_sky=False,
+    use_existing=False,
     show=False,
 ):
     """
@@ -41,25 +42,33 @@ def run_sim_and_piff(
         If set to True, show plots
     """
 
+    import os
     import numpy as np
 
     rng = np.random.default_rng(seed)
 
+    instcat_out = get_instcat_output_path(obsid)
+
     sseed = rng.integers(0, 2**31)
-    run_simulation(
-        run_config=run_config,
+
+    if not os.path.exists(instcat_out) or not use_existing:
+        run_make_instcat(
+            run_config=run_config,
+            opsim_db=opsim_db,
+            obsid=obsid,
+            instcat=instcat,
+            instcat_out=instcat_out,
+            ccds=ccds,
+            seed=sseed,
+        )
+
+    run_galsim(
         imsim_config=imsim_config,
-        opsim_db=opsim_db,
-        obsid=obsid,
-        instcat=instcat,
+        instcat=instcat_out,
         ccds=ccds,
-        seed=sseed,
     )
 
-    tmp = ccds.replace('[', '').replace(']', '')
-    ccdnums = [int(s) for s in tmp.split(',')]
-
-    for ccd in ccdnums:
+    for ccd in ccds:
 
         image_file, truth_file, piff_file, source_file = _get_paths(
             obsid=obsid, ccd=ccd,
@@ -84,6 +93,12 @@ def run_sim_and_piff(
     # if cleanup:
     #     instcat_file = _get_instcat_path(obsid)
     #     _remove_file(instcat_file)
+
+
+def get_instcat_output_path(obsid):
+    import os
+    outdir = '%08d' % obsid
+    return os.path.join(outdir, 'instcat.txt')
 
 
 def _remove_file(fname):
@@ -135,30 +150,30 @@ def _get_paths(obsid, ccd):
     return image_file, truth_file, piff_file, source_file
 
 
-def run_simulation(
-    run_config, imsim_config, opsim_db, obsid, instcat, ccds, seed,
+def run_make_instcat(
+    run_config, opsim_db, obsid, instcat, instcat_out, ccds, seed,
 ):
     """
-    Run the simulation using galsim
+    Run the code to make a new instcat from an input one and a pointing from
+    the obsim db
 
     Parameters
     ----------
     run_config: dict
         The run configuration
-    imsim_config: str
-        Path to galsim config file to run imsim
     opsim_db: str
         Path to opsim database
     obsid: int
         The observation id
     instcat: str
-        Path for the the output instcat
+        Path for the input instcat
+    instcat_out: str
+        Path for the output instcat
     ccds: list of int
         List of CCD numbers
     seed: int
         Seed for random number generator
     """
-    import os
     import sqlite3
     import atm_psf
     import numpy as np
@@ -167,13 +182,8 @@ def run_simulation(
 
     print('connecting to:', opsim_db)
 
+    magmin = run_config.get('magmin', -1000)
     with sqlite3.connect(opsim_db) as conn:
-        # galsim will also write to this dir
-        outdir = '%08d' % obsid
-
-        instcat_out = os.path.join(outdir, 'instcat.txt')
-
-        print('making instcat')
         atm_psf.instcat_tools.replace_instcat_from_db(
             rng=rng,
             fname=instcat,
@@ -182,16 +192,11 @@ def run_simulation(
             output_fname=instcat_out,
             allowed_include=run_config['allowed_include'],
             # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
-            selector=lambda d: d['magnorm'] > 17
+            sed=run_config.get('sed', None),
+            selector=lambda d: d['magnorm'] > magmin,
+            galaxy_file=run_config.get('galaxy_file', None),
+            ccds=ccds,
         )
-
-    # galsim will write to subdir, so chdir to it
-    print('running galsim')
-    _run_galsim(
-        imsim_config=imsim_config,
-        instcat=instcat_out,
-        ccds=ccds,
-    )
 
 
 GALSIM_COMMAND = r"""
@@ -202,15 +207,17 @@ galsim %(imsim_config)s \
 """
 
 
-def _run_galsim(imsim_config, instcat, ccds):
+def run_galsim(imsim_config, instcat, ccds):
     import os
-    nfiles = len(ccds.split(','))
+    nfiles = len(ccds)
+
+    ccdstr = '[' + ','.join([str(ccd) for ccd in ccds]) + ']'
 
     command = GALSIM_COMMAND % {
         'imsim_config': imsim_config,
         'instcat': instcat,
         'nfiles': nfiles,
-        'ccds': ccds,
+        'ccds': ccdstr,
     }
     print(command)
     res = os.system(command)

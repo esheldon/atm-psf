@@ -2,15 +2,15 @@
 # using pixel coords
 # tree rings (astrometric)
 # outputting ngmix shapes and subset of data
-run: "run-g-psfws-pixtree-gal-simpiff-01"
-seed: 19
+run: "run-g-psfws-gal-tree-nodcr-magmin17-simpiff-01"
+seed: 2398
 
 memory: "12G"
 
 filter: "g"
 
 # total number of pointings (and thus atmospheres)
-npointings: 16000
+npointings: 4000
 
 # render this many random CCDs per pointing
 ccds_per_pointing: 4
@@ -19,7 +19,7 @@ magmin: 17
 
 # same config used for all image generation, but we override
 # input instcat etc.
-imsim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/psfws-tree02.yaml
+imsim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/psfws-tree-nodcr01.yaml
 
 # get observing conditions from here, including pointing
 opsim_db: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/baseline_v3.3_10yrs.db
@@ -33,6 +33,9 @@ instcats: /astro/u/esheldon/imsim_outputs/instcats.txt
 # Object types allowed to be extracted from instcat.
 # possibilities are star, gal, knots, sne
 allowed_include: ['star']
+
+# in addition to stars from the instcat, add random galaxies from this
+# fits file. We do galaxies separately for speed
 galaxy_file: /astro/u/esheldon/oh2/rubin_sim_data/example_instance_catalogs/instcat_y01_191109/00230218/disk_gal_cat_230218.fits
 
 # data from this run will be located in base_dir/{run_name}

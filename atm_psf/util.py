@@ -61,3 +61,10 @@ def makedir(d):
             os.makedirs(d)
         except Exception:
             pass
+
+
+def split_ccds_string(ccds_str):
+    n = len(ccds_str)
+    # cut of the [ and ]
+    keep = ccds_str[1:n-1]
+    return [int(ccd) for ccd in keep.split(',')]

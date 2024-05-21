@@ -2,7 +2,7 @@
 # using pixel coords
 # tree rings (astrometric)
 # outputting ngmix shapes and subset of data
-run: "run-g-psfws-pixtree-gal-simpiff-01"
+run: "run-g-psfws-gal-magmin10-simpiff-01"
 seed: 19
 
 memory: "12G"
@@ -10,12 +10,12 @@ memory: "12G"
 filter: "g"
 
 # total number of pointings (and thus atmospheres)
-npointings: 16000
+npointings: 4000
 
 # render this many random CCDs per pointing
 ccds_per_pointing: 4
 
-magmin: 17
+magmin: 10
 
 # same config used for all image generation, but we override
 # input instcat etc.

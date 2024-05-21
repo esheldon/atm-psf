@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--instcat', required=True)
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--allowed-include', nargs='+')
+
+    return parser.parse_args()
+
+
+def go(args):
+    import atm_psf
+    atm_psf.instcat_tools.instcat_to_fits(
+        fname=args.instcat,
+        out_fname=args.output,
+        allowed_include=args.allowed_include,
+    )
+
+
+def main():
+    args = get_args()
+    go(args)
+
+
+if __name__ == '__main__':
+    main()
