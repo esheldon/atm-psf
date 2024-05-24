@@ -30,11 +30,11 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
 
     print('loading:', fname)
     with fitsio.FITS(fname) as fits:
-        hdr = fits[0].read_header()
         image = fits['image'].read()
         sky_image = fits['sky'].read()
         image -= sky_image
 
+        hdr = fits['truth'].read_header()
         if fit_wcs:
             print('loading truth')
             truth_data = fits['truth'].read()
@@ -69,8 +69,8 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
     exp = afw_image.ExposureF(masked_image)
 
     filter_label = afw_image.FilterLabel(
-        band=hdr['filter'],
-        physical=hdr['filter'],
+        band=hdr['band'],
+        physical=hdr['band'],
     )
     try:
         exp.setFilterLabel(filter_label)
@@ -82,7 +82,7 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
 
     exp.setWcs(wcs)
 
-    detector = DetectorWrapper(hdr['DET_NAME']).detector
+    detector = DetectorWrapper(hdr['det_name']).detector
     exp.setDetector(detector)
 
     return exp, hdr

@@ -68,3 +68,11 @@ def split_ccds_string(ccds_str):
     # cut of the [ and ]
     keep = ccds_str[1:n-1]
     return [int(ccd) for ccd in keep.split(',')]
+
+
+def get_band(val):
+    try:
+        len(val)
+        return val
+    except TypeError:
+        return 'ugrizy'[val]

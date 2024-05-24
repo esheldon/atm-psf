@@ -92,7 +92,7 @@ def _make_output_source_data(data):
 
     hdr = data['instcat_meta'].copy()
     for key in [
-        'seed', 'file', 'airmass', 'filter',
+        'file', 'airmass', 'filter',
         'spatialFitChi2', 'numAvailStars', 'numGoodStars', 'avgX', 'avgY',
     ]:
         hdr[key] = data[key]
@@ -509,7 +509,7 @@ def get_source_output_fname(obsid, ccd, band):
     )
 
 
-def save_sim_data(fname, image, sky_image, truth, obsdata):
+def save_sim_data(fname, image, sky_image, truth, obsdata, extra=None):
     """
     Save the data to a FITS file.  The wcs is written to the header
     for the 'image' extension.
@@ -530,6 +530,9 @@ def save_sim_data(fname, image, sky_image, truth, obsdata):
 
     header = {}
     image.wcs.writeToFitsHeader(header, image.bounds)
+    del header['GS_XMIN']
+    del header['GS_YMIN']
+    del header['GS_WCS']
 
     truth_header = {}
     for key, val in obsdata.items():
@@ -540,6 +543,9 @@ def save_sim_data(fname, image, sky_image, truth, obsdata):
             val = val / galsim.degrees
 
         truth_header[key] = val
+
+    if extra is not None:
+        truth_header.update(extra)
 
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
         fits.write(image.array, extname='image', header=header)

@@ -7,7 +7,7 @@ def run_sim(rng, config, instcat, ccds):
     from pprint import pformat
 
     mimsim.logging.setup_logging('info')
-    logger = logging.getLogger('run_mimsim')
+    logger = logging.getLogger('process.run_msim')
 
     logger.info('sim config:')
     logger.info('\n' + pformat(config))
@@ -145,6 +145,7 @@ def run_sim(rng, config, instcat, ccds):
         io.save_sim_data(
             fname=fname, image=image, sky_image=sky_image, truth=truth,
             obsdata=obsdata,
+            extra={'det_name': dm_detector.getName()},
         )
 
 
@@ -215,7 +216,7 @@ def run_sim_and_piff(
 
     run_sim(
         rng=sim_rng,
-        sim_config=sim_config,
+        config=sim_config,
         instcat=instcat_out,
         ccds=ccds,
     )
@@ -409,7 +410,6 @@ def process_image_with_piff(
     """
     import numpy as np
     import atm_psf
-    import fitsio
 
     alldata = {'file': fname}
 
@@ -418,8 +418,7 @@ def process_image_with_piff(
     # detection
     # rng is only used for noise in the fixed gaussian psf
     exp, hdr = atm_psf.exposures.fits_to_exposure(fname=fname, rng=rng)
-    truth_hdr = fitsio.read(fname, ext='true')
-    instcat_meta = {key: truth_hdr[key] for key in truth_hdr}
+    instcat_meta = {key: hdr[key] for key in hdr.keys()}
 
     detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
@@ -435,8 +434,9 @@ def process_image_with_piff(
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
-    alldata['airmass'] = hdr['AMSTART']
-    alldata['filter'] = hdr['FILTER']
+    # alldata['airmass'] = hdr['AMSTART']
+    alldata['airmass'] = hdr['airmass']
+    alldata['filter'] = hdr['band']
     alldata['instcat_meta'] = instcat_meta
 
     nstars = star_select.sum()
