@@ -1,4 +1,4 @@
-def run_mimsim(rng, config, instcat, ccds):
+def run_sim(rng, config, instcat, ccds):
     import logging
     import galsim
     import imsim
@@ -138,26 +138,26 @@ def run_mimsim(rng, config, instcat, ccds):
         # e.g. simdata-00355204-0-i-R14_S00-det063.fits
         fname = io.get_sim_output_fname(
             obsid=obsdata['obshistid'],
-            dm_detector=dm_detector,
+            ccd=ccd,
             band=obsdata['band'],
         )
         logging.info(f'writing to: {fname}')
         io.save_sim_data(
             fname=fname, image=image, sky_image=sky_image, truth=truth,
+            obsdata=obsdata,
         )
 
 
 def run_sim_and_piff(
+    rng,
     run_config,
-    imsim_config,
+    sim_config,
     opsim_db,
     obsid,
     instcat,
     ccds,
-    seed,
     nstars_min=50,
     cleanup=True,
-    no_find_sky=False,
     use_existing=False,
     show=False,
 ):
@@ -166,10 +166,12 @@ def run_sim_and_piff(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        The random number generator
     run_config: dict
         The run configuration
-    imsim_config: str
-        Path to galsim config file to run imsim
+    sim_config: dict
+        Simulation configuration
     opsim_db: str
         Path to opsim database
     obsid: int
@@ -178,70 +180,76 @@ def run_sim_and_piff(
         Path for the the output instcat
     ccds: list of int
         List of CCD numbers
-    seed: int
-        Seed for random number generator
     nstars_min: int, optional
         Minimum number of stars required to run PIFF, default 50
     cleanup: bool, optional
         If set to True, remove the simulated data, the image, truth and instcat
         files.  Default True.
-    no_find_sky: bool
-        If set to True, find the sky rather than just use sky from catalog
     show: bool
         If set to True, show plots
     """
 
     import os
     import numpy as np
+    import mimsim
+    from . import io
 
-    rng = np.random.default_rng(seed)
+    # generate these now so runs with and without existing instcat
+    # are consistent
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
+    piff_rng = np.random.default_rng(rng.integers(0, 2**60))
 
     instcat_out = get_instcat_output_path(obsid)
 
-    sseed = rng.integers(0, 2**31)
-
     if not os.path.exists(instcat_out) or not use_existing:
         run_make_instcat(
+            rng=instcat_rng,
             run_config=run_config,
             opsim_db=opsim_db,
             obsid=obsid,
             instcat=instcat,
             instcat_out=instcat_out,
             ccds=ccds,
-            seed=sseed,
         )
 
-    run_galsim(
-        imsim_config=imsim_config,
+    run_sim(
+        rng=sim_rng,
+        sim_config=sim_config,
         instcat=instcat_out,
         ccds=ccds,
     )
 
+    obsdata = mimsim.opsim_data.load_obsdata_from_instcat(instcat_out)
+
     for ccd in ccds:
 
-        image_file, truth_file, piff_file, source_file = _get_paths(
-            obsid=obsid, ccd=ccd,
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        piff_file = io.get_piff_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        source_file = io.get_source_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
         )
 
-        pseed = rng.integers(0, 2**31)
-
         process_image_with_piff(
-            image_file=image_file,
-            truth_file=truth_file,
+            rng=piff_rng,
+            fname=fname,
             piff_file=piff_file,
             source_file=source_file,
-            seed=pseed,
             nstars_min=nstars_min,
-            no_find_sky=no_find_sky,
             show=show,
         )
         if cleanup:
-            _remove_file(image_file)
-            _remove_file(truth_file)
-
-    # if cleanup:
-    #     instcat_file = _get_instcat_path(obsid)
-    #     _remove_file(instcat_file)
+            _remove_file(fname)
 
 
 def get_instcat_output_path(obsid):
@@ -372,8 +380,11 @@ def run_galsim(imsim_config, instcat, ccds):
 
 
 def process_image_with_piff(
-    image_file, truth_file, piff_file, source_file, seed, nstars_min=50,
-    no_find_sky=False,
+    rng,
+    fname,
+    piff_file,
+    source_file,
+    nstars_min=50,
     show=False,
 ):
     """
@@ -381,6 +392,8 @@ def process_image_with_piff(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        Random number generator
     image_file: str
         Path to image file
     truth_file: str
@@ -389,35 +402,24 @@ def process_image_with_piff(
         Output file path
     source_file: str
         Output catlaog path
-    seed: int
-        Seed for random number generator
     nstars_min: int
         Minimum number of stars required to run PIFF, default 50
-    no_find_sky: bool
-        If set to True, find the sky rather than just use sky from catalog
     show: bool
         If set to True, show plots
     """
     import numpy as np
     import atm_psf
+    import fitsio
 
-    rng = np.random.RandomState(seed)
-    alldata = {
-        'seed': seed,
-        'image_file': image_file,
-        'truth_file': truth_file,
-    }
+    alldata = {'file': fname}
 
     # loads the image, subtractes the sky using sky_level in truth catalog,
     # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
     # detection
-    exp, hdr = atm_psf.exposures.fits_to_exposure(
-        fname=image_file,
-        truth=truth_file,
-        rng=rng,
-        no_find_sky=no_find_sky,
-    )
-    instcat_meta = _load_instcat_meta_from_dir(image_file)
+    # rng is only used for noise in the fixed gaussian psf
+    exp, hdr = atm_psf.exposures.fits_to_exposure(fname=fname, rng=rng)
+    truth_hdr = fitsio.read(fname, ext='true')
+    instcat_meta = {key: truth_hdr[key] for key in truth_hdr}
 
     detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
@@ -478,8 +480,6 @@ def process_image_with_piff(
         # save sources and candidate list
         alldata.update({
             'reserved': reserved,
-            'image_file': image_file,
-            'truth_file': truth_file,
             'ngmix_result': detmeas.ngmix_result,
         })
         alldata.update(meta)

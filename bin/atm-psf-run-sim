@@ -60,7 +60,7 @@ if __name__ == '__main__':
             ccds=ccds,
         )
 
-    atm_psf.process.run_mimsim(
+    atm_psf.process.run_sim(
         rng=sim_rng,
         config=sim_config,
         instcat=instcat_out,

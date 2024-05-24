@@ -2,99 +2,69 @@
 EDGE = 50
 
 
-def fits_to_exposure(fname, truth, rng, fwhm=0.8, no_find_sky=False):
+def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
     """
-    load an exposure from an eimage fits file.  They sky is subtracted
-    if truth is sent
+    load an exposure from an eimage fits file.
 
     Parameters
     ----------
     fname: str
         Path to fits file
-    truth: str
-        Path to truth file, from which sky is extracted.  It is assumed that
-        the sky noise is poisson, so sky var = sky_level
     rng: np.random.default_rng
-        The random number generator
+        The random number generator, used to add noise to the gaussian PSF
+        image
+    fit_wcs: bool, optional
+        If set to True, refit the wcs
     fwhm: float
         Initial PSF fwhm for detection, default 0.8
-    no_find_sky: bool
-        If set to True, don't find the sky, just use sky from catalog
 
     Returns
     -------
     afw.image.ExposureF
     """
     import fitsio
-    import galsim
     from lsst.afw.cameraGeom.testUtils import DetectorWrapper
     import lsst.afw.image as afw_image
-    from .wcs import fit_gs_wcs, gs_wcs_to_dm_wcs
-    from metadetect.lsst.skysub import iterate_detection_and_skysub
-    import numpy as np
+    from .wcs import fit_gs_wcs
+    from .wcs import gs_wcs_to_dm_wcs
 
     print('loading:', fname)
     with fitsio.FITS(fname) as fits:
         hdr = fits[0].read_header()
-        image = fits[0].read()
+        image = fits['image'].read()
+        sky_image = fits['sky'].read()
+        image -= sky_image
 
-    gsim = galsim.fits.read(fname)
-    orig_gs_wcs = gsim.wcs
+        if fit_wcs:
+            print('loading truth')
+            truth_data = fits['truth'].read()
+        else:
+            truth_data = None
 
-    assert truth is not None, 'need truth for wcs'
-    print('loading:', truth)
-    truth_data = fitsio.read(truth)
+    print('image stats after subtraction:')
+    print_image_stats(image)
 
-    print('fitting for wcs')
-    gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
+    orig_gs_wcs, bounds = load_galsim_info(fname)
+
+    if fit_wcs:
+        print('fitting for wcs')
+        gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
+    else:
+        gs_wcs = orig_gs_wcs
+
     # gs_wcs = orig_gs_wcs
-    wcs = gs_wcs_to_dm_wcs(gs_wcs, gsim.bounds)
+    wcs = gs_wcs_to_dm_wcs(gs_wcs, bounds)
 
     ny, nx = image.shape
     masked_image = afw_image.MaskedImageF(nx, ny)
     masked_image.image.array[:, :] = image
-
-    if True and truth is not None:
-        sky = int(truth_data['sky_level'][0] * 0.2**2)
-
-        print('cat sky:', sky)
-        print('subtracting cat sky:', sky)
-        masked_image.image.array[:, :] -= sky
-        masked_image.variance.array[:, :] = sky
-        print('image stats after subtraction:')
-        print_image_stats(masked_image.image.array)
-
-    if False:
-        import sep
-        import sxdes
-
-        bkg_model = sep.Background(masked_image.image.array)
-        bkg = bkg_model.back()
-
-        print('bkg median:', np.median(bkg))
-        masked_image.image.array[:, :] -= bkg
-        masked_image.variance.array[:, :] = bkg_model.globalrms**2
-        print('image stats after subtraction:')
-        print_image_stats(masked_image.image.array)
-        # objects = sep.extract(
-        #     masked_image.image.array, 1.0, err=bkg_model.globalrms,
-        # )
-        objects, seg = sxdes.run_sep(
-            masked_image.image.array, noise=bkg_model.globalrms,
-        )
-        print('sky:', int(truth_data['sky_level'][0] * 0.2**2))
-        print('globalrms**2:', bkg_model.globalrms**2)
-        # import IPython; IPython.embed()
-        # _fwhm = objects['flux_radius'] * 2 * 0.2,
-        # plot_flux_fwhm(objects['flux_auto'], _fwhm, show=True)
-        # stop
+    masked_image.variance.array[:, :] = sky_image
 
     EDGEFLAG = masked_image.mask.getMaskPlane('EDGE')
     masked_image.mask.array[:EDGE, :] = EDGEFLAG
     masked_image.mask.array[ny-EDGE:, :] = EDGEFLAG
     masked_image.mask.array[:, :EDGE] = EDGEFLAG
     masked_image.mask.array[:, nx-EDGE:] = EDGEFLAG
-    # view_image(masked_image.mask.array)
 
     exp = afw_image.ExposureF(masked_image)
 
@@ -115,62 +85,13 @@ def fits_to_exposure(fname, truth, rng, fwhm=0.8, no_find_sky=False):
     detector = DetectorWrapper(hdr['DET_NAME']).detector
     exp.setDetector(detector)
 
-    if not no_find_sky:
-        print('doing iterative detection/sky subtraction')
-        iterate_detection_and_skysub(
-            exposure=exp,
-            thresh=5,
-        )
-
-        print('image stats after second subtraction:')
-        print('BGMEAN:', exp.getMetadata()['BGMEAN'])
-        print_image_stats(exp.image.array)
-
-        # sources = result.sources
-        val = 2 ** exp.mask.getMaskPlaneDict()['DETECTED']
-        exp.mask.array[:, :] &= ~val
-        # view_image(exp.mask.array)
-        # import IPython; IPython.embed()
-
-        if False:
-            from .measure import DetectMeasurer
-            detmeas = DetectMeasurer(exposure=exp, rng=rng)
-            detmeas.detect()
-            detmeas.measure()
-            sources = detmeas.sources
-
-            Ts = (
-                sources['base_SdssShape_xx'] + sources['base_SdssShape_yy']
-            )
-            _fwhm = np.sqrt(Ts/2) * 2.3548200450309493 * 0.2
-            figax = plot_flux_fwhm(
-                sources['base_PsfFlux_instFlux'],
-                _fwhm,
-                show=False,
-            )
-
-            Th = (
-                sources['ext_shapeHSM_HsmSourceMoments_xx']
-                + sources['ext_shapeHSM_HsmSourceMoments_yy']
-            )
-
-            _fwhm = np.sqrt(Th/2) * 2.3548200450309493 * 0.2
-            plot_flux_fwhm(
-                sources['base_PsfFlux_instFlux'],
-                _fwhm,
-                figax=figax,
-                show=False,
-            )
-            _flux = objects['flux_auto']
-            _fwhm = objects['flux_radius'] * 2 * 0.2,
-            plot_flux_fwhm(
-                _flux,
-                _fwhm,
-                figax=figax,
-                show=True,
-            )
-
     return exp, hdr
+
+
+def load_galsim_info(fname):
+    import galsim
+    gsim = galsim.fits.read(fname)
+    return gsim.wcs, gsim.bounds
 
 
 def make_fixed_psf(fwhm, rng):

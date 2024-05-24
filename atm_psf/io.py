@@ -92,7 +92,7 @@ def _make_output_source_data(data):
 
     hdr = data['instcat_meta'].copy()
     for key in [
-        'seed', 'image_file', 'truth_file', 'airmass', 'filter',
+        'seed', 'file', 'airmass', 'filter',
         'spatialFitChi2', 'numAvailStars', 'numGoodStars', 'avgX', 'avgY',
     ]:
         hdr[key] = data[key]
@@ -426,7 +426,7 @@ def get_obsid_dirname(obsid):
     return f'{obsid:08d}'
 
 
-def get_sim_output_fname(obsid, dm_detector, band):
+def get_sim_output_fname(obsid, ccd, band):
     """
     Get the relative output path, e.g.
         00355204/simdata-00355204-0-i-R14_S00-det063.fits
@@ -445,7 +445,9 @@ def get_sim_output_fname(obsid, dm_detector, band):
     path
     """
     import os
+    import mimsim
 
+    dm_detector = mimsim.camera.make_dm_detector(ccd)
     detname = dm_detector.getName()
     detnum = dm_detector.getId()
 
@@ -455,7 +457,59 @@ def get_sim_output_fname(obsid, dm_detector, band):
     return os.path.join(dirname, fname)
 
 
-def save_sim_data(fname, image, sky_image, truth):
+def get_piff_output_fname(obsid, ccd, band):
+    """
+    Get the relative output path, e.g.
+        00355204/piff-00355204-0-i-R14_S00-det063.pkl
+
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    dm_detector: lsst.afw.cameraGeom.Detector
+        Data management detector object.  Use make_dm_detector(detnum)
+    band: str
+        e.g. 'r'
+
+    Returns
+    --------
+    path
+    """
+
+    sim_output_fname = get_sim_output_fname(obsid, ccd, band)
+    return sim_output_fname.replace(
+        'simdata-', 'piff-'
+    ).replace(
+        '.fits', '.pkl',
+    )
+
+
+def get_source_output_fname(obsid, ccd, band):
+    """
+    Get the relative output path, e.g.
+        00355204/source-00355204-0-i-R14_S00-det063.fits
+
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    dm_detector: lsst.afw.cameraGeom.Detector
+        Data management detector object.  Use make_dm_detector(detnum)
+    band: str
+        e.g. 'r'
+
+    Returns
+    --------
+    path
+    """
+
+    sim_output_fname = get_sim_output_fname(obsid, ccd, band)
+    return sim_output_fname.replace(
+        'simdata-', 'source-'
+    )
+
+
+def save_sim_data(fname, image, sky_image, truth, obsdata):
     """
     Save the data to a FITS file.  The wcs is written to the header
     for the 'image' extension.
@@ -471,13 +525,23 @@ def save_sim_data(fname, image, sky_image, truth):
     truth: array
         The array with fields holding truth data
     """
+    import galsim
     import fitsio
 
     header = {}
     image.wcs.writeToFitsHeader(header, image.bounds)
 
+    truth_header = {}
+    for key, val in obsdata.items():
+        if key in ['boresight', 'bandpass']:
+            continue
+
+        if key in ['rotTelPos', 'altitude', 'azimuth', 'HA']:
+            val = val / galsim.degrees
+
+        truth_header[key] = val
+
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
         fits.write(image.array, extname='image', header=header)
         fits.write(sky_image.array, extname='sky')
-        if truth is not None:
-            fits.write(truth, extname='truth')
+        fits.write(truth, extname='truth', header=truth_header)

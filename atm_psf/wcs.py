@@ -26,13 +26,14 @@ def fit_gs_wcs(
     import galsim
     from esutil.numpy_util import between
 
-    # flux cut is to work around bug where faint objects
-    # did not have DCR effect
+    # flux cut is to work around faint objects that do not have DCR effect
+    # the value is 100 in the code but the realized flux can be different,
+    # so use 150 to be safe
     w, = np.where(
         np.isfinite(truth['x'])
         & between(truth['x'], 0, 4096)
         & between(truth['y'], 0, 4096)
-        & (truth['phot_flux'] > 100)
+        & (truth['realized_flux'] > 150)
     )
 
     print(f'starting with {w.size} stars')
