@@ -333,13 +333,13 @@ def run_make_instcat(
         List of CCD numbers
     """
     import sqlite3
-    import atm_psf
+    from . import instcat_tools
 
     print('connecting to:', opsim_db)
 
     magmin = run_config.get('magmin', -1000)
     with sqlite3.connect(opsim_db) as conn:
-        atm_psf.instcat_tools.replace_instcat_from_db(
+        instcat_tools.replace_instcat_from_db(
             rng=rng,
             fname=instcat,
             conn=conn,
@@ -409,7 +409,11 @@ def process_image_with_piff(
         If set to True, show plots
     """
     import numpy as np
-    import atm_psf
+    from . import exposures
+    from . import measure
+    from . import select
+    from . import pifftools
+    from . import io
 
     alldata = {'file': fname}
 
@@ -417,20 +421,17 @@ def process_image_with_piff(
     # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
     # detection
     # rng is only used for noise in the fixed gaussian psf
-    exp, hdr = atm_psf.exposures.fits_to_exposure(fname=fname, rng=rng)
+    exp, hdr = exposures.fits_to_exposure(fname=fname, rng=rng)
     instcat_meta = {key: hdr[key] for key in hdr.keys()}
 
-    detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
+    detmeas = measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
     detmeas.measure()
     sources = detmeas.sources
 
-    # run detection
-    # sources = atm_psf.measure.detect_and_measure(exposure=exp, rng=rng)
-
     # find stars in the size/flux diagram
     # note this is a bool array
-    star_select = atm_psf.select.select_stars(sources, show=show)
+    star_select = select.select_stars(sources, show=show)
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
@@ -444,17 +445,17 @@ def process_image_with_piff(
 
         # split into training and reserved/validation sets
         # these are again bool arrays with size length(sources)
-        reserved = atm_psf.pifftools.split_candidates(
+        reserved = pifftools.split_candidates(
             rng=rng, star_select=star_select, reserve_frac=0.2,
         )
 
-        candidates = atm_psf.pifftools.make_psf_candidates(
+        candidates = pifftools.make_psf_candidates(
             sources=sources[star_select],
             exposure=exp,
         )
 
         print('running piff')
-        piff_psf, meta, not_kept = atm_psf.pifftools.run_piff(
+        piff_psf, meta, not_kept = pifftools.run_piff(
             psf_candidates=candidates,
             reserved=reserved[star_select],
             exposure=exp,
@@ -475,7 +476,7 @@ def process_image_with_piff(
         detmeas.measure_ngmix()
 
         print('saving piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
+        io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
 
         # save sources and candidate list
         alldata.update({
@@ -486,10 +487,10 @@ def process_image_with_piff(
     else:
         print(f'got nstars {nstars} < {nstars_min}')
         print('saving None piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=None)
+        io.save_stack_piff(fname=piff_file, piff_psf=None)
 
     print('saving sources data to:', source_file)
-    atm_psf.io.save_source_data(fname=source_file, data=alldata)
+    io.save_source_data(fname=source_file, data=alldata)
 
 
 def _load_instcat_meta_from_dir(image_file):
@@ -497,7 +498,7 @@ def _load_instcat_meta_from_dir(image_file):
     we always call it instcat.txt, just get the directory
     """
     import os
-    import atm_psf
+    from . import instcat_tools
 
     dname = os.path.dirname(image_file)
     if dname == '':
@@ -508,4 +509,4 @@ def _load_instcat_meta_from_dir(image_file):
         'instcat.txt',
     )
     print('loading instcat:', instcat_file)
-    return atm_psf.instcat_tools.read_instcat_meta(instcat_file)
+    return instcat_tools.read_instcat_meta(instcat_file)
