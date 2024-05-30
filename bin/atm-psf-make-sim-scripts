@@ -4,8 +4,7 @@ SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 obsid=$1
 instcat=$2
-ccds=$3
-seed=$4
+seed=$3
 
 %(command)s \
     %(extra)s \
