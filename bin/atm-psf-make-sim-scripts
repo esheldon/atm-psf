@@ -62,18 +62,20 @@ def get_args():
 def write_script(args, config, run_dir):
     import os
 
-    extra = ''
+    extra = []
     if args.run_piff:
         command = 'atm-psf-run-sim-and-piff'
         if args.nocleanup:
-            extra = '--nocleanup'
+            extra.append('--nocleanup')
     else:
         command = 'atm-psf-run-sim'
 
     if 'sim_config' in config:
         # we copied the config into the dir
         sim_config_base = os.path.basename(config['sim_config'])
-        extra += f' --sim-config {sim_config_base}'
+        extra.append(f'--sim-config {sim_config_base}')
+
+    extra = ' '.join(extra)
 
     outfile = f'{run_dir}/run.sh'
     print('writing:', outfile)
