@@ -153,7 +153,7 @@ def main():
 
     args = get_args()
 
-    run_config = atm_psf.io.load_config(args.run_config)
+    run_config = atm_psf.io.load_yaml(args.run_config)
     rng = np.random.default_rng(run_config['seed'])
 
     run_dir = os.path.join(run_config['base_dir'], run_config['run'])
