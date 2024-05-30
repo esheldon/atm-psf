@@ -10,11 +10,10 @@ seed=$4
 %(command)s \
     %(extra)s \
     --run-config %(run_config)s \
-    --imsim-config %(imsim_config)s \
     --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
     --instcat ${instcat} \
-    --ccds ${ccds} \
+    --nccds %(nccds)d \
     --seed ${seed}
 """
 
@@ -39,7 +38,7 @@ kill_sig = SIGINT
 
 JOB_TEMPLATE = r"""
 +job_name = "%(job_name)s"
-arguments = %(obsid)d %(instcat)s %(ccds)s %(seed)d
+arguments = %(obsid)d %(instcat)s %(seed)d
 Queue
 """
 
@@ -61,22 +60,32 @@ def get_args():
     return parser.parse_args()
 
 
-def write_script(args, config, run_dir, command, extra):
+def write_script(args, config, run_dir):
     import os
+
+    extra = ''
+    if args.run_piff:
+        command = 'atm-psf-run-sim-and-piff'
+        if args.nocleanup:
+            extra = '--nocleanup'
+    else:
+        command = 'atm-psf-run-sim'
+
+    if 'sim_config' in config:
+        # we copied the config into the dir
+        sim_config_base = os.path.basename(config['sim_config'])
+        extra += f' --sim-config {sim_config_base}'
 
     outfile = f'{run_dir}/run.sh'
     print('writing:', outfile)
 
-    # we copied these to the local run_dir
-    run_config = os.path.basename(args.run_config)
-    imsim_config = os.path.basename(config['imsim_config'])
-
     script = SCRIPT % {
         'command': command,
         'extra': extra,
-        'run_config': run_config,
-        'imsim_config': imsim_config,
+        # we copied the config into the dir
+        'run_config': os.path.basename(args.run_config),
         'opsim_db': config['opsim_db'],
+        'nccds': config['ccds_per_pointing'],
     }
 
     with open(outfile, 'w') as fobj:
@@ -86,9 +95,13 @@ def write_script(args, config, run_dir, command, extra):
 
 
 def copy_file(path, run_dir):
+    import os
     import shutil
+
     print(f'copying {path} -> {run_dir}')
     shutil.copy(path, run_dir)
+
+    return os.path.basename(path)
 
 
 def write_condor_head(condorf, config):
@@ -140,14 +153,6 @@ def main():
 
     args = get_args()
 
-    extra = ''
-    if args.run_piff:
-        command = 'atm-psf-run-sim-and-piff'
-        if args.nocleanup:
-            extra = '--nocleanup'
-    else:
-        command = 'atm-psf-run-sim'
-
     run_config = atm_psf.io.load_config(args.run_config)
     rng = np.random.default_rng(run_config['seed'])
 
@@ -158,16 +163,12 @@ def main():
     obsids = get_random_obsids(config=run_config, rng=rng)
 
     copy_file(args.run_config, run_dir)
-    copy_file(run_config['imsim_config'], run_dir)
-    all_ccds = np.arange(189)
 
-    write_script(
-        args=args,
-        config=run_config,
-        run_dir=run_dir,
-        command=command,
-        extra=extra,
-    )
+    if 'sim_config' in run_config:
+        copy_file(run_config['sim_config'], run_dir)
+
+    write_script(args=args, config=run_config, run_dir=run_dir)
+
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
@@ -180,109 +181,13 @@ def main():
 
             instcat = rng.choice(instcats)
 
-            ccds = rng.choice(
-                all_ccds,
-                size=run_config['ccds_per_pointing'],
-                replace=False,
-            )
-
-            ccdstrs = [str(ccd) for ccd in ccds]
-            ccdstr = '[' + ','.join(ccdstrs) + ']'
-
             jobtext = JOB_TEMPLATE % {
                 'job_name': job_name,
                 'obsid': obsid,
                 'instcat': instcat,
                 'seed': this_seed,
-                'ccds': ccdstr,
             }
             condorf.write(jobtext)
-
-
-# def main():
-#     import os
-#     import numpy as np
-#     import sqlite3
-#     from atm_psf.instcat_tools import replace_instcat_from_db
-#
-#     args = get_args()
-#
-#     config = load_config(args.config)
-#     rng = np.random.default_rng(config['seed'])
-#
-#     run_dir = os.path.join(config['base_dir'], config['run'])
-#     makedir(run_dir)
-#
-#     copy_imsim_config(config, run_dir)
-#
-#     npointings = config['npointings']
-#
-#     instcats = load_instcat_paths(config['instcats'])
-#     opsim_info = load_opsim_info(config['opsim_info'], config['filter'])
-#     opsim_ids = rng.choice(
-#         opsim_info['id'], size=npointings, replace=False,
-#     )
-#     seeds = rng.integers(0, 2**30, size=npointings)
-#
-#     all_ccds = np.arange(189)
-#
-#     write_script(config, run_dir)
-#     condor_file = os.path.join(run_dir, 'submit.condor')
-#     print('opening:', condor_file)
-#     with open(condor_file, 'w') as condorf:
-#
-#         write_condor_head(condorf, config)
-#
-#         with sqlite3.connect(config['opsim_db']) as conn:
-#             for i in range(npointings):
-#                 print('-'*70)
-#                 print(f'{i+1}/{npointings}')
-#
-#                 this_rng = np.random.default_rng(seeds[i])
-#
-#                 obsid = opsim_ids[i]
-#                 obsid_pad = '%08d' % obsid
-#
-#                 outdir = os.path.join(run_dir, obsid_pad)
-#                 makedir(outdir)
-#
-#                 instcat_in = this_rng.choice(instcats)
-#                 instcat_out = os.path.join(outdir, 'instcat.txt')
-#                 if args.skip_existing and os.path.exists(instcat_out):
-#                     print('skipping existing:', instcat_out)
-#                     continue
-#
-#                 ccds = this_rng.choice(
-#                     all_ccds,
-#                     size=config['ccds_per_pointing'],
-#                     replace=False,
-#                 )
-#
-#                 replace_instcat_from_db(
-#                     rng=this_rng,
-#                     fname=instcat_in,
-#                     conn=conn,
-#                     obsid=obsid,
-#                     output_fname=instcat_out,
-#                     allowed_include=['star'],
-#                     selector=lambda d: d['magnorm'] > 17
-#                 )
-#
-#                 job_name = f'{config["run"]}-{obsid_pad}'
-#                 ccdlist = [str(ccd) for ccd in ccds]
-#                 ccdstr = '[' + ','.join(ccdlist) + ']'
-#
-#                 # use relative name so directory is relocatable
-#                 instcat_local = os.path.join(
-#                     obsid_pad,
-#                     os.path.basename(instcat_out),
-#                 )
-#                 jobtext = JOB_TEMPLATE % {
-#                     'job_name': job_name,
-#                     'instcat': instcat_local,
-#                     'ccds': ccdstr,
-#                 }
-#                 condorf.write(jobtext)
 
 
 if __name__ == '__main__':
