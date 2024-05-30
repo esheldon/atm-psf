@@ -155,7 +155,9 @@ def main():
     run_config = atm_psf.io.load_yaml(args.run_config)
     rng = np.random.default_rng(run_config['seed'])
 
-    run_dir = os.path.join(run_config['base_dir'], run_config['run'])
+    run = atm_psf.util.config_file_to_run(args.run_config)
+
+    run_dir = os.path.join(run_config['base_dir'], run)
     atm_psf.util.makedir(run_dir)
 
     instcats = atm_psf.io.load_instcat_paths(run_config['instcats'])

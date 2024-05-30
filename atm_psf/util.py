@@ -1,6 +1,19 @@
 from .constants import SCALE
 
 
+def config_file_to_run(path):
+    import os
+    bname = os.path.basename(path)
+
+    if '.yaml' not in bname:
+        raise RuntimeError(f'Expected .yaml file, got {path}')
+
+    run = bname.replace('.yaml', '')
+    assert run != bname
+
+    return run
+
+
 def T_to_fwhm(T):
     import numpy as np
     sigma = np.sqrt(T/2)
