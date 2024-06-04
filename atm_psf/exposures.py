@@ -2,7 +2,7 @@
 EDGE = 50
 
 
-def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
+def fits_to_exposure(fname, rng, fwhm=0.8):
     """
     load an exposure from an eimage fits file.
 
@@ -13,8 +13,6 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
     rng: np.random.default_rng
         The random number generator, used to add noise to the gaussian PSF
         image
-    fit_wcs: bool, optional
-        If set to True, refit the wcs
     fwhm: float
         Initial PSF fwhm for detection, default 0.8
 
@@ -25,7 +23,6 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
     import fitsio
     from lsst.afw.cameraGeom.testUtils import DetectorWrapper
     import lsst.afw.image as afw_image
-    from .wcs import fit_gs_wcs
     from .wcs import gs_wcs_to_dm_wcs
 
     print('loading:', fname)
@@ -35,22 +32,11 @@ def fits_to_exposure(fname, rng, fit_wcs=False, fwhm=0.8):
         image -= sky_image
 
         hdr = fits['truth'].read_header()
-        if fit_wcs:
-            print('loading truth')
-            truth_data = fits['truth'].read()
-        else:
-            truth_data = None
 
     print('image stats after subtraction:')
     print_image_stats(image)
 
-    orig_gs_wcs, bounds = load_galsim_info(fname)
-
-    if fit_wcs:
-        print('fitting for wcs')
-        gs_wcs = fit_gs_wcs(orig_gs_wcs=orig_gs_wcs, truth=truth_data)
-    else:
-        gs_wcs = orig_gs_wcs
+    gs_wcs, bounds = load_galsim_info(fname)
 
     # gs_wcs = orig_gs_wcs
     wcs = gs_wcs_to_dm_wcs(gs_wcs, bounds)
