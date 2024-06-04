@@ -509,7 +509,9 @@ def get_source_output_fname(obsid, ccd, band):
     )
 
 
-def save_sim_data(fname, image, sky_image, truth, obsdata, extra=None):
+def save_sim_data(
+    fname, image, sky_image, truth, obsdata, extra=None,
+):
     """
     Save the data to a FITS file.  The wcs is written to the header
     for the 'image' extension.
@@ -524,6 +526,8 @@ def save_sim_data(fname, image, sky_image, truth, obsdata, extra=None):
         The sky image to write. Will be written to extension name 'sky'
     truth: array
         The array with fields holding truth data
+    extra: dict
+        Extra header keywords to write
     """
     import galsim
     import fitsio

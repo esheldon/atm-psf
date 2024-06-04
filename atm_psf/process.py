@@ -1,4 +1,5 @@
 def run_sim(rng, config, instcat, ccds):
+    import numpy as np
     import logging
     import galsim
     import imsim
@@ -119,6 +120,10 @@ def run_sim(rng, config, instcat, ccds):
             gs_rng=gs_rng,
         )
 
+        calc_xy_indices = rng.choice(
+            cat.getNObjects(), size=200, replace=False,
+        )
+
         image, sky_image, truth = mimsim.runner.run_sim(
             rng=rng,
             cat=cat,
@@ -133,8 +138,22 @@ def run_sim(rng, config, instcat, ccds):
             sky_gradient=sky_gradient,
             vignetting=vignetter,
             fringing=fringer,
+            calc_xy_indices=calc_xy_indices,
             apply_pixel_areas=config['apply_pixel_areas'],
         )
+        mid = calc_xy_indices.size // 2
+        final_wcs, wcs_stats = mimsim.wcs.fit_wcs(
+            x=truth['realized_x'][calc_xy_indices],
+            y=truth['realized_y'][calc_xy_indices],
+            ra=truth['ra'][calc_xy_indices],
+            dec=truth['dec'][calc_xy_indices],
+            units=galsim.degrees,
+            itrain=np.arange(mid),
+            ireserve=np.arange(mid, calc_xy_indices.size),
+        )
+        image.wcs = final_wcs
+        sky_image.wcs = final_wcs
+
         # e.g. simdata-00355204-0-i-R14_S00-det063.fits
         fname = io.get_sim_output_fname(
             obsid=obsdata['obshistid'],
@@ -142,10 +161,14 @@ def run_sim(rng, config, instcat, ccds):
             band=obsdata['band'],
         )
         logging.info(f'writing to: {fname}')
+
+        extra = {'det_name': dm_detector.getName()}
+        extra.update(wcs_stats)
+
         io.save_sim_data(
             fname=fname, image=image, sky_image=sky_image, truth=truth,
             obsdata=obsdata,
-            extra={'det_name': dm_detector.getName()},
+            extra=extra,
         )
 
 
