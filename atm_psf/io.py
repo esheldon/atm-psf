@@ -95,7 +95,8 @@ def _make_output_source_data(data):
         'file', 'airmass', 'filter',
         'spatialFitChi2', 'numAvailStars', 'numGoodStars', 'avgX', 'avgY',
     ]:
-        hdr[key] = data[key]
+        if key in data:
+            hdr[key] = data[key]
 
     add_dt = [
         ('id', 'i4'),
@@ -110,14 +111,23 @@ def _make_output_source_data(data):
         ('psf_flux_err', 'f4'),
     ]
     sources = data['sources']
-    st = eu.numpy_util.add_fields(data['ngmix_result'], add_dt)
+    if 'ngmix_result' in data:
+        st = eu.numpy_util.add_fields(data['ngmix_result'], add_dt)
+    else:
+        st = np.zeros(len(sources), dtype=add_dt)
 
     st['id'] = sources['id']
     st['parent'] = sources['parent']
     st['ra'] = np.degrees(sources['coord_ra'])
     st['dec'] = np.degrees(sources['coord_dec'])
     st['star_select'] = data['star_select']
-    st['reserved'] = data['reserved']
+
+    if 'reserved' in data:
+        st['reserved'] = data['reserved']
+    else:
+        st['reserved'] = data['star_select'].copy()
+        st['reserved'][:] = False
+
     st['x'] = sources['base_SdssShape_x']
     st['y'] = sources['base_SdssShape_y']
     st['psf_flux'] = sources['base_PsfFlux_instFlux']

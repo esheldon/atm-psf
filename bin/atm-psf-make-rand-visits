@@ -20,7 +20,7 @@ def go(args):
     # target '' means WFD
     query = """
     select
-        observationId, filter
+        observationId, filter, airmass
     from
         observations
     where target = ''
@@ -29,7 +29,7 @@ def go(args):
 
     print(query)
 
-    dtype = [('id', 'i8'), ('filter', 'U1')]
+    dtype = [('id', 'i8'), ('filter', 'U1'), ('airmass', 'f4')]
     dlist = []
 
     with sqlite3.connect(args.opsimdb) as conn:
@@ -40,6 +40,7 @@ def go(args):
             tmp = np.zeros(1, dtype=dtype)
             tmp['id'] = r['observationId']
             tmp['filter'] = r['filter']
+            tmp['airmass'] = r['airmass']
             dlist.append(tmp)
 
     data = np.hstack(dlist)
