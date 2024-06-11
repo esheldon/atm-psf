@@ -205,7 +205,7 @@ def main():
 
         for obsid in tqdm(obsids):
             this_seed = rng.integers(0, 2**30)
-            job_name = f'{run_config["run"]}-{obsid:08d}'
+            job_name = f'{run}-{obsid:08d}'
 
             instcat = rng.choice(instcats)
 
