@@ -3,11 +3,11 @@ def run_sim(rng, config, instcat, ccds):
     import logging
     import galsim
     import imsim
-    import mimsim
+    import montauk
     from . import io
     from pprint import pformat
 
-    mimsim.logging.setup_logging('info')
+    montauk.logging.setup_logging('info')
     logger = logging.getLogger('process.run_msim')
 
     logger.info('sim config:')
@@ -16,11 +16,11 @@ def run_sim(rng, config, instcat, ccds):
     gs_rng = galsim.BaseDeviate(rng.integers(0, 2**60))
 
     logger.info(f'loading opsim data from {instcat}')
-    obsdata = mimsim.opsim_data.load_obsdata_from_instcat(instcat)
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
 
     assert config['psf']['type'] == 'psfws'
     logger.info('making psfws PSF')
-    psf = mimsim.psfws.make_psfws_psf(
+    psf = montauk.psfws.make_psfws_psf(
         obsdata=obsdata,
         gs_rng=gs_rng,
         psf_config=config['psf']['options'],
@@ -32,26 +32,26 @@ def run_sim(rng, config, instcat, ccds):
         bandpass=obsdata['bandpass'],
     )
     if config['sky_gradient']:
-        sky_gradient = mimsim.sky.FixedSkyGradient(sky_model)
+        sky_gradient = montauk.sky.FixedSkyGradient(sky_model)
     else:
         sky_gradient = None
 
     if config['dcr']:
-        dcr = mimsim.dcr.DCRMaker(
+        dcr = montauk.dcr.DCRMaker(
             bandpass=obsdata['bandpass'],
             hour_angle=obsdata['HA'],
         )
     else:
         dcr = None
 
-    cosmics = mimsim.cosmic_rays.CosmicRays(
+    cosmics = montauk.cosmic_rays.CosmicRays(
         cosmic_ray_rate=config['cosmic_ray_rate'],
         exptime=obsdata['exptime'],
         gs_rng=gs_rng,
     )
 
     if config['tree_rings']:
-        tree_rings = mimsim.tree_rings.make_tree_rings(ccds)
+        tree_rings = montauk.tree_rings.make_tree_rings(ccds)
     else:
         tree_rings = None
 
@@ -66,35 +66,35 @@ def run_sim(rng, config, instcat, ccds):
             rotTelPos=obsdata['rotTelPos'],
         )
 
-        dm_detector = mimsim.camera.make_dm_detector(ccd)
+        dm_detector = montauk.camera.make_dm_detector(ccd)
 
-        wcs, icrf_to_field = mimsim.wcs.make_batoid_wcs(
+        wcs, icrf_to_field = montauk.wcs.make_batoid_wcs(
             obsdata=obsdata, dm_detector=dm_detector,
         )
         logger.info(f'loading objects from {instcat}')
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
 
         if config['vignetting']:
-            vignetter = mimsim.vignetting.Vignetter(dm_detector)
+            vignetter = montauk.vignetting.Vignetter(dm_detector)
         else:
             vignetter = None
 
-        if mimsim.fringing.should_apply_fringing(
+        if montauk.fringing.should_apply_fringing(
             band=obsdata['band'], dm_detector=dm_detector,
         ):
-            fringer = mimsim.fringing.Fringer(
+            fringer = montauk.fringing.Fringer(
                 boresight=obsdata['boresight'], dm_detector=dm_detector,
             )
         else:
             fringer = None
 
-        sensor = mimsim.sensor.make_sensor(
+        sensor = montauk.sensor.make_sensor(
             dm_detector=dm_detector,
             tree_rings=tree_rings,
             gs_rng=gs_rng,
         )
 
-        optics = mimsim.optics.OpticsMaker(
+        optics = montauk.optics.OpticsMaker(
             altitude=obsdata['altitude'],
             azimuth=obsdata['azimuth'],
             boresight=obsdata['boresight'],
@@ -105,14 +105,14 @@ def run_sim(rng, config, instcat, ccds):
             icrf_to_field=icrf_to_field,
         )
 
-        photon_ops_maker = mimsim.photon_ops.PhotonOpsMaker(
+        photon_ops_maker = montauk.photon_ops.PhotonOpsMaker(
             exptime=obsdata['exptime'],
             band=obsdata['band'],
             dcr=dcr,
             optics=optics,
         )
 
-        artist = mimsim.artist.Artist(
+        artist = montauk.artist.Artist(
             bandpass=obsdata['bandpass'],
             sensor=sensor,
             photon_ops_maker=photon_ops_maker,
@@ -124,7 +124,7 @@ def run_sim(rng, config, instcat, ccds):
             cat.getNObjects(), size=200, replace=False,
         )
 
-        image, sky_image, truth = mimsim.runner.run_sim(
+        image, sky_image, truth = montauk.runner.run_sim(
             rng=rng,
             cat=cat,
             obsdata=obsdata,
@@ -142,7 +142,7 @@ def run_sim(rng, config, instcat, ccds):
             apply_pixel_areas=config['apply_pixel_areas'],
         )
         mid = calc_xy_indices.size // 2
-        final_wcs, wcs_stats = mimsim.wcs.fit_wcs(
+        final_wcs, wcs_stats = montauk.wcs.fit_wcs(
             x=truth['realized_x'][calc_xy_indices],
             y=truth['realized_y'][calc_xy_indices],
             ra=truth['ra'][calc_xy_indices],
@@ -215,7 +215,7 @@ def run_sim_and_piff(
 
     import os
     import numpy as np
-    import mimsim
+    import montauk
     from . import io
 
     # generate these now so runs with and without existing instcat
@@ -244,7 +244,7 @@ def run_sim_and_piff(
         ccds=ccds,
     )
 
-    obsdata = mimsim.opsim_data.load_obsdata_from_instcat(instcat_out)
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
 
     for ccd in ccds:
 

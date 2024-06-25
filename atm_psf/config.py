@@ -1,5 +1,5 @@
 def get_default_sim_config():
-    import mimsim
+    import montauk
 
     return {
         'sky_gradient': True,
@@ -7,7 +7,7 @@ def get_default_sim_config():
         'apply_pixel_areas': True,
         'dcr': True,
         'tree_rings': True,
-        'cosmic_ray_rate': mimsim.defaults.DEFAULT_COSMIC_RAY_RATE,
+        'cosmic_ray_rate': montauk.defaults.DEFAULT_COSMIC_RAY_RATE,
         'magmin': -1000,
         'psf': {
             'type': 'psfws',

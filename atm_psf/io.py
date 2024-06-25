@@ -445,9 +445,9 @@ def get_sim_output_fname(obsid, ccd, band):
     path
     """
     import os
-    import mimsim
+    import montauk
 
-    dm_detector = mimsim.camera.make_dm_detector(ccd)
+    dm_detector = montauk.camera.make_dm_detector(ccd)
     detname = dm_detector.getName()
     detnum = dm_detector.getId()
 
