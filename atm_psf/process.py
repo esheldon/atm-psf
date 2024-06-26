@@ -1,4 +1,5 @@
-def run_sim(rng, config, instcat, ccds):
+def run_sim(rng, config, instcat, ccds, use_existing=False):
+    import os
     import numpy as np
     import logging
     import galsim
@@ -58,6 +59,16 @@ def run_sim(rng, config, instcat, ccds):
     for iccd, ccd in enumerate(ccds):
         logger.info('-' * 70)
         logger.info(f'ccd: {ccd} {iccd+1}/{len(ccds)}')
+
+        # e.g. simdata-00355204-0-i-R14_S00-det063.fits
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        if use_existing and os.path.exists(fname):
+            logger.info(f'using existing file {fname}')
+            continue
 
         diffraction_fft = imsim.stamp.DiffractionFFT(
             exptime=obsdata['exptime'],
@@ -154,12 +165,6 @@ def run_sim(rng, config, instcat, ccds):
         image.wcs = final_wcs
         sky_image.wcs = final_wcs
 
-        # e.g. simdata-00355204-0-i-R14_S00-det063.fits
-        fname = io.get_sim_output_fname(
-            obsid=obsdata['obshistid'],
-            ccd=ccd,
-            band=obsdata['band'],
-        )
         logging.info(f'writing to: {fname}')
 
         extra = {'det_name': dm_detector.getName()}
@@ -237,12 +242,27 @@ def run_sim_and_piff(
             ccds=ccds,
         )
 
-    run_sim(
-        rng=sim_rng,
-        config=sim_config,
-        instcat=instcat_out,
-        ccds=ccds,
-    )
+    do_run_sim = True
+    if use_existing:
+        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        fnames = [
+            io.get_sim_output_fname(
+                obsid=obsdata['obshistid'],
+                ccd=ccd,
+                band=obsdata['band'],
+            )
+            for ccd in ccds
+        ]
+        if all([os.path.exists(fname) for fname in fnames]):
+            do_run_sim = False
+
+    if do_run_sim:
+        run_sim(
+            rng=sim_rng,
+            config=sim_config,
+            instcat=instcat_out,
+            ccds=ccds,
+        )
 
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
 

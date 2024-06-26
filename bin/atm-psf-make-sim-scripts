@@ -56,6 +56,11 @@ def get_args():
         action='store_true',
         help='whether to clean up sim files when running piff',
     )
+    parser.add_argument(
+        '--use-existing',
+        action='store_true',
+        help='whether to use existing sim files',
+    )
     return parser.parse_args()
 
 
@@ -67,6 +72,8 @@ def write_script(args, config, run_dir):
         command = 'atm-psf-run-sim-and-piff'
         if args.nocleanup:
             extra.append('--nocleanup')
+        if args.use_existing:
+            extra.append('--use-existing')
     else:
         command = 'atm-psf-run-sim'
 
