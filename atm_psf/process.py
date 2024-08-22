@@ -238,7 +238,7 @@ def run_sim_and_piff(
     instcat_out = get_instcat_output_path(obsid)
 
     if not os.path.exists(instcat_out) or not use_existing:
-        star_dup = run_config.get('star_dup', 1)
+        dup = run_config.get('dup', 1)
         run_make_instcat(
             rng=instcat_rng,
             run_config=run_config,
@@ -247,7 +247,7 @@ def run_sim_and_piff(
             instcat=instcat,
             instcat_out=instcat_out,
             ccds=ccds,
-            star_dup=star_dup,
+            dup=dup,
         )
 
     do_run_sim = True
@@ -360,7 +360,7 @@ def _get_paths(obsid, ccd):
 
 
 def run_make_instcat(
-    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds, star_dup=1,
+    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds, dup=1,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
@@ -382,8 +382,8 @@ def run_make_instcat(
         Path for the output instcat
     ccds: list of int
         List of CCD numbers
-    star_dup: int, optional
-        Number of times to duplicate stars, with random ra/dec
+    dup: int, optional
+        Number of times to duplicate, with random ra/dec
     """
     import sqlite3
     from . import instcat_tools
@@ -404,7 +404,7 @@ def run_make_instcat(
             selector=lambda d: d['magnorm'] > magmin,
             galaxy_file=run_config.get('galaxy_file', None),
             ccds=ccds,
-            star_dup=star_dup,
+            dup=dup,
         )
 
 
