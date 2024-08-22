@@ -1,0 +1,6 @@
+magmin: 17
+
+psf:
+    type: "gauss"
+    options:
+        fwhm: 0.6
