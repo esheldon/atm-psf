@@ -57,6 +57,7 @@ def replace_instcat_from_db(
     selector=None,
     galaxy_file=None,
     ccds=None,
+    star_dup=1,
 ):
     """
     Replace the instacat metadata and positions according to
@@ -98,6 +99,8 @@ def replace_instcat_from_db(
     ccds: list
         List off CCDS, only used when galaxy_file is sent, to limit
         random ra/dec to the specified ccds
+    star_dup: int, optional
+        Number of times to duplicate stars, with random ra/dec
     """
 
     import sqlite3
@@ -109,6 +112,10 @@ def replace_instcat_from_db(
     assert len(data) == 1
 
     opsim_data = data[0]
+
+    if star_dup > 1:
+        print(f'duplicating stars {star_dup} times')
+
     replace_instcat_streamed(
         rng=rng,
         fname=fname,
@@ -119,6 +126,7 @@ def replace_instcat_from_db(
         selector=selector,
         galaxy_file=galaxy_file,
         ccds=ccds,
+        star_dup=star_dup,
     )
 
 
@@ -520,6 +528,7 @@ def replace_instcat_streamed(
     selector=None,
     galaxy_file=None,
     ccds=None,
+    star_dup=1,
 ):
     """
     Replace the instacat metadata and positions according to the input opsim
@@ -559,6 +568,8 @@ def replace_instcat_streamed(
     ccds: list
         List off CCDS, only used when galaxy_file is sent, to limit
         random ra/dec to the specified ccds
+    star_dup: int, optional
+        Number of times to duplicate stars, with random ra/dec
     """
     import os
     from esutil.ostools import DirStack, makedirs_fromfile
@@ -591,6 +602,7 @@ def replace_instcat_streamed(
             fout=fout, fname=fname, selector=selector,
             allowed_include=allowed_include, sed=sed,
             radec_gen=radec_gen,
+            star_dup=star_dup,
         )
 
         if galaxy_file is not None:
@@ -610,6 +622,7 @@ def replace_instcat_streamed(
 
 def _copy_objects(
     fout, fname, selector, allowed_include, sed, radec_gen,
+    star_dup=1,
 ):
     from tqdm import tqdm
 
@@ -624,14 +637,15 @@ def _copy_objects(
             if ls[0] == 'object':
                 entry = _read_instcat_object_line_as_dict(ls)
                 if selector(entry):
-                    ra, dec = radec_gen()
-                    entry['ra'] = ra
-                    entry['dec'] = dec
+                    for i in range(star_dup):
+                        ra, dec = radec_gen()
+                        entry['ra'] = ra
+                        entry['dec'] = dec
 
-                    if sed is not None:
-                        entry['sed1'] = sed
+                        if sed is not None:
+                            entry['sed1'] = sed
 
-                    _write_instcat_line(fout=fout, entry=entry)
+                        _write_instcat_line(fout=fout, entry=entry)
 
             elif ls[0] == 'includeobj':
                 include_fname = ls[1]
@@ -649,6 +663,7 @@ def _copy_objects(
                         fout=fout, fname=include_fname, selector=selector,
                         allowed_include=allowed_include, sed=sed,
                         radec_gen=radec_gen,
+                        star_dup=star_dup,
                     )
 
 
