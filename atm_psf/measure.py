@@ -14,7 +14,10 @@ class DetectMeasurer(object):
         self._exposure = exposure
         self._thresh = thresh
         self._rng = rng
-        self._seed = rng.randint(0, 2**20)
+        try:
+            self._seed = rng.randint(0, 2**30)
+        except AttributeError:
+            self._seed = rng.integers(0, 2**30)
 
     def detect(self):
         import lsst.meas.extensions.shapeHSM  # noqa

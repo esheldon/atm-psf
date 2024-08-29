@@ -12,3 +12,4 @@ from . import pifftools
 from . import io
 from . import diagnostics
 from . import process
+from . import config

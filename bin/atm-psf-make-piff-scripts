@@ -64,6 +64,7 @@ def write_script(run_dir):
 
     with open(outfile, 'w') as fobj:
         fobj.write(SCRIPT)
+
     os.system(f'chmod 755 {outfile}')
 
 

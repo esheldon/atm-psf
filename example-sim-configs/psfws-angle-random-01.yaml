@@ -1,0 +1,6 @@
+magmin: 17
+
+psf:
+    type: "psfws"
+    options:
+        angle_random: true

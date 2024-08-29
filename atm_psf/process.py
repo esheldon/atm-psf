@@ -1,14 +1,198 @@
+def run_sim(rng, config, instcat, ccds, use_existing=False):
+    import os
+    import numpy as np
+    import logging
+    import galsim
+    import imsim
+    import montauk
+    from . import io
+    from pprint import pformat
+
+    montauk.logging.setup_logging('info')
+    logger = logging.getLogger('process.run_msim')
+
+    logger.info('sim config:')
+    logger.info('\n' + pformat(config))
+
+    gs_rng = galsim.BaseDeviate(rng.integers(0, 2**60))
+
+    logger.info(f'loading opsim data from {instcat}')
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
+
+    logger.info(f'making {config["psf"]["type"]} PSF')
+
+    if config['psf']['type'] == 'psfws':
+        psf = montauk.psfws.make_psfws_psf(
+            obsdata=obsdata,
+            gs_rng=gs_rng,
+            psf_config=config['psf']['options'],
+        )
+    else:
+        psf = montauk.fixed_psf.make_fixed_psf(
+            type=config['psf']['type'],
+            options=config['psf']['options'],
+        )
+
+    sky_model = imsim.SkyModel(
+        exptime=obsdata['exptime'],
+        mjd=obsdata['mjd'],
+        bandpass=obsdata['bandpass'],
+    )
+    if config['sky_gradient']:
+        sky_gradient = montauk.sky.FixedSkyGradient(sky_model)
+    else:
+        sky_gradient = None
+
+    if config['dcr']:
+        dcr = montauk.dcr.DCRMaker(
+            bandpass=obsdata['bandpass'],
+            hour_angle=obsdata['HA'],
+        )
+    else:
+        dcr = None
+
+    cosmics = montauk.cosmic_rays.CosmicRays(
+        cosmic_ray_rate=config['cosmic_ray_rate'],
+        exptime=obsdata['exptime'],
+        gs_rng=gs_rng,
+    )
+
+    if config['tree_rings']:
+        tree_rings = montauk.tree_rings.make_tree_rings(ccds)
+    else:
+        tree_rings = None
+
+    for iccd, ccd in enumerate(ccds):
+        logger.info('-' * 70)
+        logger.info(f'ccd: {ccd} {iccd+1}/{len(ccds)}')
+
+        # e.g. simdata-00355204-0-i-R14_S00-det063.fits
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        if use_existing and os.path.exists(fname):
+            logger.info(f'using existing file {fname}')
+            continue
+
+        diffraction_fft = imsim.stamp.DiffractionFFT(
+            exptime=obsdata['exptime'],
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            rotTelPos=obsdata['rotTelPos'],
+        )
+
+        dm_detector = montauk.camera.make_dm_detector(ccd)
+
+        wcs, icrf_to_field = montauk.wcs.make_batoid_wcs(
+            obsdata=obsdata, dm_detector=dm_detector,
+        )
+        logger.info(f'loading objects from {instcat}')
+        cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
+
+        if config['vignetting']:
+            vignetter = montauk.vignetting.Vignetter(dm_detector)
+        else:
+            vignetter = None
+
+        if montauk.fringing.should_apply_fringing(
+            band=obsdata['band'], dm_detector=dm_detector,
+        ):
+            fringer = montauk.fringing.Fringer(
+                boresight=obsdata['boresight'], dm_detector=dm_detector,
+            )
+        else:
+            fringer = None
+
+        sensor = montauk.sensor.make_sensor(
+            dm_detector=dm_detector,
+            tree_rings=tree_rings,
+            gs_rng=gs_rng,
+        )
+
+        optics = montauk.optics.OpticsMaker(
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            boresight=obsdata['boresight'],
+            rot_tel_pos=obsdata['rotTelPos'],
+            band=obsdata['band'],
+            dm_detector=dm_detector,
+            wcs=wcs,
+            icrf_to_field=icrf_to_field,
+        )
+
+        photon_ops_maker = montauk.photon_ops.PhotonOpsMaker(
+            exptime=obsdata['exptime'],
+            band=obsdata['band'],
+            dcr=dcr,
+            optics=optics,
+        )
+
+        artist = montauk.artist.Artist(
+            bandpass=obsdata['bandpass'],
+            sensor=sensor,
+            photon_ops_maker=photon_ops_maker,
+            diffraction_fft=diffraction_fft,
+            gs_rng=gs_rng,
+        )
+
+        calc_xy_indices = rng.choice(
+            cat.getNObjects(), size=200, replace=False,
+        )
+
+        image, sky_image, truth = montauk.runner.run_sim(
+            rng=rng,
+            cat=cat,
+            obsdata=obsdata,
+            artist=artist,
+            psf=psf,
+            wcs=wcs,
+            sky_model=sky_model,
+            sensor=sensor,
+            dm_detector=dm_detector,
+            cosmics=cosmics,
+            sky_gradient=sky_gradient,
+            vignetting=vignetter,
+            fringing=fringer,
+            calc_xy_indices=calc_xy_indices,
+            apply_pixel_areas=config['apply_pixel_areas'],
+        )
+        mid = calc_xy_indices.size // 2
+        final_wcs, wcs_stats = montauk.wcs.fit_wcs(
+            x=truth['realized_x'][calc_xy_indices],
+            y=truth['realized_y'][calc_xy_indices],
+            ra=truth['ra'][calc_xy_indices],
+            dec=truth['dec'][calc_xy_indices],
+            units=galsim.degrees,
+            itrain=np.arange(mid),
+            ireserve=np.arange(mid, calc_xy_indices.size),
+        )
+        image.wcs = final_wcs
+        sky_image.wcs = final_wcs
+
+        logging.info(f'writing to: {fname}')
+
+        extra = {'det_name': dm_detector.getName()}
+        extra.update(wcs_stats)
+
+        io.save_sim_data(
+            fname=fname, image=image, sky_image=sky_image, truth=truth,
+            obsdata=obsdata,
+            extra=extra,
+        )
+
+
 def run_sim_and_piff(
+    rng,
     run_config,
-    imsim_config,
+    sim_config,
     opsim_db,
     obsid,
     instcat,
     ccds,
-    seed,
     nstars_min=50,
     cleanup=True,
-    no_find_sky=False,
     use_existing=False,
     show=False,
 ):
@@ -17,10 +201,12 @@ def run_sim_and_piff(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        The random number generator
     run_config: dict
         The run configuration
-    imsim_config: str
-        Path to galsim config file to run imsim
+    sim_config: dict
+        Simulation configuration
     opsim_db: str
         Path to opsim database
     obsid: int
@@ -29,70 +215,93 @@ def run_sim_and_piff(
         Path for the the output instcat
     ccds: list of int
         List of CCD numbers
-    seed: int
-        Seed for random number generator
     nstars_min: int, optional
         Minimum number of stars required to run PIFF, default 50
     cleanup: bool, optional
         If set to True, remove the simulated data, the image, truth and instcat
         files.  Default True.
-    no_find_sky: bool
-        If set to True, find the sky rather than just use sky from catalog
     show: bool
         If set to True, show plots
     """
 
     import os
     import numpy as np
+    import montauk
+    from . import io
 
-    rng = np.random.default_rng(seed)
+    # generate these now so runs with and without existing instcat
+    # are consistent
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
+    piff_rng = np.random.default_rng(rng.integers(0, 2**60))
 
     instcat_out = get_instcat_output_path(obsid)
 
-    sseed = rng.integers(0, 2**31)
-
     if not os.path.exists(instcat_out) or not use_existing:
+        dup = run_config.get('dup', 1)
         run_make_instcat(
+            rng=instcat_rng,
             run_config=run_config,
             opsim_db=opsim_db,
             obsid=obsid,
             instcat=instcat,
             instcat_out=instcat_out,
             ccds=ccds,
-            seed=sseed,
+            dup=dup,
         )
 
-    run_galsim(
-        imsim_config=imsim_config,
-        instcat=instcat_out,
-        ccds=ccds,
-    )
+    do_run_sim = True
+    if use_existing:
+        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        fnames = [
+            io.get_sim_output_fname(
+                obsid=obsdata['obshistid'],
+                ccd=ccd,
+                band=obsdata['band'],
+            )
+            for ccd in ccds
+        ]
+        if all([os.path.exists(fname) for fname in fnames]):
+            do_run_sim = False
+
+    if do_run_sim:
+        run_sim(
+            rng=sim_rng,
+            config=sim_config,
+            instcat=instcat_out,
+            ccds=ccds,
+        )
+
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
 
     for ccd in ccds:
 
-        image_file, truth_file, piff_file, source_file = _get_paths(
-            obsid=obsid, ccd=ccd,
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        piff_file = io.get_piff_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        source_file = io.get_source_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
         )
 
-        pseed = rng.integers(0, 2**31)
-
         process_image_with_piff(
-            image_file=image_file,
-            truth_file=truth_file,
+            rng=piff_rng,
+            fname=fname,
             piff_file=piff_file,
             source_file=source_file,
-            seed=pseed,
             nstars_min=nstars_min,
-            no_find_sky=no_find_sky,
             show=show,
         )
         if cleanup:
-            _remove_file(image_file)
-            _remove_file(truth_file)
-
-    # if cleanup:
-    #     instcat_file = _get_instcat_path(obsid)
-    #     _remove_file(instcat_file)
+            _remove_file(fname)
 
 
 def get_instcat_output_path(obsid):
@@ -151,7 +360,7 @@ def _get_paths(obsid, ccd):
 
 
 def run_make_instcat(
-    run_config, opsim_db, obsid, instcat, instcat_out, ccds, seed,
+    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds, dup=1,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
@@ -159,6 +368,8 @@ def run_make_instcat(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        The random number generator
     run_config: dict
         The run configuration
     opsim_db: str
@@ -171,20 +382,17 @@ def run_make_instcat(
         Path for the output instcat
     ccds: list of int
         List of CCD numbers
-    seed: int
-        Seed for random number generator
+    dup: int, optional
+        Number of times to duplicate, with random ra/dec
     """
     import sqlite3
-    import atm_psf
-    import numpy as np
-
-    rng = np.random.default_rng(seed)
+    from . import instcat_tools
 
     print('connecting to:', opsim_db)
 
     magmin = run_config.get('magmin', -1000)
     with sqlite3.connect(opsim_db) as conn:
-        atm_psf.instcat_tools.replace_instcat_from_db(
+        instcat_tools.replace_instcat_from_db(
             rng=rng,
             fname=instcat,
             conn=conn,
@@ -196,6 +404,7 @@ def run_make_instcat(
             selector=lambda d: d['magnorm'] > magmin,
             galaxy_file=run_config.get('galaxy_file', None),
             ccds=ccds,
+            dup=dup,
         )
 
 
@@ -226,8 +435,11 @@ def run_galsim(imsim_config, instcat, ccds):
 
 
 def process_image_with_piff(
-    image_file, truth_file, piff_file, source_file, seed, nstars_min=50,
-    no_find_sky=False,
+    rng,
+    fname,
+    piff_file,
+    source_file,
+    nstars_min=50,
     show=False,
 ):
     """
@@ -235,6 +447,8 @@ def process_image_with_piff(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        Random number generator
     image_file: str
         Path to image file
     truth_file: str
@@ -243,52 +457,41 @@ def process_image_with_piff(
         Output file path
     source_file: str
         Output catlaog path
-    seed: int
-        Seed for random number generator
     nstars_min: int
         Minimum number of stars required to run PIFF, default 50
-    no_find_sky: bool
-        If set to True, find the sky rather than just use sky from catalog
     show: bool
         If set to True, show plots
     """
     import numpy as np
-    import atm_psf
+    from . import exposures
+    from . import measure
+    from . import select
+    from . import pifftools
+    from . import io
 
-    rng = np.random.RandomState(seed)
-    alldata = {
-        'seed': seed,
-        'image_file': image_file,
-        'truth_file': truth_file,
-    }
+    alldata = {'file': fname}
 
     # loads the image, subtractes the sky using sky_level in truth catalog,
     # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
     # detection
-    exp, hdr = atm_psf.exposures.fits_to_exposure(
-        fname=image_file,
-        truth=truth_file,
-        rng=rng,
-        no_find_sky=no_find_sky,
-    )
-    instcat_meta = _load_instcat_meta_from_dir(image_file)
+    # rng is only used for noise in the fixed gaussian psf
+    exp, hdr = exposures.fits_to_exposure(fname=fname, rng=rng)
+    instcat_meta = {key: hdr[key] for key in hdr.keys()}
 
-    detmeas = atm_psf.measure.DetectMeasurer(exposure=exp, rng=rng)
+    detmeas = measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
     detmeas.measure()
     sources = detmeas.sources
 
-    # run detection
-    # sources = atm_psf.measure.detect_and_measure(exposure=exp, rng=rng)
-
     # find stars in the size/flux diagram
     # note this is a bool array
-    star_select = atm_psf.select.select_stars(sources, show=show)
+    star_select = select.select_stars(sources, show=show)
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
-    alldata['airmass'] = hdr['AMSTART']
-    alldata['filter'] = hdr['FILTER']
+    # alldata['airmass'] = hdr['AMSTART']
+    alldata['airmass'] = hdr['airmass']
+    alldata['filter'] = hdr['band']
     alldata['instcat_meta'] = instcat_meta
 
     nstars = star_select.sum()
@@ -296,17 +499,17 @@ def process_image_with_piff(
 
         # split into training and reserved/validation sets
         # these are again bool arrays with size length(sources)
-        reserved = atm_psf.pifftools.split_candidates(
+        reserved = pifftools.split_candidates(
             rng=rng, star_select=star_select, reserve_frac=0.2,
         )
 
-        candidates = atm_psf.pifftools.make_psf_candidates(
+        candidates = pifftools.make_psf_candidates(
             sources=sources[star_select],
             exposure=exp,
         )
 
         print('running piff')
-        piff_psf, meta, not_kept = atm_psf.pifftools.run_piff(
+        piff_psf, meta, not_kept = pifftools.run_piff(
             psf_candidates=candidates,
             reserved=reserved[star_select],
             exposure=exp,
@@ -327,23 +530,21 @@ def process_image_with_piff(
         detmeas.measure_ngmix()
 
         print('saving piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
+        io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
 
         # save sources and candidate list
         alldata.update({
             'reserved': reserved,
-            'image_file': image_file,
-            'truth_file': truth_file,
             'ngmix_result': detmeas.ngmix_result,
         })
         alldata.update(meta)
     else:
         print(f'got nstars {nstars} < {nstars_min}')
         print('saving None piff to:', piff_file)
-        atm_psf.io.save_stack_piff(fname=piff_file, piff_psf=None)
+        io.save_stack_piff(fname=piff_file, piff_psf=None)
 
     print('saving sources data to:', source_file)
-    atm_psf.io.save_source_data(fname=source_file, data=alldata)
+    io.save_source_data(fname=source_file, data=alldata)
 
 
 def _load_instcat_meta_from_dir(image_file):
@@ -351,7 +552,7 @@ def _load_instcat_meta_from_dir(image_file):
     we always call it instcat.txt, just get the directory
     """
     import os
-    import atm_psf
+    from . import instcat_tools
 
     dname = os.path.dirname(image_file)
     if dname == '':
@@ -362,4 +563,4 @@ def _load_instcat_meta_from_dir(image_file):
         'instcat.txt',
     )
     print('loading instcat:', instcat_file)
-    return atm_psf.instcat_tools.read_instcat_meta(instcat_file)
+    return instcat_tools.read_instcat_meta(instcat_file)

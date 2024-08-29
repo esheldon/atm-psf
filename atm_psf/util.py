@@ -1,6 +1,19 @@
 from .constants import SCALE
 
 
+def config_file_to_run(path):
+    import os
+    bname = os.path.basename(path)
+
+    if '.yaml' not in bname:
+        raise RuntimeError(f'Expected .yaml file, got {path}')
+
+    run = bname.replace('.yaml', '')
+    assert run != bname
+
+    return run
+
+
 def T_to_fwhm(T):
     import numpy as np
     sigma = np.sqrt(T/2)
@@ -68,3 +81,11 @@ def split_ccds_string(ccds_str):
     # cut of the [ and ]
     keep = ccds_str[1:n-1]
     return [int(ccd) for ccd in keep.split(',')]
+
+
+def get_band(val):
+    try:
+        len(val)
+        return val
+    except TypeError:
+        return 'ugrizy'[val]
