@@ -29,7 +29,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
         modelSize=25,
         stampSize=35,
         # useCoordinates='sky',
-        # spatialOrder=3,
+        spatialOrder=3,
         # interpolant='Lanczos(5)',
     )
     pprint.pprint(config.toDict())
