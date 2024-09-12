@@ -13,3 +13,4 @@ from . import io
 from . import diagnostics
 from . import process
 from . import config
+from . import logging

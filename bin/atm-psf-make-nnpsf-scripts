@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+
+SCRIPT = r"""#!/usr/bin/bash
+seed=$1
+image=$2
+sources=$3
+
+image_plot=${sources/.fits/-image.jpg}
+valid_plot=${sources/.fits/-valid.jpg}
+stats_plot=${sources/.fits/-stats.png}
+
+export OMP_NUM_THREADS=1
+
+nnpsf-fit-image \
+    --seed ${seed} \
+    --image ${image} \
+    --validation-plot ${valid_plot} \
+    --stats-plot ${stats_plot} \
+    --image-plot ${image_plot} \
+    --output ${sources}
+"""
+
+CONDOR_HEAD = r"""
+Universe = vanilla
+
+Notification = Never
+
+# Run this exe with these args
+Executable = run-nnpsf.sh
+
+request_memory = 2G
+
+GetEnv = True
+
+kill_sig = SIGINT
+
++Experiment = "astro"
+
+"""
+
+JOB_TEMPLATE = r"""
++job_name = "%(job_name)s"
+arguments = %(seed)d %(image)s %(sources)s
+Queue
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', required=True)
+    parser.add_argument('--skip-existing', action='store_true')
+    return parser.parse_args()
+
+
+def load_config(fname):
+    import yaml
+    with open(fname) as fobj:
+        data = yaml.safe_load(fobj)
+    return data
+
+
+def write_script(run_dir):
+    import os
+
+    outfile = f'{run_dir}/run-nnpsf.sh'
+    print('writing:', outfile)
+
+    with open(outfile, 'w') as fobj:
+        fobj.write(SCRIPT)
+
+    os.system(f'chmod 755 {outfile}')
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        os.makedirs(d)
+
+
+def write_condor_head(condorf):
+    condorf.write(CONDOR_HEAD)
+
+
+def get_file_data(directory):
+    import os
+
+    flist = []
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for basename in files:
+            if 'simdata' in basename:
+                fname = os.path.join(root, basename)
+                fname = os.path.abspath(fname)
+                flist.append(fname)
+
+    flist.sort()
+
+    dlist = []
+    for image_fname in flist:
+        obsid = os.path.basename(os.path.dirname(image_fname))
+        d = {'image': image_fname, 'obsid': obsid}
+        dlist.append(d)
+
+    return dlist
+
+
+def main():
+    import os
+
+    args = get_args()
+
+    dlist = get_file_data(args.dir)
+    print('found:', len(dlist), 'files')
+
+    write_script(args.dir)
+    condor_file = os.path.join(args.dir, 'submit-nnpsf.condor')
+    print('opening:', condor_file)
+
+    run_name = os.path.basename(args.dir)
+
+    with open(condor_file, 'w') as condorf:
+
+        write_condor_head(condorf)
+
+        for i, data in enumerate(dlist):
+
+            outdir = os.path.dirname(data['image'])
+            bname = os.path.basename(data['image'])
+
+            sources_name = bname.replace('simdata', 'nnpsf')
+            assert sources_name != bname
+
+            sources_file = os.path.join(outdir, sources_name)
+            sources_file_local = os.path.join(
+                data['obsid'], os.path.basename(sources_name),
+            )
+
+            if args.skip_existing and os.path.exists(sources_file):
+                print('skipping existing:', sources_file)
+                continue
+
+            ipad = '%05d' % i
+
+            # use relative dir so directory is relocatable
+
+            job_name = f'{run_name}-{ipad}'
+            jobtext = JOB_TEMPLATE % {
+                'job_name': job_name,
+                'seed': get_seed(data['image']),
+                'image': data['image'],
+                'sources': sources_file_local,
+            }
+            condorf.write(jobtext)
+
+
+def get_seed(fname):
+    import hashlib
+    h = hashlib.sha1(fname.encode("utf-8")).hexdigest()
+    return int(h, 16) % 2**30
+
+
+if __name__ == '__main__':
+    main()

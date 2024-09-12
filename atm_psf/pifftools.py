@@ -1,6 +1,8 @@
 
 
-def run_piff(psf_candidates, reserved, exposure, show=False):
+def run_piff(
+    psf_candidates, reserved, exposure, spatial_order=2, show=False,
+):
     """
     Run PIFF on the image using the input PSF candidates
 
@@ -25,16 +27,16 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     import piff
     import pprint
 
-    config = PiffPsfDeterminerConfig(
+    stack_config = PiffPsfDeterminerConfig(
         modelSize=25,
         stampSize=35,
         # useCoordinates='sky',
-        # spatialOrder=3,
+        spatialOrder=spatial_order,
         # interpolant='Lanczos(5)',
     )
-    pprint.pprint(config.toDict())
+    pprint.pprint(stack_config.toDict())
 
-    stampSize = config.stampSize
+    stampSize = stack_config.stampSize
     psize = psf_candidates[0].getWidth()
 
     if stampSize > psize:
@@ -45,7 +47,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
         # stampSize = psf_candidates[0].getWidth()
 
     scale = exposure.getWcs().getPixelScale().asArcseconds()
-    match config.useCoordinates:
+    match stack_config.useCoordinates:
         case 'field':
             detector = exposure.getDetector()
             pix_to_field = detector.getTransform(PIXELS, FIELD_ANGLE)
@@ -70,18 +72,18 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     indices = np.arange(ncand)
     for ind, candidate, is_reserve in zip(indices, psf_candidates, reserved):
         cmi = candidate.getMaskedImage(stampSize, stampSize)
-        good = getGoodPixels(cmi, config.zeroWeightMaskBits)
+        good = getGoodPixels(cmi, stack_config.zeroWeightMaskBits)
         fracGood = np.sum(good)/good.size
-        if fracGood < config.minimumUnmaskedFraction:
+        if fracGood < stack_config.minimumUnmaskedFraction:
             print(
                 'skipping:',
                 ind,
-                f'{fracGood} < {config.minimumUnmaskedFraction}',
+                f'{fracGood} < {stack_config.minimumUnmaskedFraction}',
             )
             not_kept[ind] = True
             continue
 
-        weight = computeWeight(cmi, config.maxSNR, good)
+        weight = computeWeight(cmi, stack_config.maxSNR, good)
 
         bbox = cmi.getBBox()
         bds = galsim.BoundsI(
@@ -113,18 +115,18 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
         'type': "Simple",
         'model': {
             'type': 'PixelGrid',
-            'scale': scale * config.samplingSize,
-            'size': config.modelSize,
-            'interp': config.interpolant
+            'scale': scale * stack_config.samplingSize,
+            'size': stack_config.modelSize,
+            'interp': stack_config.interpolant
         },
         'interp': {
             'type': 'BasisPolynomial',
-            'order': config.spatialOrder
+            'order': stack_config.spatialOrder
         },
         'outliers': {
             'type': 'Chisq',
-            'nsigma': config.outlierNSigma,
-            'max_remove': config.outlierMaxRemove
+            'nsigma': stack_config.outlierNSigma,
+            'max_remove': stack_config.outlierMaxRemove
         }
     }
 
@@ -136,7 +138,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
 
     # stats plots
     if show:
-        run_stats(config, piffResult, stars)
+        run_stats(stack_config, piffResult, stars)
 
     # this is indicative of old piff where stars could be dropped
     assert len(stars) == len(piffResult.stars)
@@ -148,7 +150,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     if show:
         plot_stats(piffResult.stars, show=show)
 
-    drawSize = 2*np.floor(0.5*stampSize/config.samplingSize) + 1
+    drawSize = 2*np.floor(0.5*stampSize/stack_config.samplingSize) + 1
 
     meta = {}
     meta["spatialFitChi2"] = piffResult.chisq
@@ -157,7 +159,7 @@ def run_piff(psf_candidates, reserved, exposure, show=False):
     meta["avgX"] = np.mean([p.x for p in piffResult.stars])
     meta["avgY"] = np.mean([p.y for p in piffResult.stars])
 
-    if not config.debugStarData:
+    if not stack_config.debugStarData:
         for star in piffResult.stars:
             # Remove large data objects from the stars
             del star.fit.params
@@ -373,3 +375,13 @@ def split_candidates(rng, star_select, reserve_frac):
             reserved[i] = True
 
     return reserved
+
+
+def get_piff_config(config=None):
+    output = {
+        'nstars_min': 50,
+        'spatial_order': 2,
+    }
+    if config is not None:
+        output.update(config)
+    return output
