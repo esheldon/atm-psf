@@ -28,3 +28,6 @@ allowed_include: ['star']
 
 # data from this run will be located in base_dir/{run_name}
 base_dir: /astro/u/esheldon/imsim_outputs/sim-runs
+
+piff:
+    spatial_order: 3

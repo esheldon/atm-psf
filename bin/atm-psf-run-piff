@@ -2,15 +2,20 @@
 
 import numpy as np
 from atm_psf.process import process_image_with_piff
+from atm_psf.io import load_yaml
 
 
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--fname', required=True)
-    parser.add_argument('--piff', required=True)
-    parser.add_argument('--sources', required=True)
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--fname', required=True)
+    parser.add_argument('--sources', required=True)
+    parser.add_argument('--piff', required=True)
+    parser.add_argument(
+        '--run-config',
+        help='optional run config, can have piff_config entry'
+    )
     parser.add_argument('--show', action='store_true')
     return parser.parse_args()
 
@@ -19,10 +24,16 @@ if __name__ == '__main__':
     args = get_args()
 
     rng = np.random.default_rng(args.seed)
+    if args.run_config is not None:
+        run_config = load_yaml(args.run_config)
+    else:
+        run_config = {}
+
     process_image_with_piff(
         rng=rng,
         fname=args.fname,
         piff_file=args.piff,
         source_file=args.sources,
+        piff_config=run_config.get('piff', None),
         show=args.show,
     )

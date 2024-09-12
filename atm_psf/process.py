@@ -7,9 +7,10 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
     import montauk
     from . import io
     from pprint import pformat
+    from .logging import setup_logging
 
-    montauk.logging.setup_logging('info')
-    logger = logging.getLogger('process.run_msim')
+    setup_logging('info')
+    logger = logging.getLogger('process.run_sim')
 
     logger.info('sim config:')
     logger.info('\n' + pformat(config))
@@ -191,7 +192,6 @@ def run_sim_and_piff(
     obsid,
     instcat,
     ccds,
-    nstars_min=50,
     cleanup=True,
     use_existing=False,
     show=False,
@@ -215,8 +215,6 @@ def run_sim_and_piff(
         Path for the the output instcat
     ccds: list of int
         List of CCD numbers
-    nstars_min: int, optional
-        Minimum number of stars required to run PIFF, default 50
     cleanup: bool, optional
         If set to True, remove the simulated data, the image, truth and instcat
         files.  Default True.
@@ -297,7 +295,7 @@ def run_sim_and_piff(
             fname=fname,
             piff_file=piff_file,
             source_file=source_file,
-            nstars_min=nstars_min,
+            piff_config=run_config.get('piff', None),
             show=show,
         )
         if cleanup:
@@ -439,7 +437,7 @@ def process_image_with_piff(
     fname,
     piff_file,
     source_file,
-    nstars_min=50,
+    piff_config=None,
     show=False,
 ):
     """
@@ -457,8 +455,10 @@ def process_image_with_piff(
         Output file path
     source_file: str
         Output catlaog path
-    nstars_min: int
-        Minimum number of stars required to run PIFF, default 50
+    piff_config: dict, optional
+        Dict to configure the piff run. Can have entries
+            nstars_min
+            spatial_order
     show: bool
         If set to True, show plots
     """
@@ -468,6 +468,16 @@ def process_image_with_piff(
     from . import select
     from . import pifftools
     from . import io
+    from pprint import pformat
+    from .logging import setup_logging
+    import logging
+
+    setup_logging('info')
+
+    logger = logging.getLogger('process.process_image_with_piff')
+
+    piff_config = pifftools.get_piff_config(piff_config)
+    logger.info('\n' + pformat(piff_config))
 
     alldata = {'file': fname}
 
@@ -495,7 +505,7 @@ def process_image_with_piff(
     alldata['instcat_meta'] = instcat_meta
 
     nstars = star_select.sum()
-    if nstars >= nstars_min:
+    if nstars >= piff_config['nstars_min']:
 
         # split into training and reserved/validation sets
         # these are again bool arrays with size length(sources)
@@ -508,18 +518,19 @@ def process_image_with_piff(
             exposure=exp,
         )
 
-        print('running piff')
+        logger.info('running piff')
         piff_psf, meta, not_kept = pifftools.run_piff(
             psf_candidates=candidates,
             reserved=reserved[star_select],
             exposure=exp,
+            spatial_order=piff_config['spatial_order'],
             show=show,
         )
         # star_select is a full boolean, so we need to get the corresponding
         # indices
         nout = not_kept.sum()
         if nout > 0:
-            print('skipped:', nout, 'candidates')
+            logger.info(f'skipped: {nout} candidates')
             ws, = np.where(star_select)
             star_select[ws[not_kept]] = False
             reserved[ws[not_kept]] = False
@@ -529,7 +540,7 @@ def process_image_with_piff(
         detmeas.measure()
         detmeas.measure_ngmix()
 
-        print('saving piff to:', piff_file)
+        logger.info(f'saving piff to: {piff_file}')
         io.save_stack_piff(fname=piff_file, piff_psf=piff_psf)
 
         # save sources and candidate list
@@ -539,11 +550,11 @@ def process_image_with_piff(
         })
         alldata.update(meta)
     else:
-        print(f'got nstars {nstars} < {nstars_min}')
-        print('saving None piff to:', piff_file)
+        logger.info(f'got nstars {nstars} < {piff_config["nstars_min"]}')
+        logger.info(f'saving None piff to: {piff_file}')
         io.save_stack_piff(fname=piff_file, piff_psf=None)
 
-    print('saving sources data to:', source_file)
+    logger.info(f'saving sources data to: {source_file}')
     io.save_source_data(fname=source_file, data=alldata)
 
 
