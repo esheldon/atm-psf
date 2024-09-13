@@ -7,8 +7,6 @@ def calc_rho_stats(
     g1, g2,
     psf_T,
     psf_g1, psf_g2,
-    # min_sep=0.5/60,
-    # max_sep=50/60,
     min_sep=0.5,
     max_sep=50,
     bin_size=0.1,
@@ -91,13 +89,19 @@ def plot_rho_stats(data, logger=None, **kwargs):
     axs = [fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)]
     axs = np.array(axs, dtype=object)
 
-    # axs[0].set_xlim(self.tckwargs['min_sep'], self.tckwargs['max_sep'])
+    if 'min_sep' in kwargs:
+        xlim = [
+            0.5 * kwargs['min_sep'],
+            1.5 * kwargs['max_sep'],
+        ]
+        axs[0].set_xlim(xlim[0], xlim[1])
+        axs[1].set_xlim(xlim[0], xlim[1])
+
     axs[0].set_xlabel(r'$\theta$ (arcmin)')
     axs[0].set_ylabel(r'$\rho(\theta)$')
     axs[0].set_xscale('log')
     axs[0].set_yscale('log', nonpositive='clip')
 
-    # axs[1].set_xlim(self.tckwargs['min_sep'], self.tckwargs['max_sep'])
     axs[1].set_xlabel(r'$\theta$ (arcmin)')
     axs[1].set_ylabel(r'$\rho(\theta)$')
     axs[1].set_xscale('log')
@@ -189,6 +193,8 @@ def main():
     print('reading data')
     st = read_data(args)
 
+    min_sep = 0.5
+    max_sep = 50
     print('running treecorr')
     data = calc_rho_stats(
         ra=st['ra'],
@@ -199,9 +205,15 @@ def main():
         psf_g1=st['am_psf_e1'],
         psf_g2=st['am_psf_e2'],
         psf_T=st['am_psf_T'],
+        min_sep=min_sep,
+        max_sep=max_sep,
     )
 
-    fig, ax = plot_rho_stats(data, logger=None)
+    fig, ax = plot_rho_stats(
+        data, logger=None,
+        min_sep=min_sep,
+        max_sep=max_sep,
+    )
     print('writing:', args.plot_file)
     fig.savefig(args.plot_file, dpi=150)
 
