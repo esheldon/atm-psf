@@ -174,7 +174,6 @@ def run_piff(
 
 
 def run_stats(config, piffResult, stars, stats_dir):
-    import os
     import piff
     from esutil.ostools import makedirs_fromfile
 
