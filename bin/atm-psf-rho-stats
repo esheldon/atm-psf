@@ -1,0 +1,209 @@
+#!/usr/bin/env python
+
+
+def calc_rho_stats(
+    ra, dec,
+    T,
+    g1, g2,
+    psf_T,
+    psf_g1, psf_g2,
+    # min_sep=0.5/60,
+    # max_sep=50/60,
+    min_sep=0.5,
+    max_sep=50,
+    bin_size=0.1,
+    file_name=None,
+    model_properties=None,
+    logger=None,
+    **kwargs,
+):
+    import treecorr
+    import galsim
+
+    # treecorr.set_max_omp_threads(1)
+
+    tckwargs = kwargs
+    tckwargs['min_sep'] = min_sep
+    tckwargs['max_sep'] = max_sep
+    tckwargs['bin_size'] = bin_size
+
+    if 'sep_units' not in tckwargs:
+        tckwargs['sep_units'] = 'arcmin'
+
+    # Set this to true if there is a problem and we need to skip plots.
+    # skip = False
+
+    logger = galsim.config.LoggerWrapper(logger)
+
+    # get the shapes
+    print(f'Calculating rho statistics for {ra.size} stars')
+
+    dT = T - psf_T
+    dg1 = g1 - psf_g1
+    dg2 = g2 - psf_g2
+
+    # make the treecorr catalogs
+    logger.info("Creating Treecorr Catalogs")
+
+    cat_g = treecorr.Catalog(
+        ra=ra, dec=dec,
+        ra_units='deg', dec_units='deg',
+        g1=g1, g2=g2,
+    )
+    cat_dg = treecorr.Catalog(
+        ra=ra, dec=dec,
+        ra_units='deg', dec_units='deg',
+        g1=dg1, g2=dg2,
+    )
+    cat_gdTT = treecorr.Catalog(
+        ra=ra, dec=dec,
+        ra_units='deg', dec_units='deg',
+        g1=g1 * dT / T, g2=g2 * dT / T,
+    )
+
+    # setup and run the correlations
+    logger.info("Processing rho PSF statistics")
+
+    # save the rho objects
+    data = {}
+    data['rho1'] = treecorr.GGCorrelation(tckwargs)
+    data['rho1'].process(cat_dg)
+    data['rho2'] = treecorr.GGCorrelation(tckwargs)
+    data['rho2'].process(cat_g, cat_dg)
+    data['rho3'] = treecorr.GGCorrelation(tckwargs)
+    data['rho3'].process(cat_gdTT)
+    data['rho4'] = treecorr.GGCorrelation(tckwargs)
+    data['rho4'].process(cat_dg, cat_gdTT)
+    data['rho5'] = treecorr.GGCorrelation(tckwargs)
+    data['rho5'].process(cat_g, cat_gdTT)
+    # treecorr.set_max_omp_threads(None)
+
+    return data
+
+
+def plot_rho_stats(data, logger=None, **kwargs):
+    import numpy as np
+
+    from matplotlib.figure import Figure
+    fig = Figure(figsize=(10, 5))
+    # In matplotlib 2.0, this will be
+    # axs = fig.subplots(ncols=2)
+    axs = [fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)]
+    axs = np.array(axs, dtype=object)
+
+    # axs[0].set_xlim(self.tckwargs['min_sep'], self.tckwargs['max_sep'])
+    axs[0].set_xlabel(r'$\theta$ (arcmin)')
+    axs[0].set_ylabel(r'$\rho(\theta)$')
+    axs[0].set_xscale('log')
+    axs[0].set_yscale('log', nonpositive='clip')
+
+    # axs[1].set_xlim(self.tckwargs['min_sep'], self.tckwargs['max_sep'])
+    axs[1].set_xlabel(r'$\theta$ (arcmin)')
+    axs[1].set_ylabel(r'$\rho(\theta)$')
+    axs[1].set_xscale('log')
+    axs[1].set_yscale('log', nonpositive='clip')
+
+    # Left plot is rho1,3,4
+    rho1 = _plot_single(axs[0], data['rho1'], 'blue', 'o')
+    rho3 = _plot_single(axs[0], data['rho3'], 'green', 's', 0.1)
+    rho4 = _plot_single(axs[0], data['rho4'], 'red', '^', 0.2)
+
+    axs[0].legend([rho1, rho3, rho4],
+                  [r'$\rho_1(\theta)$',
+                   r'$\rho_3(\theta)$',
+                   r'$\rho_4(\theta)$'],
+                  loc='upper right', fontsize=12)
+
+    # Right plot is rho2,5
+    rho2 = _plot_single(axs[1], data['rho2'], 'blue', 'o')
+    rho5 = _plot_single(axs[1], data['rho5'], 'green', 's', 0.1)
+
+    axs[1].legend([rho2, rho5],
+                  [r'$\rho_2(\theta)$', r'$\rho_5(\theta)$'],
+                  loc='upper right', fontsize=12)
+
+    axs[0].set_ylim(1.e-9, None)
+    axs[1].set_ylim(1.e-9, None)
+    fig.tight_layout()
+    return fig, axs
+
+
+def _plot_single(ax, rho, color, marker, offset=0.):
+    import numpy as np
+
+    # Add a single rho stat to the plot.
+    meanr = rho.meanr * (1. + rho.bin_size * offset)
+    xip = rho.xip
+    sig = np.sqrt(rho.varxip)
+    ax.plot(meanr, xip, color=color)
+    ax.plot(meanr, -xip, color=color, ls=':')
+    ax.errorbar(
+        meanr[xip > 0], xip[xip > 0], yerr=sig[xip > 0], color=color, ls='',
+        marker=marker
+    )
+    ax.errorbar(
+        meanr[xip < 0], -xip[xip < 0], yerr=sig[xip < 0], color=color, ls='',
+        marker=marker, fillstyle='none', mfc='white'
+    )
+    return ax.errorbar(-meanr, xip, yerr=sig, color=color, marker=marker)
+
+
+def read_data(args):
+    import numpy as np
+    import esutil as eu
+    import fitsio
+
+    nf = len(args.flist)
+    dlist = []
+    for f in args.flist:
+        tmp = fitsio.read(f)
+        if 'am_flags' not in tmp.dtype.names:
+            continue
+        n = tmp['star_select'].sum()
+        if n >= args.nstar_min:
+            w, = np.where(
+                tmp['reserved']
+                & (tmp['am_flags'] == 0)
+                & (tmp['am_psf_flags'] == 0)
+            )
+            dlist.append(tmp[w])
+
+    print(f'kept {len(dlist)}/{nf}')
+    return eu.numpy_util.combine_arrlist(dlist)
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('flist', nargs='+')
+    parser.add_argument('--plot-file', required=True)
+    parser.add_argument('--nstar-min', type=int, default=0)
+    parser.add_argument('--nsig', type=int)
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    print('reading data')
+    st = read_data(args)
+
+    print('running treecorr')
+    data = calc_rho_stats(
+        ra=st['ra'],
+        dec=st['dec'],
+        g1=st['am_e1'],
+        g2=st['am_e2'],
+        T=st['am_T'],
+        psf_g1=st['am_psf_e1'],
+        psf_g2=st['am_psf_e2'],
+        psf_T=st['am_psf_T'],
+    )
+
+    fig, ax = plot_rho_stats(data, logger=None)
+    print('writing:', args.plot_file)
+    fig.savefig(args.plot_file, dpi=150)
+
+
+main()
