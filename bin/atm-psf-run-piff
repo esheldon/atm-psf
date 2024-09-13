@@ -16,7 +16,7 @@ def get_args():
         '--run-config',
         help='optional run config, can have piff_config entry'
     )
-    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--plot-dir')
     return parser.parse_args()
 
 
@@ -35,7 +35,7 @@ def main():
         piff_file=args.piff,
         source_file=args.sources,
         piff_config=run_config.get('piff', None),
-        show=args.show,
+        plot_dir=args.plot_dir,
     )
 
 

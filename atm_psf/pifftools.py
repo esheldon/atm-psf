@@ -1,7 +1,7 @@
 
 
 def run_piff(
-    psf_candidates, reserved, exposure, spatial_order=2, show=False,
+    psf_candidates, reserved, exposure, spatial_order=2, plot_dir=None,
 ):
     """
     Run PIFF on the image using the input PSF candidates
@@ -136,9 +136,8 @@ def run_piff(
 
     piffResult.fit(stars, wcs, pointing)
 
-    # stats plots
-    if show:
-        run_stats(stack_config, piffResult, stars)
+    if plot_dir is not None:
+        run_stats(stack_config, piffResult, stars, stats_dir=plot_dir)
 
     # this is indicative of old piff where stars could be dropped
     assert len(stars) == len(piffResult.stars)
@@ -147,8 +146,8 @@ def run_piff(
         if star.is_flagged and not star.is_reserve:
             not_kept[i] = True
 
-    if show:
-        plot_stats(piffResult.stars, show=show)
+    if plot_dir is not None:
+        plot_stats(piffResult.stars, plot_dir=plot_dir)
 
     drawSize = 2*np.floor(0.5*stampSize/stack_config.samplingSize) + 1
 
@@ -174,18 +173,14 @@ def run_piff(
     return ppsf, meta, not_kept
 
 
-def run_stats(config, piffResult, stars):
+def run_stats(config, piffResult, stars, stats_dir):
     import os
     import piff
-
-    stats_dir = 'plots'
-    if not os.path.exists(stats_dir):
-        try:
-            os.makedirs(stats_dir)
-        except Exception:
-            pass
+    from esutil.ostools import makedirs_fromfile
 
     star_file = f'{stats_dir}/starsfile.fits'
+    makedirs_fromfile(star_file)
+
     stats_config = [
         {
             'type': 'StarImages',
@@ -206,7 +201,7 @@ def run_stats(config, piffResult, stars):
         fig.savefig(fname, dpi=150)
 
 
-def plot_stats(stars, show=False):
+def plot_stats(stars, plot_dir):
     import matplotlib.pyplot as mplt
     import numpy as np
 
@@ -282,8 +277,8 @@ def plot_stats(stars, show=False):
 
     # axs[1, 1].axis('off')
 
-    if show:
-        mplt.show()
+    fname = f'{plot_dir}/stats-plot.png'
+    fig.savefig(fname, dpi=150)
 
     return fig, ax
 

@@ -41,9 +41,10 @@ class DetectMeasurer(object):
             'base_SdssCentroid',
             'base_PsfFlux',
             'base_SkyCoord',
-            'base_SdssShape',
-            # 'ext_shapeHSM_HsmSourceMoments',
-            # 'ext_shapeHSM_HsmPsfMoments',
+            # 'base_SdssShape',
+            # these will get used by star selector
+            'ext_shapeHSM_HsmSourceMoments',
+            'ext_shapeHSM_HsmPsfMoments',
         ]
 
         # set these slots to none because we aren't running these algorithms
@@ -53,7 +54,7 @@ class DetectMeasurer(object):
         meas_config.slots.modelFlux = None
 
         # goes with SdssShape above
-        # meas_config.slots.shape = None
+        meas_config.slots.shape = "ext_shapeHSM_HsmSourceMoments"
 
         # fix odd issue where it things things are near the edge
         meas_config.plugins['base_SdssCentroid'].binmax = 1
