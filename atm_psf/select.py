@@ -52,7 +52,6 @@ def plot_sizemag(sources, keep, plot_dir):
     from esutil.ostools import makedirs_fromfile
 
     flux = sources[FLUX_NAME]
-    # T = sources['base_SdssShape_xx'] + sources['base_SdssShape_yy']
     T = (
         sources['ext_shapeHSM_HsmSourceMoments_xx']
         + sources['ext_shapeHSM_HsmSourceMoments_yy']
@@ -60,22 +59,20 @@ def plot_sizemag(sources, keep, plot_dir):
     fwhm = np.sqrt(T/2) * 2.3548200450309493 * 0.2
 
     fwhm_mean = fwhm[keep].mean()
-    fwhm_std = fwhm[keep].std()
-    ymin = fwhm_mean - 10 * fwhm_std
-    ymax = fwhm_mean + 20 * fwhm_std
+    ymin = fwhm_mean - 0.2
+    ymax = fwhm_mean + 0.2
 
     fig, ax = mplt.subplots()
     ax.set(
         xlabel='psf inst flux',
         ylabel='FWHM [arcsec]',
-        # ylim=[0, 15],
         ylim=[ymin, ymax],
     )
     ax.set_xscale('log')
 
-    ax.scatter(flux, fwhm, s=1)
-    ax.scatter(flux[keep], fwhm[keep], s=1)
-    ax.axhline(fwhm_mean)
+    ax.axhline(fwhm_mean, color='black', zorder=0)
+    ax.scatter(flux, fwhm, s=1, zorder=1)
+    ax.scatter(flux[keep], fwhm[keep], s=1, zorder=2)
 
     fname = f'{plot_dir}/sizemag.png'
     makedirs_fromfile(fname)
