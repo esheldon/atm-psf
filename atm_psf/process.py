@@ -558,6 +558,88 @@ def process_image_with_piff(
     io.save_source_data(fname=source_file, data=alldata)
 
 
+def process_image_with_nnpsf(
+    rng,
+    fname,
+    config_file,
+    source_file,
+    fit_config=None,
+    plot_dir=None,
+):
+    """
+    process the image using nnpsf
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        Random number generator
+    fname: str
+        Path to image file
+    source_file: str
+        Output catlaog path
+    config_file: dict, optional
+        Config for nnpsf
+    plot_dir: str
+        directory to put plots
+    """
+    import fitsio
+    import numpy as np
+    import nnpsf
+    import torch
+    from nnpsf.measure import get_models_and_psf_fluxes
+    from nnpsf.plotting import show_sim_cat_with_stars, show_catalog_statistics
+    from nnpsf.validation import plot_validation
+    from nnpsf.io import load_montauk
+
+    print('cuda available:', torch.cuda.is_available())
+    print('cuda device count:', torch.cuda.device_count())
+    if torch.cuda.device_count() > 0:
+        print('cuda current device:', torch.cuda.current_device())
+
+    torch.manual_seed(rng.integers(0, 2**63))
+
+    fit_config = nnpsf.config.load_config(config_file)
+
+    data = load_montauk(fname)
+
+    fitting_data = nnpsf.process_image(
+        data=data,
+        fit_config=fit_config,
+        rng=rng,
+    )
+
+    cat = fitting_data['cat']
+
+    if plot_dir is not None:
+        image_plot = source_file.replace('.fits', '') + '-image.jpg'
+        show_sim_cat_with_stars(data=data, cat=cat, fname=image_plot)
+
+        stats_plot = source_file.replace('.fits', '') + '-stats.png'
+        show_catalog_statistics(cat=cat, fname=stats_plot)
+
+        valid_plot = source_file.replace('.fits', '') + '-valid.jpg'
+
+        stamps = fitting_data['stamp_data']['stamps']
+        var_stamps = fitting_data['var_stamp_data']['stamps']
+        ivalid, = np.where(cat['reserved'])
+        valid_models, _ = get_models_and_psf_fluxes(
+            stamps=stamps[ivalid],
+            variance=var_stamps[ivalid],
+            x=cat['x'][ivalid],
+            y=cat['y'][ivalid],
+            model=fitting_data['model'],
+        )
+        print('validating:', ivalid.size, 'stars')
+        plot_validation(
+            stamps=stamps[ivalid],
+            models=valid_models,
+            fname=valid_plot,
+        )
+
+    print('writing to:', source_file)
+    fitsio.write(source_file, cat, clobber=True)
+
+
 def _load_instcat_meta_from_dir(image_file):
     """
     we always call it instcat.txt, just get the directory
