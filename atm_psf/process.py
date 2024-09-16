@@ -302,6 +302,117 @@ def run_sim_and_piff(
             _remove_file(fname)
 
 
+def run_sim_and_nnpsf(
+    rng,
+    run_config,
+    sim_config,
+    opsim_db,
+    obsid,
+    instcat,
+    ccds,
+    cleanup=True,
+    use_existing=False,
+    plot_dir=None,
+):
+    """
+    Run the simulation using galsim and run piff on the image
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    run_config: dict
+        The run configuration
+    sim_config: dict
+        Simulation configuration
+    opsim_db: str
+        Path to opsim database
+    obsid: int
+        The observation id
+    instcat: str
+        Path for the the output instcat
+    ccds: list of int
+        List of CCD numbers
+    cleanup: bool, optional
+        If set to True, remove the simulated data, the image, truth and instcat
+        files.  Default True.
+    show: bool
+        If set to True, show plots
+    """
+
+    import os
+    import numpy as np
+    import montauk
+    from . import io
+
+    # generate these now so runs with and without existing instcat
+    # are consistent
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
+    nnpsf_rng = np.random.default_rng(rng.integers(0, 2**60))
+
+    instcat_out = get_instcat_output_path(obsid)
+
+    if not os.path.exists(instcat_out) or not use_existing:
+        dup = run_config.get('dup', 1)
+        run_make_instcat(
+            rng=instcat_rng,
+            run_config=run_config,
+            opsim_db=opsim_db,
+            obsid=obsid,
+            instcat=instcat,
+            instcat_out=instcat_out,
+            ccds=ccds,
+            dup=dup,
+        )
+
+    do_run_sim = True
+    if use_existing:
+        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        fnames = [
+            io.get_sim_output_fname(
+                obsid=obsdata['obshistid'],
+                ccd=ccd,
+                band=obsdata['band'],
+            )
+            for ccd in ccds
+        ]
+        if all([os.path.exists(fname) for fname in fnames]):
+            do_run_sim = False
+
+    if do_run_sim:
+        run_sim(
+            rng=sim_rng,
+            config=sim_config,
+            instcat=instcat_out,
+            ccds=ccds,
+        )
+
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+
+    for ccd in ccds:
+
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        nnpsf_file = io.get_nnpsf_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        process_image_with_nnpsf(
+            rng=nnpsf_rng,
+            fname=fname,
+            output=nnpsf_file,
+            config=run_config.get('nnpsf', None),
+            plot_dir=plot_dir,
+        )
+        if cleanup:
+            _remove_file(fname)
+
+
 def get_instcat_output_path(obsid):
     import os
     outdir = '%08d' % obsid
@@ -561,9 +672,8 @@ def process_image_with_piff(
 def process_image_with_nnpsf(
     rng,
     fname,
-    config_file,
     source_file,
-    fit_config=None,
+    config=None,
     plot_dir=None,
 ):
     """
@@ -577,7 +687,7 @@ def process_image_with_nnpsf(
         Path to image file
     source_file: str
         Output catlaog path
-    config_file: dict, optional
+    config: dict, optional
         Config for nnpsf
     plot_dir: str
         directory to put plots
@@ -598,13 +708,11 @@ def process_image_with_nnpsf(
 
     torch.manual_seed(rng.integers(0, 2**63))
 
-    fit_config = nnpsf.config.load_config(config_file)
-
     data = load_montauk(fname)
 
     fitting_data = nnpsf.process_image(
         data=data,
-        fit_config=fit_config,
+        fit_config=config,
         rng=rng,
     )
 
