@@ -504,6 +504,8 @@ def run_make_instcat(
     print('connecting to:', opsim_db)
 
     magmin = sim_config.get('magmin', -1000)
+    print('using magmin:', magmin)
+
     with sqlite3.connect(opsim_db) as conn:
         instcat_tools.replace_instcat_from_db(
             rng=rng,
