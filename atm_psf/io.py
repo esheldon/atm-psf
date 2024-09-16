@@ -128,8 +128,12 @@ def _make_output_source_data(data):
         st['reserved'] = data['star_select'].copy()
         st['reserved'][:] = False
 
-    st['x'] = sources['base_SdssShape_x']
-    st['y'] = sources['base_SdssShape_y']
+    # st['x'] = sources['base_SdssShape_x']
+    # st['y'] = sources['base_SdssShape_y']
+    # st['x'] = sources['ext_shapeHSM_HsmSourceMoments_x']
+    # st['y'] = sources['ext_shapeHSM_HsmSourceMoments_y']
+    st['x'] = sources['base_SdssCentroid_x']
+    st['y'] = sources['base_SdssCentroid_y']
     st['psf_flux'] = sources['base_PsfFlux_instFlux']
     st['psf_flux_err'] = sources['base_PsfFlux_instFluxErr']
 

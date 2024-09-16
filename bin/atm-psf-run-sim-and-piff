@@ -25,7 +25,7 @@ def get_args():
 
     parser.add_argument('--nocleanup', action='store_true',
                         help='do not remove the simulated file')
-    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--plot-dir')
     return parser.parse_args()
 
 
@@ -56,5 +56,5 @@ if __name__ == '__main__':
         ccds=ccds,
         cleanup=cleanup,
         use_existing=args.use_existing,
-        show=args.show,
+        plot_dir=args.plot_dir,
     )

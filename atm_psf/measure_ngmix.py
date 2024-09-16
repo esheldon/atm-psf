@@ -101,6 +101,7 @@ def get_ngmix_output_struct():
     import numpy as np
     dtype = [
         ('am_flags', 'i4'),
+        ('am_s2n', 'f4'),
         ('am_e1', 'f8'),
         ('am_e1_err', 'f4'),
         ('am_e2', 'f8'),
@@ -128,6 +129,7 @@ def get_ngmix_output(res, pres):
     st['am_psf_flags'] = pres['flags']
 
     if res['flags'] == 0:
+        st['am_s2n'] = res['s2n']
         st['am_e1'] = res['e'][0]
         st['am_e2'] = res['e'][1]
         st['am_e1_err'] = res['e_err'][0]

@@ -194,7 +194,7 @@ def run_sim_and_piff(
     ccds,
     cleanup=True,
     use_existing=False,
-    show=False,
+    plot_dir=None,
 ):
     """
     Run the simulation using galsim and run piff on the image
@@ -296,7 +296,7 @@ def run_sim_and_piff(
             piff_file=piff_file,
             source_file=source_file,
             piff_config=run_config.get('piff', None),
-            show=show,
+            plot_dir=plot_dir,
         )
         if cleanup:
             _remove_file(fname)
@@ -438,7 +438,7 @@ def process_image_with_piff(
     piff_file,
     source_file,
     piff_config=None,
-    show=False,
+    plot_dir=None,
 ):
     """
     process the image using piff
@@ -495,7 +495,7 @@ def process_image_with_piff(
 
     # find stars in the size/flux diagram
     # note this is a bool array
-    star_select = select.select_stars(sources, show=show)
+    star_select = select.select_stars(sources, plot_dir=plot_dir)
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
@@ -524,7 +524,7 @@ def process_image_with_piff(
             reserved=reserved[star_select],
             exposure=exp,
             spatial_order=piff_config['spatial_order'],
-            show=show,
+            plot_dir=plot_dir,
         )
         # star_select is a full boolean, so we need to get the corresponding
         # indices
