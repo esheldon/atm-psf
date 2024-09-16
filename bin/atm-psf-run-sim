@@ -58,6 +58,7 @@ if __name__ == '__main__':
             instcat=args.instcat,
             instcat_out=instcat_out,
             ccds=ccds,
+            sim_config=sim_config,
         )
 
     atm_psf.process.run_sim(

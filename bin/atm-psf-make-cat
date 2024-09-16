@@ -17,6 +17,7 @@ def get_args():
     parser.add_argument('--ccds', required=True,
                         help='e.g. "[35,66]"')
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--sim-config')
     return parser.parse_args()
 
 
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     args = get_args()
 
     run_config = load_config(args.run_config)
+    sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
     instcat_out = get_instcat_output_path(args.obsid)
 
@@ -37,4 +39,5 @@ if __name__ == '__main__':
         instcat_out=instcat_out,
         ccds=ccds,
         seed=args.seed,
+        sim_config=sim_config,
     )

@@ -240,6 +240,7 @@ def run_sim_and_piff(
         run_make_instcat(
             rng=instcat_rng,
             run_config=run_config,
+            sim_config=sim_config,
             opsim_db=opsim_db,
             obsid=obsid,
             instcat=instcat,
@@ -358,6 +359,7 @@ def run_sim_and_nnpsf(
         run_make_instcat(
             rng=instcat_rng,
             run_config=run_config,
+            sim_config=sim_config,
             opsim_db=opsim_db,
             obsid=obsid,
             instcat=instcat,
@@ -469,7 +471,9 @@ def _get_paths(obsid, ccd):
 
 
 def run_make_instcat(
-    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds, dup=1,
+    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds,
+    sim_config={},
+    dup=1,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
@@ -499,7 +503,7 @@ def run_make_instcat(
 
     print('connecting to:', opsim_db)
 
-    magmin = run_config.get('magmin', -1000)
+    magmin = sim_config.get('magmin', -1000)
     with sqlite3.connect(opsim_db) as conn:
         instcat_tools.replace_instcat_from_db(
             rng=rng,
