@@ -480,8 +480,8 @@ def get_piff_output_fname(obsid, ccd, band):
     ----------
     obsid: int
         Observation id in opsim db
-    dm_detector: lsst.afw.cameraGeom.Detector
-        Data management detector object.  Use make_dm_detector(detnum)
+    ccd: lsst.afw.cameraGeom.Detector
+        CCD number
     band: str
         e.g. 'r'
 
@@ -495,6 +495,31 @@ def get_piff_output_fname(obsid, ccd, band):
         'simdata-', 'piff-'
     ).replace(
         '.fits', '.pkl',
+    )
+
+
+def get_nnpsf_output_fname(obsid, ccd, band):
+    """
+    Get the relative output path, e.g.
+        00355204/piff-00355204-0-i-R14_S00-det063.pkl
+
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    ccd: lsst.afw.cameraGeom.Detector
+        CCD number
+    band: str
+        e.g. 'r'
+
+    Returns
+    --------
+    path
+    """
+
+    sim_output_fname = get_sim_output_fname(obsid, ccd, band)
+    return sim_output_fname.replace(
+        'simdata-', 'nnpsf-'
     )
 
 

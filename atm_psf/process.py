@@ -240,6 +240,7 @@ def run_sim_and_piff(
         run_make_instcat(
             rng=instcat_rng,
             run_config=run_config,
+            sim_config=sim_config,
             opsim_db=opsim_db,
             obsid=obsid,
             instcat=instcat,
@@ -302,6 +303,118 @@ def run_sim_and_piff(
             _remove_file(fname)
 
 
+def run_sim_and_nnpsf(
+    rng,
+    run_config,
+    sim_config,
+    opsim_db,
+    obsid,
+    instcat,
+    ccds,
+    cleanup=True,
+    use_existing=False,
+    plot_dir=None,
+):
+    """
+    Run the simulation using galsim and run piff on the image
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    run_config: dict
+        The run configuration
+    sim_config: dict
+        Simulation configuration
+    opsim_db: str
+        Path to opsim database
+    obsid: int
+        The observation id
+    instcat: str
+        Path for the the output instcat
+    ccds: list of int
+        List of CCD numbers
+    cleanup: bool, optional
+        If set to True, remove the simulated data, the image, truth and instcat
+        files.  Default True.
+    show: bool
+        If set to True, show plots
+    """
+
+    import os
+    import numpy as np
+    import montauk
+    from . import io
+
+    # generate these now so runs with and without existing instcat
+    # are consistent
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
+    nnpsf_rng = np.random.default_rng(rng.integers(0, 2**60))
+
+    instcat_out = get_instcat_output_path(obsid)
+
+    if not os.path.exists(instcat_out) or not use_existing:
+        dup = run_config.get('dup', 1)
+        run_make_instcat(
+            rng=instcat_rng,
+            run_config=run_config,
+            sim_config=sim_config,
+            opsim_db=opsim_db,
+            obsid=obsid,
+            instcat=instcat,
+            instcat_out=instcat_out,
+            ccds=ccds,
+            dup=dup,
+        )
+
+    do_run_sim = True
+    if use_existing:
+        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        fnames = [
+            io.get_sim_output_fname(
+                obsid=obsdata['obshistid'],
+                ccd=ccd,
+                band=obsdata['band'],
+            )
+            for ccd in ccds
+        ]
+        if all([os.path.exists(fname) for fname in fnames]):
+            do_run_sim = False
+
+    if do_run_sim:
+        run_sim(
+            rng=sim_rng,
+            config=sim_config,
+            instcat=instcat_out,
+            ccds=ccds,
+        )
+
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+
+    for ccd in ccds:
+
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        nnpsf_file = io.get_nnpsf_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+        )
+        process_image_with_nnpsf(
+            rng=nnpsf_rng,
+            fname=fname,
+            output=nnpsf_file,
+            config=run_config.get('nnpsf', None),
+            plot_dir=plot_dir,
+        )
+        if cleanup:
+            _remove_file(fname)
+
+
 def get_instcat_output_path(obsid):
     import os
     outdir = '%08d' % obsid
@@ -358,7 +471,9 @@ def _get_paths(obsid, ccd):
 
 
 def run_make_instcat(
-    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds, dup=1,
+    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds,
+    sim_config={},
+    dup=1,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
@@ -388,7 +503,9 @@ def run_make_instcat(
 
     print('connecting to:', opsim_db)
 
-    magmin = run_config.get('magmin', -1000)
+    magmin = sim_config.get('magmin', -1000)
+    print('using magmin:', magmin)
+
     with sqlite3.connect(opsim_db) as conn:
         instcat_tools.replace_instcat_from_db(
             rng=rng,
@@ -556,6 +673,85 @@ def process_image_with_piff(
 
     logger.info(f'saving sources data to: {source_file}')
     io.save_source_data(fname=source_file, data=alldata)
+
+
+def process_image_with_nnpsf(
+    rng,
+    fname,
+    source_file,
+    config=None,
+    plot_dir=None,
+):
+    """
+    process the image using nnpsf
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        Random number generator
+    fname: str
+        Path to image file
+    source_file: str
+        Output catlaog path
+    config: dict, optional
+        Config for nnpsf
+    plot_dir: str
+        directory to put plots
+    """
+    import fitsio
+    import numpy as np
+    import nnpsf
+    import torch
+    from nnpsf.measure import get_models_and_psf_fluxes
+    from nnpsf.plotting import show_sim_cat_with_stars, show_catalog_statistics
+    from nnpsf.validation import plot_validation
+    from nnpsf.io import load_montauk
+
+    print('cuda available:', torch.cuda.is_available())
+    print('cuda device count:', torch.cuda.device_count())
+    if torch.cuda.device_count() > 0:
+        print('cuda current device:', torch.cuda.current_device())
+
+    torch.manual_seed(rng.integers(0, 2**63))
+
+    data = load_montauk(fname)
+
+    fitting_data = nnpsf.process_image(
+        data=data,
+        fit_config=config,
+        rng=rng,
+    )
+
+    cat = fitting_data['cat']
+
+    if plot_dir is not None:
+        image_plot = source_file.replace('.fits', '') + '-image.jpg'
+        show_sim_cat_with_stars(data=data, cat=cat, fname=image_plot)
+
+        stats_plot = source_file.replace('.fits', '') + '-stats.png'
+        show_catalog_statistics(cat=cat, fname=stats_plot)
+
+        valid_plot = source_file.replace('.fits', '') + '-valid.jpg'
+
+        stamps = fitting_data['stamp_data']['stamps']
+        var_stamps = fitting_data['var_stamp_data']['stamps']
+        ivalid, = np.where(cat['reserved'])
+        valid_models, _ = get_models_and_psf_fluxes(
+            stamps=stamps[ivalid],
+            variance=var_stamps[ivalid],
+            x=cat['x'][ivalid],
+            y=cat['y'][ivalid],
+            model=fitting_data['model'],
+        )
+        print('validating:', ivalid.size, 'stars')
+        plot_validation(
+            stamps=stamps[ivalid],
+            models=valid_models,
+            fname=valid_plot,
+        )
+
+    print('writing to:', source_file)
+    fitsio.write(source_file, cat, clobber=True)
 
 
 def _load_instcat_meta_from_dir(image_file):

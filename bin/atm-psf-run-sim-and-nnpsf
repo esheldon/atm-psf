@@ -2,7 +2,6 @@
 
 import numpy as np
 import atm_psf
-import os
 
 
 def get_args():
@@ -23,6 +22,10 @@ def get_args():
         action='store_true',
         help='Re-use instcat if it already exists',
     )
+
+    parser.add_argument('--nocleanup', action='store_true',
+                        help='do not remove the simulated file')
+    parser.add_argument('--plot-dir')
     return parser.parse_args()
 
 
@@ -39,31 +42,19 @@ if __name__ == '__main__':
     else:
         ccds = rng.choice(189, size=args.nccds, replace=False)
 
-    # generate these now so runs with and without existing instcat
-    # are consistent
-    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
-    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
-
     run_config = atm_psf.io.load_yaml(args.run_config)
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
+    cleanup = not args.nocleanup
 
-    instcat_out = atm_psf.process.get_instcat_output_path(args.obsid)
-
-    if not os.path.exists(instcat_out) or not args.use_existing:
-        atm_psf.process.run_make_instcat(
-            rng=instcat_rng,
-            run_config=run_config,
-            opsim_db=args.opsim_db,
-            obsid=args.obsid,
-            instcat=args.instcat,
-            instcat_out=instcat_out,
-            ccds=ccds,
-            sim_config=sim_config,
-        )
-
-    atm_psf.process.run_sim(
-        rng=sim_rng,
-        config=sim_config,
-        instcat=instcat_out,
+    atm_psf.process.run_sim_and_nnpsf(
+        rng=rng,
+        run_config=run_config,
+        sim_config=sim_config,
+        opsim_db=args.opsim_db,
+        obsid=args.obsid,
+        instcat=args.instcat,
         ccds=ccds,
+        cleanup=cleanup,
+        use_existing=args.use_existing,
+        plot_dir=args.plot_dir,
     )
