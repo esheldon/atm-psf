@@ -156,10 +156,11 @@ def read_data(args):
     import numpy as np
     import esutil as eu
     import fitsio
+    from tqdm import tqdm
 
     nf = len(args.flist)
     dlist = []
-    for f in args.flist:
+    for f in tqdm(args.flist):
         tmp = fitsio.read(f)
         if 'am_flags' not in tmp.dtype.names:
             continue
@@ -195,15 +196,18 @@ def main():
 
     min_sep = 0.5
     max_sep = 50
+
     print('running treecorr')
+
+    # note e1/e2 get factor of 1/2 to convert to reduced shear style
     data = calc_rho_stats(
         ra=st['ra'],
         dec=st['dec'],
-        g1=st['am_e1'],
-        g2=st['am_e2'],
+        g1=st['am_e1'] * 0.5,
+        g2=st['am_e2'] * 0.5,
         T=st['am_T'],
-        psf_g1=st['am_psf_e1'],
-        psf_g2=st['am_psf_e2'],
+        psf_g1=st['am_psf_e1'] * 0.5,
+        psf_g2=st['am_psf_e2'] * 0.5,
         psf_T=st['am_psf_T'],
         min_sep=min_sep,
         max_sep=max_sep,
