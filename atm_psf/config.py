@@ -13,6 +13,7 @@ def get_default_sim_config():
             'type': 'psfws',
             'options': {},
         },
+        'skip_bright': False,
     }
 
 

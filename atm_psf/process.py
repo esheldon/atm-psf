@@ -158,6 +158,7 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
             fringing=fringer,
             calc_xy_indices=calc_xy_indices,
             apply_pixel_areas=config['apply_pixel_areas'],
+            skip_bright=config['skip_bright'],
         )
         mid = calc_xy_indices.size // 2
         final_wcs, wcs_stats = montauk.wcs.fit_wcs(
