@@ -83,7 +83,7 @@ def plot_rho_stats(data, logger=None, **kwargs):
     import numpy as np
 
     from matplotlib.figure import Figure
-    fig = Figure(figsize=(10, 5))
+    fig = Figure(figsize=(10.5, 5))
     # In matplotlib 2.0, this will be
     # axs = fig.subplots(ncols=2)
     axs = [fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)]
