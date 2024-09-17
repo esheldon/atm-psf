@@ -20,19 +20,29 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
     logger.info(f'loading opsim data from {instcat}')
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
 
-    logger.info(f'making {config["psf"]["type"]} PSF')
+    psf_type = config['psf']['type']
 
-    if config['psf']['type'] == 'psfws':
+    logger.info(f'making {psf_type} PSF')
+
+    if psf_type == 'psfws':
         psf = montauk.psfws.make_psfws_psf(
             obsdata=obsdata,
             gs_rng=gs_rng,
             psf_config=config['psf']['options'],
         )
-    else:
+    elif psf_type == 'imsim-atmpsf':
+        psf = montauk.imsim_atmpsf.make_imsim_atmpsf(
+            obsdata=obsdata,
+            gs_rng=gs_rng,
+            psf_config=config['psf']['options'],
+        )
+    elif psf_type == 'fixed':
         psf = montauk.fixed_psf.make_fixed_psf(
-            type=config['psf']['type'],
+            type=psf_type,
             options=config['psf']['options'],
         )
+    else:
+        raise ValueError(f'bad psf type: {psf_type}')
 
     sky_model = imsim.SkyModel(
         exptime=obsdata['exptime'],
