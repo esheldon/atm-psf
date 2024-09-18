@@ -314,7 +314,7 @@ def run_sim_and_piff(
             _remove_file(fname)
 
 
-def make_coadd_dm_wcs(rng, coadd_dim):
+def make_coadd_dm_wcs(rng, coadd_dim, config):
     """
     make a coadd wcs, using the default world origin.  Create
     a bbox within larger box
@@ -329,13 +329,21 @@ def make_coadd_dm_wcs(rng, coadd_dim):
     --------
     A galsim wcs, see make_wcs for return type
     """
+    import numpy as np
     import galsim
     from descwl_shear_sims.constants import SCALE
     from descwl_shear_sims.wcs import make_wcs, make_dm_wcs
     from lsst.geom import Point2I, Extent2I, Box2I
     from esutil.coords import randsphere
 
-    ra, dec = randsphere(1, ra_range=[10, 120], dec_range=[-20, 20])
+    angle_radians = rng.uniform(low=0.0, high=2 * np.pi)
+
+    ra_range = config.get('ra_range', [10, 120])
+    dec_range = config.get('dec_range', [-20, 20])
+    print('ra_range:', ra_range)
+    print('dec_range:', dec_range)
+
+    ra, dec = randsphere(1, ra_range=ra_range, dec_range=dec_range)
     ra = ra[0]
     dec = dec[0]
 
@@ -360,6 +368,7 @@ def make_coadd_dm_wcs(rng, coadd_dim):
             scale=SCALE,
             image_origin=gs_coadd_origin,
             world_origin=world_origin,
+            theta=angle_radians,
         )
     )
     return coadd_wcs, coadd_bbox
@@ -397,7 +406,9 @@ def run_descwl_sim_and_piff(
     )
 
     layout = descwl_shear_sims.layout.Layout('random', coadd_dim, buff, SCALE)
-    wcs, bbox = make_coadd_dm_wcs(rng=rng, coadd_dim=coadd_dim)
+    wcs, bbox = make_coadd_dm_wcs(
+        rng=rng, coadd_dim=coadd_dim, config=run_config
+    )
     layout.wcs = wcs
     layout.bbox = bbox
 
@@ -427,7 +438,7 @@ def run_descwl_sim_and_piff(
         star_catalog=star_catalog,
         draw_gals=False,
         draw_bright=False,
-        # rotate=True,
+        rotate=True,
         # noise of single band image
         noise_factor=np.sqrt(100),
     )
