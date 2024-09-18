@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+
+SCRIPT = r"""#!/usr/bin/bash
+seed=$1
+
+export OMP_NUM_THREADS=1
+
+atm-psf-run-descwl-sim-and-piff-many \
+    --seed ${seed} \
+    --outdir ${seed} \
+    --ntrial %(ntrial)d
+"""
+
+CONDOR_HEAD = r"""
+Universe = vanilla
+
+Notification = Never
+
+# Run this exe with these args
+Executable = run.sh
+
+request_memory = 2G
+
+GetEnv = True
+
+kill_sig = SIGINT
+
++Experiment = "astro"
+
+"""
+
+JOB_TEMPLATE = r"""
++job_name = "%(job_name)s"
+arguments = %(seed)d
+Queue
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dir', required=True)
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True)
+    parser.add_argument('--njobs', type=int, required=True)
+    return parser.parse_args()
+
+
+def write_script(run_dir, ntrial):
+    import os
+
+    outfile = f'{run_dir}/run.sh'
+    print('writing:', outfile)
+
+    with open(outfile, 'w') as fobj:
+        fobj.write(SCRIPT % {'ntrial': ntrial})
+
+    os.system(f'chmod 755 {outfile}')
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        os.makedirs(d)
+
+
+def write_condor_head(condorf):
+    condorf.write(CONDOR_HEAD)
+
+
+def main():
+    import os
+    import numpy as np
+
+    args = get_args()
+
+    rng = np.random.randint(args.seed)
+
+    dirname = os.path.abspath(args.dir)
+
+    makedir(dirname)
+    bname = os.path.basename(dirname)
+
+    write_script(dirname, args.ntrial)
+    condor_file = os.path.join(dirname, 'submit.condor')
+    print('opening:', condor_file)
+
+    with open(condor_file, 'w') as condorf:
+
+        write_condor_head(condorf)
+
+        for i in range(args.njobs):
+
+            seed = rng.integers(0, 2**16)
+
+            job_name = f'{bname}-{seed}'
+            jobtext = JOB_TEMPLATE % {
+                'job_name': job_name,
+                'seed': seed,
+            }
+            condorf.write(jobtext)
+
+
+if __name__ == '__main__':
+    main()
