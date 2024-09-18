@@ -126,8 +126,8 @@ def plot_rho_stats(data, logger=None, **kwargs):
                   [r'$\rho_2(\theta)$', r'$\rho_5(\theta)$'],
                   loc='upper right', fontsize=12)
 
-    axs[0].set_ylim(1.e-9, None)
-    axs[1].set_ylim(1.e-9, None)
+    axs[0].set_ylim(1.e-9, 2.2e-4)
+    axs[1].set_ylim(1.e-9, 2.2e-4)
     fig.tight_layout()
     return fig, axs
 
@@ -162,15 +162,28 @@ def read_data(args):
     dlist = []
     for f in tqdm(args.flist):
         tmp = fitsio.read(f)
-        if 'am_flags' not in tmp.dtype.names:
-            continue
         n = tmp['star_select'].sum()
         if n >= args.nstar_min:
-            w, = np.where(
-                tmp['reserved']
-                & (tmp['am_flags'] == 0)
-                & (tmp['am_psf_flags'] == 0)
-            )
+
+            names = tmp.dtype.names
+            if 'am_flags' in names:
+                w, = np.where(
+                    tmp['reserved']
+                    # tmp['star_select']
+                    # & (~tmp['reserved'])
+                    & (tmp['am_flags'] == 0)
+                    & (tmp['am_psf_flags'] == 0)
+                )
+            elif 'flag_data' in names:
+                w, = np.where(
+                    tmp['reserve']
+                    # tmp['star_select']
+                    & (tmp['flag_data'] == 0)
+                    & (tmp['flag_model'] == 0)
+                )
+            else:
+                continue
+
             dlist.append(tmp[w])
 
     print(f'kept {len(dlist)}/{nf}')
@@ -200,15 +213,30 @@ def main():
     print('running treecorr')
 
     # note e1/e2 get factor of 1/2 to convert to reduced shear style
+    if 'am_e1' in st.dtype.names:
+        g1 = st['am_e1'] * 0.5
+        g2 = st['am_e2'] * 0.5
+        T = st['am_T']
+        psf_g1 = st['am_psf_e1'] * 0.5
+        psf_g2 = st['am_psf_e2'] * 0.5
+        psf_T = st['am_psf_T']
+    else:
+        g1 = st['g1_data']
+        g2 = st['g2_data']
+        T = st['T_data']
+        psf_g1 = st['g1_model']
+        psf_g2 = st['g2_model']
+        psf_T = st['T_model']
+
     data = calc_rho_stats(
         ra=st['ra'],
         dec=st['dec'],
-        g1=st['am_e1'] * 0.5,
-        g2=st['am_e2'] * 0.5,
-        T=st['am_T'],
-        psf_g1=st['am_psf_e1'] * 0.5,
-        psf_g2=st['am_psf_e2'] * 0.5,
-        psf_T=st['am_psf_T'],
+        g1=g1,
+        g2=g2,
+        T=T,
+        psf_g1=psf_g1,
+        psf_g2=psf_g2,
+        psf_T=psf_T,
         min_sep=min_sep,
         max_sep=max_sep,
     )
