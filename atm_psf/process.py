@@ -314,6 +314,57 @@ def run_sim_and_piff(
             _remove_file(fname)
 
 
+def make_coadd_dm_wcs(rng, coadd_dim):
+    """
+    make a coadd wcs, using the default world origin.  Create
+    a bbox within larger box
+
+    Parameters
+    ----------
+    coadd_origin: int
+        Origin in pixels of the coadd, can be within a larger
+        pixel grid e.g. tract surrounding the patch
+
+    Returns
+    --------
+    A galsim wcs, see make_wcs for return type
+    """
+    import galsim
+    from descwl_shear_sims.constants import SCALE
+    from descwl_shear_sims.wcs import make_wcs, make_dm_wcs
+    from lsst.geom import Point2I, Extent2I, Box2I
+    from esutil.coords import randsphere
+
+    ra, dec = randsphere(1, ra_range=[10, 120], dec_range=[-20, 20])
+    ra = ra[0]
+    dec = dec[0]
+
+    print(f'ra: {ra:.6g} dec: {dec:.6g}')
+
+    world_origin = galsim.CelestialCoord(
+        ra=ra * galsim.degrees,
+        dec=dec * galsim.degrees,
+    )
+
+    coadd_bbox = Box2I(Point2I(0, 0), Extent2I(coadd_dim))
+
+    # center the coadd wcs in the bigger coord system
+    coadd_origin = coadd_bbox.getCenter()
+
+    gs_coadd_origin = galsim.PositionD(
+        x=coadd_origin.x,
+        y=coadd_origin.y,
+    )
+    coadd_wcs = make_dm_wcs(
+        make_wcs(
+            scale=SCALE,
+            image_origin=gs_coadd_origin,
+            world_origin=world_origin,
+        )
+    )
+    return coadd_wcs, coadd_bbox
+
+
 def run_descwl_sim_and_piff(
     rng,
     piff_file,
@@ -332,18 +383,23 @@ def run_descwl_sim_and_piff(
         The run configuration
     """
     import descwl_shear_sims
+    from descwl_shear_sims.constants import SCALE
 
     import numpy as np
 
     # se_dim will be coadd_dim+10 for no rotations
     coadd_dim = 4086
     buff = 50
-    layout = 'random'
 
     psf = descwl_shear_sims.psfs.make_ps_psf(
         rng=rng,
         dim=coadd_dim,
     )
+
+    layout = descwl_shear_sims.layout.Layout('random', coadd_dim, buff, SCALE)
+    wcs, bbox = make_coadd_dm_wcs(rng=rng, coadd_dim=coadd_dim)
+    layout.wcs = wcs
+    layout.bbox = bbox
 
     galaxy_catalog = descwl_shear_sims.galaxies.WLDeblendGalaxyCatalog(
         rng=rng,
@@ -351,6 +407,7 @@ def run_descwl_sim_and_piff(
         coadd_dim=coadd_dim,
         buff=buff,
     )
+
     star_catalog = descwl_shear_sims.stars.StarCatalog(
         rng=rng,
         layout=layout,
