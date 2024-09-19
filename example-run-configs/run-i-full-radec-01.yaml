@@ -1,0 +1,29 @@
+seed: 5939
+
+memory: "8G"
+
+filter: "i"
+
+sim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/psfws-nocosmics-skip-bright-01.yaml
+
+ra_range: [160, 165]
+dec_range: [-15, -10]
+
+# total number of pointings (and thus atmospheres)
+# npointings: 4000
+
+# render this many random CCDs per pointing
+ccds_per_pointing: 189
+
+# get observing conditions from here, including pointing
+opsim_db: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/baseline_v3.3_10yrs.db
+
+# holds id and filter only
+opsim_info: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/random-visits.fits
+
+# get objects from here, but with random ra/dec around pointing
+instcats: /astro/u/esheldon/imsim_outputs/instcats.txt
+allowed_include: ['star']
+
+# data from this run will be located in base_dir/{run_name}
+base_dir: /astro/u/esheldon/imsim_outputs/sim-runs
