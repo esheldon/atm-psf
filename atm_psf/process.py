@@ -280,6 +280,7 @@ def run_sim_and_piff(
             config=sim_config,
             instcat=instcat_out,
             ccds=ccds,
+            use_existing=use_existing,
         )
 
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
@@ -539,6 +540,7 @@ def run_sim_and_nnpsf(
             config=sim_config,
             instcat=instcat_out,
             ccds=ccds,
+            use_existing=use_existing,
         )
 
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
