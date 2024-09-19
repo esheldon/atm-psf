@@ -158,6 +158,11 @@ def read_data(args):
     import fitsio
     from tqdm import tqdm
 
+    columns = [
+        'ra', 'dec',
+        'am_T', 'am_e1', 'am_e2',
+        'am_psf_T', 'am_psf_e1', 'am_psf_e2',
+    ]
     nf = len(args.flist)
     dlist = []
     for f in tqdm(args.flist):
@@ -184,7 +189,10 @@ def read_data(args):
             else:
                 continue
 
-            dlist.append(tmp[w])
+            tmp = tmp[w]
+            if 'am_flags' in names:
+                tmp = eu.numpy_util.extract_fields(tmp, columns)
+            dlist.append(tmp)
 
     print(f'kept {len(dlist)}/{nf}')
     return eu.numpy_util.combine_arrlist(dlist)
