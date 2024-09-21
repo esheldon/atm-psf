@@ -4,14 +4,12 @@ SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 seed=$1
 image=$2
-truth=$3
-piff=$4
-sources=$5
+piff=$3
+sources=$4
 
 atm-psf-run-piff \
         --seed $seed \
         --image $image \
-        --truth $truth \
         --piff $piff \
         --sources $sources
 """
@@ -85,7 +83,7 @@ def get_file_data(directory):
     flist = []
     for root, dirs, files in os.walk(directory, topdown=False):
         for basename in files:
-            if 'eimage' in basename:
+            if 'simdata' in basename:
                 fname = os.path.join(root, basename)
                 fname = os.path.abspath(fname)
                 flist.append(fname)
@@ -94,13 +92,8 @@ def get_file_data(directory):
 
     dlist = []
     for image_fname in flist:
-        truth_fname = image_fname.replace('eimage-', 'truth-')
-        assert truth_fname != image_fname
-        if not os.path.exists(truth_fname):
-            raise RuntimeError(f'{truth_fname} not found')
-
         obsid = os.path.basename(os.path.dirname(image_fname))
-        d = {'image': image_fname, 'truth': truth_fname, 'obsid': obsid}
+        d = {'image': image_fname, 'obsid': obsid}
         dlist.append(d)
 
     return dlist
@@ -135,7 +128,7 @@ def main():
             piff_name = bname.replace(
                 '.fits', '.pkl'
             ).replace(
-                'eimage', 'piff'
+                'simdata', 'piff'
             )
             assert piff_name != bname
             sources_name = piff_name.replace('piff', 'sources')
@@ -166,7 +159,6 @@ def main():
                 'job_name': job_name,
                 'seed': get_seed(data['image']),
                 'image': data['image'],
-                'truth': data['truth'],
                 'piff': piff_file_local,
                 'sources': sources_file_local,
             }
