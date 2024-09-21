@@ -36,14 +36,13 @@ def main():
     else:
         run_config = {}
 
-    for i in range(10):
-        run_descwl_sim_and_piff(
-            rng=rng,
-            piff_file=args.piff,
-            source_file=args.sources,
-            run_config=run_config,
-            plot_dir=args.plot_dir,
-        )
+    run_descwl_sim_and_piff(
+        rng=rng,
+        piff_file=args.piff,
+        source_file=args.sources,
+        run_config=run_config,
+        plot_dir=args.plot_dir,
+    )
 
 
 if __name__ == '__main__':

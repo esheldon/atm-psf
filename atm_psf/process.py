@@ -348,7 +348,9 @@ def make_coadd_dm_wcs(rng, coadd_dim, config):
     ra = ra[0]
     dec = dec[0]
 
-    print(f'ra: {ra:.6g} dec: {dec:.6g}')
+    print(
+        f'ra: {ra:.6g} dec: {dec:.6g} angle: {angle_radians * 180/np.pi:.6g}'
+    )
 
     world_origin = galsim.CelestialCoord(
         ra=ra * galsim.degrees,

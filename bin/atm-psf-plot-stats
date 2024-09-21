@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--fname', required=True)
+    parser.add_argument('--output', required=True)
+    return parser.parse_args()
+
+
+def read_data(fname):
+    import fitsio
+    print('reading:', fname)
+    return fitsio.read(fname)
+
+
+def get_fwhm(data):
+    import ngmix
+    return ngmix.moments.T_to_fwhm(data['am_T'])
+
+
+def doplot(data, output):
+    import matplotlib.pyplot as mplt
+    import numpy as np
+    import esutil as eu
+
+    star, = np.where(data['star_select'])
+
+    fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(8, 8))
+    # axs[1, 1].axis('off')
+
+    size = 10
+
+    color1 = 'black'
+    color2 = 'red'
+    lcolor = 'blue'
+
+    ax = axs[0, 1]
+    ax.set(xlabel='x', ylabel='y')
+    ax.scatter(
+        data['x'],
+        data['y'],
+        marker='.',
+        s=size,
+        label='all',
+        c=color1,
+    )
+    ax.scatter(
+        data['x'][star],
+        data['y'][star],
+        marker='o',
+        s=size * 2,
+        label='star',
+        facecolors='none',
+        # edgecolors='C1',
+        edgecolors=color2,
+    )
+
+    ax = axs[1, 1]
+    ax.set(xlabel='RA', ylabel='DEC')
+    ax.scatter(
+        data['ra'],
+        data['dec'],
+        marker='.',
+        s=size,
+        label='all',
+        c=color1,
+    )
+    ax.scatter(
+        data['ra'][star],
+        data['dec'][star],
+        marker='o',
+        s=size * 2,
+        label='star',
+        facecolors='none',
+        # edgecolors='C1',
+        edgecolors=color2,
+    )
+
+    if 'am_T' in data.dtype.names:
+        fwhm = get_fwhm(data)
+        mn, std = eu.stat.sigma_clip(fwhm[star])
+
+        for row in (0, 1):
+            ax = axs[row, 0]
+
+            kw = {}
+            if row == 1:
+                nsigplot = 20
+                ylim = [mn - nsigplot * std, mn + nsigplot * std]
+                ylim[0] = min(ylim[0], fwhm[star].min())
+                ylim[1] = max(ylim[1], fwhm[star].max())
+                kw['ylim'] = ylim
+
+            ax.set(
+                xlabel='S/N', ylabel='FWHM [arcsec]', **kw
+            )
+            ax.set_xscale('log')
+
+            ax.axhline(mn, color=lcolor, zorder=0)
+            ax.scatter(
+                data['am_s2n'], fwhm, marker='.', s=size, label='all',
+                c=color1,
+            )
+            ax.scatter(
+                data['am_s2n'][star], fwhm[star],
+                marker='o',
+                facecolors='none',
+                edgecolors=color2,
+                s=size * 2,
+                label=f'star {star.size}',
+            )
+            if row == 0:
+                ax.legend()
+    else:
+        axs[0, 0].axis('off')
+        axs[1, 0].axis('off')
+        print('am_T not in file')
+
+    fig.tight_layout()
+
+    print('writing:', output)
+    fig.savefig(output, dpi=150)
+
+    mplt.close(fig)
+
+
+def main():
+    args = get_args()
+
+    data = read_data(args.fname)
+    # if 'am_T' not in data.dtype.names:
+    #     print('am_T not in file')
+    #     return
+
+    doplot(data, args.output)
+
+
+main()
