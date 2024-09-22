@@ -135,7 +135,11 @@ def main():
         bname = os.path.basename(data['image'])
 
         sources_name = bname.replace('simdata', 'sources')
-        piff_name = bname.replace('simdata', 'piff')
+        piff_name = bname.replace(
+            'simdata', 'piff'
+        ).replace(
+            '.fits', '.pkl',
+        )
         assert sources_name != bname
 
         sources_file_local = os.path.join(
