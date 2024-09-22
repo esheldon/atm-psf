@@ -114,10 +114,11 @@ def main():
 
     icondor = 0
     condorf = None
+    this_njobs = 0
 
     for i, data in enumerate(dlist):
 
-        if condorf is None or (i+1) % args.nper == 0:
+        if condorf is None or this_njobs == args.nper:
             if condorf is not None:
                 condorf.close()
 
@@ -129,6 +130,7 @@ def main():
 
             write_condor_head(condorf)
             icondor += 1
+            this_njobs = 0
 
         bname = os.path.basename(data['image'])
 
@@ -168,6 +170,7 @@ def main():
             'sources': sources_file_local,
         }
         condorf.write(jobtext)
+        this_njobs += 1
 
 
 def get_seed(fname):
