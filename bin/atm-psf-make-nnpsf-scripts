@@ -48,16 +48,10 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dir', required=True)
+    parser.add_argument('--simdir', required=True)
+    parser.add_argument('--outdir', required=True)
     parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
-
-
-def load_config(fname):
-    import yaml
-    with open(fname) as fobj:
-        data = yaml.safe_load(fobj)
-    return data
 
 
 def write_script(run_dir):
@@ -110,14 +104,14 @@ def main():
 
     args = get_args()
 
-    dlist = get_file_data(args.dir)
+    dlist = get_file_data(args.simdir)
     print('found:', len(dlist), 'files')
 
-    write_script(args.dir)
-    condor_file = os.path.join(args.dir, 'submit-nnpsf.condor')
-    print('opening:', condor_file)
+    makedir(args.outdir)
 
-    run_name = os.path.basename(args.dir)
+    write_script(args.outdir)
+    condor_file = os.path.join(args.outdir, 'submit-nnpsf.condor')
+    print('opening:', condor_file)
 
     with open(condor_file, 'w') as condorf:
 
@@ -125,26 +119,31 @@ def main():
 
         for i, data in enumerate(dlist):
 
-            outdir = os.path.dirname(data['image'])
             bname = os.path.basename(data['image'])
 
             sources_name = bname.replace('simdata', 'nnpsf')
             assert sources_name != bname
 
-            sources_file = os.path.join(outdir, sources_name)
             sources_file_local = os.path.join(
-                data['obsid'], os.path.basename(sources_name),
+                data['obsid'],
+                sources_name,
+            )
+
+            sources_file = os.path.join(
+                args.outdir,
+                sources_file_local,
             )
 
             if args.skip_existing and os.path.exists(sources_file):
                 print('skipping existing:', sources_file)
                 continue
 
-            ipad = '%05d' % i
+            job_name = sources_name.replace(
+                '.fits', ''
+            ).replace(
+                'sources-', ''
+            )
 
-            # use relative dir so directory is relocatable
-
-            job_name = f'{run_name}-{ipad}'
             jobtext = JOB_TEMPLATE % {
                 'job_name': job_name,
                 'seed': get_seed(data['image']),
