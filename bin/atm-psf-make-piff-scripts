@@ -46,6 +46,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--simdir', required=True)
     parser.add_argument('--outdir', required=True)
+    parser.add_argument('--nper', type=int, default=1000,
+                        help='number of jobs per condor file')
     parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
 
@@ -74,6 +76,7 @@ def write_condor_head(condorf):
 
 
 def get_file_data(directory):
+    import random
     import os
 
     flist = []
@@ -92,6 +95,8 @@ def get_file_data(directory):
         d = {'image': image_fname, 'obsid': obsid}
         dlist.append(d)
 
+    # shuffle so not writing into same directory all the time
+    random.shuffle(dlist)
     return dlist
 
 
@@ -106,53 +111,63 @@ def main():
     makedir(args.outdir)
 
     write_script(args.outdir)
-    condor_file = os.path.join(args.outdir, 'submit-piff.condor')
-    print('opening:', condor_file)
 
-    with open(condor_file, 'w') as condorf:
+    icondor = 0
+    condorf = None
 
-        write_condor_head(condorf)
+    for i, data in enumerate(dlist):
 
-        for i, data in enumerate(dlist):
+        if condorf is None or (i+1) % args.nper == 0:
+            if condorf is not None:
+                condorf.close()
 
-            bname = os.path.basename(data['image'])
-
-            sources_name = bname.replace('simdata', 'sources')
-            piff_name = bname.replace('simdata', 'piff')
-            assert sources_name != bname
-
-            sources_file_local = os.path.join(
-                data['obsid'],
-                sources_name,
+            condor_file = os.path.join(
+                args.outdir, f'submit-piff{icondor:04d}.condor'
             )
-            piff_file_local = os.path.join(
-                data['obsid'],
-                piff_name,
-            )
+            print('opening:', condor_file)
+            condorf = open(condor_file, 'w')
 
-            sources_file = os.path.join(
-                args.outdir,
-                sources_file_local,
-            )
+            write_condor_head(condorf)
+            icondor += 1
 
-            if args.skip_existing and os.path.exists(sources_file):
-                print('skipping existing:', sources_file)
-                continue
+        bname = os.path.basename(data['image'])
 
-            job_name = sources_name.replace(
-                '.fits', ''
-            ).replace(
-                'sources-', ''
-            )
+        sources_name = bname.replace('simdata', 'sources')
+        piff_name = bname.replace('simdata', 'piff')
+        assert sources_name != bname
 
-            jobtext = JOB_TEMPLATE % {
-                'job_name': job_name,
-                'seed': get_seed(data['image']),
-                'image': data['image'],
-                'piff': piff_file_local,
-                'sources': sources_file_local,
-            }
-            condorf.write(jobtext)
+        sources_file_local = os.path.join(
+            data['obsid'],
+            sources_name,
+        )
+        piff_file_local = os.path.join(
+            data['obsid'],
+            piff_name,
+        )
+
+        sources_file = os.path.join(
+            args.outdir,
+            sources_file_local,
+        )
+
+        if args.skip_existing and os.path.exists(sources_file):
+            print('skipping existing:', sources_file)
+            continue
+
+        job_name = sources_name.replace(
+            '.fits', ''
+        ).replace(
+            'sources-', ''
+        )
+
+        jobtext = JOB_TEMPLATE % {
+            'job_name': job_name,
+            'seed': get_seed(data['image']),
+            'image': data['image'],
+            'piff': piff_file_local,
+            'sources': sources_file_local,
+        }
+        condorf.write(jobtext)
 
 
 def get_seed(fname):
