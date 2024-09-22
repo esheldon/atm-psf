@@ -7,11 +7,13 @@ image=$2
 piff=$3
 sources=$4
 
+export OMP_NUM_THREADS=1
+
 atm-psf-run-piff \
-        --seed $seed \
-        --image $image \
-        --piff $piff \
-        --sources $sources
+    --seed $seed \
+    --image $image \
+    --piff $piff \
+    --sources $sources
 """
 
 CONDOR_HEAD = r"""
@@ -20,7 +22,7 @@ Universe = vanilla
 Notification = Never
 
 # Run this exe with these args
-Executable = run.sh
+Executable = run-piff.sh
 
 request_memory = 2G
 
@@ -34,7 +36,7 @@ kill_sig = SIGINT
 
 JOB_TEMPLATE = r"""
 +job_name = "%(job_name)s"
-arguments = %(seed)d %(image)s %(truth)s %(piff)s %(sources)s
+arguments = %(seed)d %(image)s %(piff)s %(sources)s
 Queue
 """
 
@@ -42,22 +44,16 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('config')
+    parser.add_argument('--simdir', required=True)
+    parser.add_argument('--outdir', required=True)
     parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
-
-
-def load_config(fname):
-    import yaml
-    with open(fname) as fobj:
-        data = yaml.safe_load(fobj)
-    return data
 
 
 def write_script(run_dir):
     import os
 
-    outfile = f'{run_dir}/run.sh'
+    outfile = f'{run_dir}/run-piff.sh'
     print('writing:', outfile)
 
     with open(outfile, 'w') as fobj:
@@ -73,7 +69,7 @@ def makedir(d):
         os.makedirs(d)
 
 
-def write_condor_head(condorf, config):
+def write_condor_head(condorf):
     condorf.write(CONDOR_HEAD)
 
 
@@ -104,57 +100,51 @@ def main():
 
     args = get_args()
 
-    config = load_config(args.config)
+    dlist = get_file_data(args.simdir)
+    print('found:', len(dlist), 'simdata files')
 
-    dlist = get_file_data(config['sim_dir'])
-    print('found:', len(dlist), 'eimage files')
+    makedir(args.outdir)
 
-    run_dir = os.path.join(config['base_dir'], config['run'])
-    makedir(run_dir)
-
-    write_script(run_dir)
-    condor_file = os.path.join(run_dir, 'submit.condor')
+    write_script(args.outdir)
+    condor_file = os.path.join(args.outdir, 'submit-piff.condor')
     print('opening:', condor_file)
 
     with open(condor_file, 'w') as condorf:
 
-        write_condor_head(condorf, config)
+        write_condor_head(condorf)
 
         for i, data in enumerate(dlist):
 
-            outdir = os.path.join(run_dir, data['obsid'])
-
             bname = os.path.basename(data['image'])
-            piff_name = bname.replace(
-                '.fits', '.pkl'
-            ).replace(
-                'simdata', 'piff'
-            )
-            assert piff_name != bname
-            sources_name = piff_name.replace('piff', 'sources')
-            sources_name = piff_name.replace(
-                'piff', 'source'
-            ).replace(
-                '.pkl', '.fits',
-            )
-            assert sources_name != piff_name
 
-            piff_file = os.path.join(outdir, piff_name)
-            if args.skip_existing and os.path.exists(piff_file):
-                print('skipping existing:', piff_file)
+            sources_name = bname.replace('simdata', 'sources')
+            piff_name = bname.replace('simdata', 'piff')
+            assert sources_name != bname
+
+            sources_file_local = os.path.join(
+                data['obsid'],
+                sources_name,
+            )
+            piff_file_local = os.path.join(
+                data['obsid'],
+                piff_name,
+            )
+
+            sources_file = os.path.join(
+                args.outdir,
+                sources_file_local,
+            )
+
+            if args.skip_existing and os.path.exists(sources_file):
+                print('skipping existing:', sources_file)
                 continue
 
-            ipad = '%05d' % i
-
-            # use relative dir so directory is relocatable
-            piff_file_local = os.path.join(
-                data['obsid'], os.path.basename(piff_name),
-            )
-            sources_file_local = os.path.join(
-                data['obsid'], os.path.basename(sources_name),
+            job_name = sources_name.replace(
+                '.fits', ''
+            ).replace(
+                'sources-', ''
             )
 
-            job_name = f'{config["run"]}-{ipad}'
             jobtext = JOB_TEMPLATE % {
                 'job_name': job_name,
                 'seed': get_seed(data['image']),
