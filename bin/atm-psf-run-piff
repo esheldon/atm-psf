@@ -9,12 +9,12 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, required=True)
-    parser.add_argument('--fname', required=True)
+    parser.add_argument('--image', required=True)
     parser.add_argument('--sources', required=True)
     parser.add_argument('--piff', required=True)
     parser.add_argument(
         '--run-config',
-        help='optional run config, can have piff_config entry'
+        help='optional run config, can have piff entry'
     )
     parser.add_argument('--plot-dir')
     return parser.parse_args()
@@ -31,7 +31,7 @@ def main():
 
     process_image_with_piff(
         rng=rng,
-        fname=args.fname,
+        fname=args.image,
         piff_file=args.piff,
         source_file=args.sources,
         piff_config=run_config.get('piff', None),
