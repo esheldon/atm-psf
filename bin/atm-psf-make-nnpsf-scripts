@@ -5,18 +5,19 @@ seed=$1
 image=$2
 sources=$3
 
-image_plot=${sources/.fits/-image.jpg}
-valid_plot=${sources/.fits/-valid.jpg}
-stats_plot=${sources/.fits/-stats.png}
+# image_plot=${sources/.fits/-image.jpg}
+# valid_plot=${sources/.fits/-valid.jpg}
+# stats_plot=${sources/.fits/-stats.png}
+#    --validation-plot ${valid_plot} \
+#    --stats-plot ${stats_plot} \
+#    --image-plot ${image_plot} \
 
 export OMP_NUM_THREADS=1
 
 nnpsf-fit-image \
+    %(extra)s \
     --seed ${seed} \
     --image ${image} \
-    --validation-plot ${valid_plot} \
-    --stats-plot ${stats_plot} \
-    --image-plot ${image_plot} \
     --output ${sources}
 """
 
@@ -50,18 +51,37 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--simdir', required=True)
     parser.add_argument('--outdir', required=True)
+    parser.add_argument('--nper', type=int, default=1000,
+                        help='number of jobs per condor file')
+    parser.add_argument('--fit-config')
     parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
 
 
-def write_script(run_dir):
+def copy_file(path, run_dir):
+    import shutil
+
+    try:
+        print(f'copying {path} -> {run_dir}')
+        shutil.copy(path, run_dir)
+    except shutil.SameFileError:
+        pass
+
+
+def write_script(run_dir, fit_config):
     import os
+
+    if fit_config is not None:
+        bname = os.path.basename(fit_config)
+        extra = f'--fit-config {bname}'
+    else:
+        extra = ''
 
     outfile = f'{run_dir}/run-nnpsf.sh'
     print('writing:', outfile)
 
     with open(outfile, 'w') as fobj:
-        fobj.write(SCRIPT)
+        fobj.write(SCRIPT % {'extra': extra})
 
     os.system(f'chmod 755 {outfile}')
 
@@ -78,6 +98,7 @@ def write_condor_head(condorf):
 
 
 def get_file_data(directory):
+    import random
     import os
 
     flist = []
@@ -96,6 +117,8 @@ def get_file_data(directory):
         d = {'image': image_fname, 'obsid': obsid}
         dlist.append(d)
 
+    # shuffle so not writing into same directory all the time
+    random.shuffle(dlist)
     return dlist
 
 
@@ -109,48 +132,67 @@ def main():
 
     makedir(args.outdir)
 
-    write_script(args.outdir)
+    if args.fit_config is not None:
+        copy_file(args.fit_config, args.outdir)
+
+    write_script(args.outdir, args.fit_config)
     condor_file = os.path.join(args.outdir, 'submit-nnpsf.condor')
     print('opening:', condor_file)
 
-    with open(condor_file, 'w') as condorf:
+    icondor = 0
+    condorf = None
+    this_njobs = 0
 
-        write_condor_head(condorf)
+    for i, data in enumerate(dlist):
 
-        for i, data in enumerate(dlist):
+        if condorf is None or this_njobs == args.nper:
+            if condorf is not None:
+                condorf.close()
 
-            bname = os.path.basename(data['image'])
-
-            sources_name = bname.replace('simdata', 'nnpsf')
-            assert sources_name != bname
-
-            sources_file_local = os.path.join(
-                data['obsid'],
-                sources_name,
+            condor_file = os.path.join(
+                args.outdir, f'submit-nnpsf{icondor:04d}.condor'
             )
+            print('opening:', condor_file)
+            condorf = open(condor_file, 'w')
 
-            sources_file = os.path.join(
-                args.outdir,
-                sources_file_local,
-            )
+            write_condor_head(condorf)
+            icondor += 1
+            this_njobs = 0
 
-            if args.skip_existing and os.path.exists(sources_file):
-                print('skipping existing:', sources_file)
-                continue
+        bname = os.path.basename(data['image'])
 
-            job_name = sources_name.replace(
-                '.fits', ''
-            ).replace(
-                'sources-', ''
-            )
+        sources_name = bname.replace('simdata', 'nnpsf')
+        assert sources_name != bname
 
-            jobtext = JOB_TEMPLATE % {
-                'job_name': job_name,
-                'seed': get_seed(data['image']),
-                'image': data['image'],
-                'sources': sources_file_local,
-            }
-            condorf.write(jobtext)
+        sources_file_local = os.path.join(
+            data['obsid'],
+            sources_name,
+        )
+
+        sources_file = os.path.join(
+            args.outdir,
+            sources_file_local,
+        )
+
+        if args.skip_existing and os.path.exists(sources_file):
+            print('skipping existing:', sources_file)
+            continue
+
+        job_name = sources_name.replace(
+            '.fits', ''
+        ).replace(
+            'sources-', ''
+        )
+
+        jobtext = JOB_TEMPLATE % {
+            'job_name': job_name,
+            'seed': get_seed(data['image']),
+            'image': data['image'],
+            'sources': sources_file_local,
+        }
+        condorf.write(jobtext)
+
+        this_njobs += 1
 
 
 def get_seed(fname):
