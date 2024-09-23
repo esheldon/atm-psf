@@ -152,49 +152,78 @@ def _plot_single(ax, rho, color, marker, offset=0.):
     return ax.errorbar(-meanr, xip, yerr=sig, color=color, marker=marker)
 
 
-def read_data(args):
+def get_flist(fname):
+    flist = []
+    print('reading files from:', fname)
+    with open(fname) as fobj:
+        for line in fobj:
+            flist.append(line.strip())
+    return flist
+
+
+def read_one(inputs):
     import numpy as np
     import esutil as eu
     import fitsio
-    from tqdm import tqdm
+
+    fname, nstar_min = inputs
 
     columns = [
         'ra', 'dec',
         'am_T', 'am_e1', 'am_e2',
         'am_psf_T', 'am_psf_e1', 'am_psf_e2',
     ]
-    nf = len(args.flist)
-    dlist = []
-    for f in tqdm(args.flist):
-        tmp = fitsio.read(f)
-        n = tmp['star_select'].sum()
-        if n >= args.nstar_min:
 
-            names = tmp.dtype.names
-            if 'am_flags' in names:
-                w, = np.where(
-                    tmp['reserved']
-                    # tmp['star_select']
-                    # & (~tmp['reserved'])
-                    & (tmp['am_flags'] == 0)
-                    & (tmp['am_psf_flags'] == 0)
-                )
-            elif 'flag_data' in names:
-                w, = np.where(
-                    tmp['reserve']
-                    # tmp['star_select']
-                    & (tmp['flag_data'] == 0)
-                    & (tmp['flag_model'] == 0)
-                )
-            else:
-                continue
+    data = fitsio.read(fname)
+    n = data['star_select'].sum()
+    if 'am_flags' in data.dtype.names and n >= nstar_min:
 
-            tmp = tmp[w]
-            if 'am_flags' in names:
-                tmp = eu.numpy_util.extract_fields(tmp, columns)
-            dlist.append(tmp)
+        w, = np.where(
+            data['reserved']
+            # data['star_select']
+            # & (~data['reserved'])
+            & (data['am_flags'] == 0)
+            & (data['am_psf_flags'] == 0)
+        )
 
-    print(f'kept {len(dlist)}/{nf}')
+        data = data[w]
+
+        if 'am_flags' in data.dtype.names:
+            data = eu.numpy_util.extract_fields(data, columns)
+    else:
+        data = None
+
+    return data
+
+
+def read_data(args):
+    import esutil as eu
+    from tqdm import tqdm
+    import multiprocessing
+
+    flist = get_flist(args.flist)
+
+    if args.nproc != 1:
+        inputs = [
+            (fname, args.nstar_min) for fname in flist
+        ]
+        pool = multiprocessing.Pool(args.nproc)
+
+        dlist = []
+        for data in tqdm(
+            pool.imap_unordered(read_one, inputs),
+            total=len(inputs)
+        ):
+            if data is not None:
+                dlist.append(data)
+
+    else:
+        for f in tqdm(flist):
+            data = read_one((f, args.nstar_min))
+            if data is not None:
+                dlist.append(data)
+
+    print(f'kept {len(dlist)}/{len(flist)}')
     return eu.numpy_util.combine_arrlist(dlist)
 
 
@@ -202,10 +231,11 @@ def get_args():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('flist', nargs='+')
+    parser.add_argument('--flist', required=True,
+                        help='file holding list of inputs')
     parser.add_argument('--plot-file', required=True)
     parser.add_argument('--nstar-min', type=int, default=0)
-    parser.add_argument('--nsig', type=int)
+    parser.add_argument('--nproc', type=int, default=1)
     return parser.parse_args()
 
 
