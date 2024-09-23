@@ -234,8 +234,15 @@ def get_args():
     parser.add_argument('--flist', required=True,
                         help='file holding list of inputs')
     parser.add_argument('--plot-file', required=True)
-    parser.add_argument('--nstar-min', type=int, default=0)
-    parser.add_argument('--nproc', type=int, default=1)
+    parser.add_argument(
+        '--nstar-min',
+        type=int, default=50,
+        help='only use images with at least this many stars, default 50'
+    )
+    parser.add_argument(
+        '--nproc', type=int, default=1,
+        help='number of processes to use, default 1'
+    )
     return parser.parse_args()
 
 
