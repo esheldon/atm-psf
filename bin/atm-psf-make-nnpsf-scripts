@@ -1,16 +1,33 @@
 #!/usr/bin/env python
 
-SCRIPT = r"""#!/usr/bin/bash
+SCRIPT_WITH_PLOTS = r"""#!/usr/bin/bash
 seed=$1
 image=$2
 sources=$3
 
-# image_plot=${sources/.fits/-image.jpg}
-# valid_plot=${sources/.fits/-valid.jpg}
-# stats_plot=${sources/.fits/-stats.png}
-#    --validation-plot ${valid_plot} \
-#    --stats-plot ${stats_plot} \
-#    --image-plot ${image_plot} \
+image_plot=${sources/.fits/-image.jpg}
+valid_plot=${sources/.fits/-valid.jpg}
+stats_plot=${sources/.fits/-stats.png}
+
+export OMP_NUM_THREADS=1
+
+mkdir -v -p $(dirname $sources)
+
+nnpsf-fit-image \
+    %(extra)s \
+    --validation-plot ${valid_plot} \
+    --stats-plot ${stats_plot} \
+    --image-plot ${image_plot} \
+    --seed ${seed} \
+    --image ${image} \
+    --output ${sources}
+"""
+
+
+SCRIPT = r"""#!/usr/bin/bash
+seed=$1
+image=$2
+sources=$3
 
 export OMP_NUM_THREADS=1
 
@@ -57,6 +74,7 @@ def get_args():
                         help='number of jobs per condor file')
     parser.add_argument('--fit-config')
     parser.add_argument('--skip-existing', action='store_true')
+    parser.add_argument('--doplots', action='store_true')
     return parser.parse_args()
 
 
@@ -70,7 +88,7 @@ def copy_file(path, run_dir):
         pass
 
 
-def write_script(run_dir, fit_config):
+def write_script(run_dir, fit_config, doplots):
     import os
 
     if fit_config is not None:
@@ -82,8 +100,13 @@ def write_script(run_dir, fit_config):
     outfile = f'{run_dir}/run-nnpsf.sh'
     print('writing:', outfile)
 
+    if doplots:
+        script = SCRIPT_WITH_PLOTS
+    else:
+        script = SCRIPT
+
     with open(outfile, 'w') as fobj:
-        fobj.write(SCRIPT % {'extra': extra})
+        fobj.write(script % {'extra': extra})
 
     os.system(f'chmod 755 {outfile}')
 
@@ -137,7 +160,11 @@ def main():
     if args.fit_config is not None:
         copy_file(args.fit_config, args.outdir)
 
-    write_script(args.outdir, args.fit_config)
+    write_script(
+        run_dir=args.outdir,
+        fit_config=args.fit_config,
+        doplots=args.doplots,
+    )
     condor_file = os.path.join(args.outdir, 'submit-nnpsf.condor')
     print('opening:', condor_file)
 
