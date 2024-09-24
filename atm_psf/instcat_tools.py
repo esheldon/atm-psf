@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 # radius for disc of random points
 INSTCAT_RADIUS = 2.1
 
@@ -617,6 +619,68 @@ def replace_instcat_streamed(
         ds.pop()
 
 
+def make_instcat_from_opsim_data(
+    rng,
+    star_file,
+    opsim_data,
+    output_fname,
+    selector=None,
+):
+    """
+    Replace the instacat metadata and positions according to the input opsim
+    data.  Normally only stars are read from the instcat using
+    allowed_include=['star'], galaxies should be provided through the
+    galaxy_file option and limited to the CCDs associated with the wcss input
+
+    The ra/dec for stars are generated uniformly in a disc centered at the
+    boresight from the opsim data, while galaxies get limited to CCDs
+
+    One can limit the objects in the output file with the input selector
+    function and/or by limiting included source files with a list
+    of strings for matching with allowed_include
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    star_file: str
+        The input star file
+    opsim_data: mapping
+        E.g. a sqlite.Row read from an opsim database.
+    output_fname: str
+        Name for new output instcat file
+    selector: function
+        Evaluates True for objects to be kept, e.g.
+            f = lambda d: d['magnorm'] > 17
+    """
+    import esutil as eu
+    import numpy as np
+
+    assert output_fname != star_file
+
+    print('writing new instcat:', output_fname)
+    eu.ostools.makedirs_fromfile(output_fname, allow_fail=True)
+
+    with open(output_fname, 'w') as fout:
+        _write_instcat_meta(fout=fout, meta=opsim_data)
+
+        star_data = _read_data(star_file)
+        ra = opsim_data['rightascension']
+        dec = opsim_data['declination']
+
+        print(f'matching within {INSTCAT_RADIUS:.3g} degrees')
+        dist = eu.coords.sphdist(
+            ra1=ra, dec1=dec,
+            ra2=star_data['ra'], dec2=star_data['dec2'],
+        )
+        w, = np.where(dist < INSTCAT_RADIUS)
+        print(f'kept {w.size} / {star_data.size} stars')
+        if w.size == 0:
+            raise RuntimeError('no matches found')
+
+        _write_instcat_lines_from_array(fout=fout, data=star_data[w])
+
+
 def _copy_objects(
     fout, fname, selector, allowed_include, sed, radec_gen,
     dup=1,
@@ -996,3 +1060,10 @@ def path_split(fname):
 #             line = ' '.join(line)
 #             fobj.write(line)
 #             fobj.write('\n')
+
+
+@lru_cache
+def _read_data(fname):
+    import fitsio
+    print('reading:', fname)
+    return fitsio.read(fname)
