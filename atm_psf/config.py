@@ -42,4 +42,11 @@ def load_sim_config(fname=None):
     config = get_default_sim_config()
     config.update(data)
 
+    if 'options' not in config['psf']:
+        config['psf']['options'] = {}
+
+    if (config['psf']['type'] == 'imsim-atmpsf'
+            and 'nproc' not in config['psf']['options']):
+        config['psf']['options']['nproc'] = 1
+
     return config

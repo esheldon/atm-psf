@@ -108,10 +108,13 @@ def get_ngmix_output_struct():
         ('am_e2_err', 'f4'),
         ('am_T', 'f4'),
         ('am_T_err', 'f4'),
+        ('am_rho4', 'f4'),
+        ('am_rho4_err', 'f4'),
         ('am_psf_flags', 'i4'),
         ('am_psf_e1', 'f8'),
         ('am_psf_e2', 'f8'),
         ('am_psf_T', 'f4'),
+        ('am_psf_rho4', 'f4'),
     ]
     st = np.zeros(1, dtype=dtype)
 
@@ -136,11 +139,14 @@ def get_ngmix_output(res, pres):
         st['am_e2_err'] = res['e_err'][1]
         st['am_T'] = res['T']
         st['am_T_err'] = res['T_err']
+        st['am_rho4'] = res['rho4']
+        st['am_rho4_err'] = res['rho4_err']
 
     if pres['flags'] == 0:
         st['am_psf_e1'] = pres['e'][0]
         st['am_psf_e2'] = pres['e'][1]
         st['am_psf_T'] = pres['T']
+        st['am_psf_rho4'] = pres['rho4']
 
     if pres['flags'] != 0:
         pass

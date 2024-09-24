@@ -66,6 +66,7 @@ class DetectMeasurer(object):
             config=meas_config,
             schema=self._schema,
         )
+        afw_table.CoordKey.addErrorFields(self._schema)
 
         detection_config = SourceDetectionConfig()
         detection_config.reEstimateBackground = False

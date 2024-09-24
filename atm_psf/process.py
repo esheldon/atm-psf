@@ -20,19 +20,29 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
     logger.info(f'loading opsim data from {instcat}')
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
 
-    logger.info(f'making {config["psf"]["type"]} PSF')
+    psf_type = config['psf']['type']
 
-    if config['psf']['type'] == 'psfws':
+    logger.info(f'making {psf_type} PSF')
+
+    if psf_type == 'psfws':
         psf = montauk.psfws.make_psfws_psf(
             obsdata=obsdata,
             gs_rng=gs_rng,
             psf_config=config['psf']['options'],
         )
-    else:
+    elif psf_type == 'imsim-atmpsf':
+        psf = montauk.imsim_atmpsf.make_imsim_atmpsf(
+            obsdata=obsdata,
+            gs_rng=gs_rng,
+            psf_config=config['psf']['options'],
+        )
+    elif psf_type == 'fixed':
         psf = montauk.fixed_psf.make_fixed_psf(
-            type=config['psf']['type'],
+            type=psf_type,
             options=config['psf']['options'],
         )
+    else:
+        raise ValueError(f'bad psf type: {psf_type}')
 
     sky_model = imsim.SkyModel(
         exptime=obsdata['exptime'],
@@ -270,6 +280,7 @@ def run_sim_and_piff(
             config=sim_config,
             instcat=instcat_out,
             ccds=ccds,
+            use_existing=use_existing,
         )
 
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
@@ -302,6 +313,148 @@ def run_sim_and_piff(
         )
         if cleanup:
             _remove_file(fname)
+
+
+def make_coadd_dm_wcs(rng, coadd_dim, config):
+    """
+    make a coadd wcs, using the default world origin.  Create
+    a bbox within larger box
+
+    Parameters
+    ----------
+    coadd_origin: int
+        Origin in pixels of the coadd, can be within a larger
+        pixel grid e.g. tract surrounding the patch
+
+    Returns
+    --------
+    A galsim wcs, see make_wcs for return type
+    """
+    import numpy as np
+    import galsim
+    from descwl_shear_sims.constants import SCALE
+    from descwl_shear_sims.wcs import make_wcs, make_dm_wcs
+    from lsst.geom import Point2I, Extent2I, Box2I
+    from esutil.coords import randsphere
+
+    angle_radians = rng.uniform(low=0.0, high=2 * np.pi)
+
+    ra_range = config.get('ra_range', [10, 120])
+    dec_range = config.get('dec_range', [-20, 20])
+    print('ra_range:', ra_range)
+    print('dec_range:', dec_range)
+
+    ra, dec = randsphere(1, ra_range=ra_range, dec_range=dec_range)
+    ra = ra[0]
+    dec = dec[0]
+
+    print(
+        f'ra: {ra:.6g} dec: {dec:.6g} angle: {angle_radians * 180/np.pi:.6g}'
+    )
+
+    world_origin = galsim.CelestialCoord(
+        ra=ra * galsim.degrees,
+        dec=dec * galsim.degrees,
+    )
+
+    coadd_bbox = Box2I(Point2I(0, 0), Extent2I(coadd_dim))
+
+    # center the coadd wcs in the bigger coord system
+    coadd_origin = coadd_bbox.getCenter()
+
+    gs_coadd_origin = galsim.PositionD(
+        x=coadd_origin.x,
+        y=coadd_origin.y,
+    )
+    coadd_wcs = make_dm_wcs(
+        make_wcs(
+            scale=SCALE,
+            image_origin=gs_coadd_origin,
+            world_origin=world_origin,
+            theta=angle_radians,
+        )
+    )
+    return coadd_wcs, coadd_bbox
+
+
+def run_descwl_sim_and_piff(
+    rng,
+    piff_file,
+    source_file,
+    run_config,
+    plot_dir=None,
+):
+    """
+    Run the simulation using galsim and run piff on the image
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    run_config: dict
+        The run configuration
+    """
+    import descwl_shear_sims
+    from descwl_shear_sims.constants import SCALE
+
+    import numpy as np
+
+    # se_dim will be coadd_dim+10 for no rotations
+    coadd_dim = 4086
+    buff = 50
+
+    psf = descwl_shear_sims.psfs.make_ps_psf(
+        rng=rng,
+        dim=coadd_dim,
+    )
+
+    layout = descwl_shear_sims.layout.Layout('random', coadd_dim, buff, SCALE)
+    wcs, bbox = make_coadd_dm_wcs(
+        rng=rng, coadd_dim=coadd_dim, config=run_config
+    )
+    layout.wcs = wcs
+    layout.bbox = bbox
+
+    galaxy_catalog = descwl_shear_sims.galaxies.WLDeblendGalaxyCatalog(
+        rng=rng,
+        layout=layout,
+        coadd_dim=coadd_dim,
+        buff=buff,
+    )
+
+    star_catalog = descwl_shear_sims.stars.StarCatalog(
+        rng=rng,
+        layout=layout,
+        coadd_dim=coadd_dim,
+        min_density=2,
+        max_density=10,
+        buff=buff,
+    )
+    print('density:', star_catalog.density)
+
+    sim_data = descwl_shear_sims.sim.make_sim(
+        rng=rng,
+        galaxy_catalog=galaxy_catalog,
+        coadd_dim=coadd_dim,
+        psf=psf,
+        g1=0.0, g2=0.0,
+        star_catalog=star_catalog,
+        draw_gals=False,
+        draw_bright=False,
+        rotate=True,
+        # noise of single band image
+        noise_factor=np.sqrt(100),
+    )
+
+    exp = sim_data['band_data']['i'][0]
+    process_image_with_piff(
+        rng=rng,
+        exp=exp,
+        piff_file=piff_file,
+        source_file=source_file,
+        piff_config=run_config.get('piff', None),
+        plot_dir=plot_dir,
+    )
 
 
 def run_sim_and_nnpsf(
@@ -389,6 +542,7 @@ def run_sim_and_nnpsf(
             config=sim_config,
             instcat=instcat_out,
             ccds=ccds,
+            use_existing=use_existing,
         )
 
     obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
@@ -552,9 +706,10 @@ def run_galsim(imsim_config, instcat, ccds):
 
 def process_image_with_piff(
     rng,
-    fname,
     piff_file,
     source_file,
+    exp=None,
+    fname=None,
     piff_config=None,
     plot_dir=None,
 ):
@@ -597,14 +752,22 @@ def process_image_with_piff(
     piff_config = pifftools.get_piff_config(piff_config)
     logger.info('\n' + pformat(piff_config))
 
-    alldata = {'file': fname}
+    alldata = {}
+    if exp is not None:
+        instcat_meta = {}
+        hdr = {'airmass': 1.0, 'band': exp.getFilter().bandLabel}
+    elif fname is not None:
+        alldata['file'] = fname
 
-    # loads the image, subtractes the sky using sky_level in truth catalog,
-    # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
-    # detection
-    # rng is only used for noise in the fixed gaussian psf
-    exp, hdr = exposures.fits_to_exposure(fname=fname, rng=rng)
-    instcat_meta = {key: hdr[key] for key in hdr.keys()}
+        # loads the image, subtractes the sky using sky_level in truth catalog,
+        # loads WCS from the header, and adds a fake PSF with fwhm=0.8 for
+        # detection
+        # rng is only used for noise in the fixed gaussian psf
+        exp, hdr = exposures.fits_to_exposure(fname=fname, rng=rng)
+
+        instcat_meta = {key: hdr[key] for key in hdr.keys()}
+    else:
+        raise RuntimeError('send fname= or exp=')
 
     detmeas = measure.DetectMeasurer(exposure=exp, rng=rng)
     detmeas.detect()
@@ -617,7 +780,6 @@ def process_image_with_piff(
 
     alldata['sources'] = sources
     alldata['star_select'] = star_select
-    # alldata['airmass'] = hdr['AMSTART']
     alldata['airmass'] = hdr['airmass']
     alldata['filter'] = hdr['band']
     alldata['instcat_meta'] = instcat_meta

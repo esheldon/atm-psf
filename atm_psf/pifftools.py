@@ -194,10 +194,11 @@ def run_stats(config, piffResult, stars, stats_dir):
     for istat, stat_obj in enumerate(stats_list):
         stat_obj.compute(piffResult, stars)
         fig, ax = stat_obj.plot()
+        fig.tight_layout()
         fname = f'stat-{config.useCoordinates}-{istat:02d}.png'
         fname = f'{stats_dir}/{fname}'
         print('writing:', fname)
-        fig.savefig(fname, dpi=150)
+        fig.savefig(fname, dpi=100)
 
 
 def plot_stats(stars, plot_dir):

@@ -68,18 +68,14 @@ def write_script(args, config, run_dir):
     import os
 
     extra = []
+
+    if args.use_existing:
+        extra.append('--use-existing')
+
     if args.run_piff:
         command = 'atm-psf-run-sim-and-piff'
         if args.nocleanup:
             extra.append('--nocleanup')
-        if args.use_existing:
-            extra.append('--use-existing')
-    elif args.run_piff:
-        command = 'atm-psf-run-sim-and-nnpsf'
-        if args.nocleanup:
-            extra.append('--nocleanup')
-        if args.use_existing:
-            extra.append('--use-existing')
     else:
         command = 'atm-psf-run-sim'
 
