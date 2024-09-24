@@ -69,8 +69,6 @@ def replace_instcat_meta(rng, opsim_data, meta=None):
     """
     if meta is None:
         new_meta = {}
-        # for key in opsim_data.keys():
-        #     new_meta[key] = opsim_data[key]
     else:
         new_meta = meta.copy()
 
@@ -84,6 +82,7 @@ def replace_instcat_meta(rng, opsim_data, meta=None):
             new_meta[key] = opsim_val
 
     new_meta['seed'] = rng.integers(0, 2**30)
+    new_meta['nsnap'] = 1
     new_meta['seqnum'] = 0
     return new_meta
 
@@ -580,7 +579,7 @@ def make_instcat_from_opsim_and_objfile(
     eu.ostools.makedirs_fromfile(output_fname, allow_fail=True)
 
     with open(output_fname, 'w') as fout:
-        meta = replace_instcat_meta(rng=rng, meta=None, opsim_data=opsim_data)
+        meta = replace_instcat_meta(rng=rng, opsim_data=opsim_data)
         _write_instcat_meta(fout=fout, meta=meta)
 
         obj_data = _read_data(object_file)
