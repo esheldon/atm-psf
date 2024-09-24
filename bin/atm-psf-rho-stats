@@ -218,6 +218,7 @@ def read_data(args):
                 dlist.append(data)
 
     else:
+        dlist = []
         for f in tqdm(flist):
             data = read_one((f, args.nstar_min))
             if data is not None:
