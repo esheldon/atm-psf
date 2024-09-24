@@ -665,6 +665,8 @@ def make_instcat_from_opsim_data(
         _write_instcat_meta(fout=fout, meta=opsim_data)
 
         star_data = _read_data(star_file)
+        nobj = star_data.size
+
         ra = opsim_data['rightascension']
         dec = opsim_data['declination']
 
@@ -673,12 +675,23 @@ def make_instcat_from_opsim_data(
             ra1=ra, dec1=dec,
             ra2=star_data['ra'], dec2=star_data['dec2'],
         )
+
         w, = np.where(dist < INSTCAT_RADIUS)
-        print(f'kept {w.size} / {star_data.size} stars')
+        print(f'kept {w.size} / {nobj} stars')
         if w.size == 0:
             raise RuntimeError('no matches found')
 
-        _write_instcat_lines_from_array(fout=fout, data=star_data[w])
+        star_data = star_data[w]
+
+        if selector is not None:
+            w, = np.where(selector(star_data))
+            print(f'kept {w.size} / {nobj} from selector')
+            if w.size == 0:
+                raise RuntimeError('no matches found')
+
+            star_data = star_data[w]
+
+        _write_instcat_lines_from_array(fout=fout, data=star_data)
 
 
 def _copy_objects(
