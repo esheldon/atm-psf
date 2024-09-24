@@ -8,11 +8,24 @@ import os
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run-config', required=True)
-    parser.add_argument('--sim-config', help='optional sim config')
     parser.add_argument('--opsim-db', required=True)
     parser.add_argument('--obsid', type=int, required=True)
-    parser.add_argument('--instcat', required=True)
+
+    parser.add_argument('--run-config', help='optional run config')
+    parser.add_argument('--sim-config', help='optional sim config')
+
+    parser.add_argument(
+        '--instcat',
+        help=(
+            'optional instcat to replace; the objects '
+            'are repointed and given random positions within the radius'
+        )
+    )
+    parser.add_argument(
+        '--objfile',
+        help='optional object file to match with opsim pointing',
+    )
+
     parser.add_argument('--nccds', type=int,
                         help='simulate this many random ccds')
     parser.add_argument('--ccds', type=int, nargs='+',
@@ -41,25 +54,39 @@ if __name__ == '__main__':
 
     # generate these now so runs with and without existing instcat
     # are consistent
-    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
     sim_rng = np.random.default_rng(rng.integers(0, 2**60))
 
-    run_config = atm_psf.io.load_yaml(args.run_config)
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
     instcat_out = atm_psf.process.get_instcat_output_path(args.obsid)
 
     if not os.path.exists(instcat_out) or not args.use_existing:
-        atm_psf.process.run_make_instcat(
-            rng=instcat_rng,
-            run_config=run_config,
-            opsim_db=args.opsim_db,
-            obsid=args.obsid,
-            instcat=args.instcat,
-            instcat_out=instcat_out,
-            ccds=ccds,
-            sim_config=sim_config,
-        )
+        if args.instcat is not None:
+            if args.run_config is None:
+                raise ValueError('send run_config when replacing instcat')
+
+            run_config = atm_psf.io.load_yaml(args.run_config)
+            instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+            atm_psf.process.run_replace_instcat(
+                rng=instcat_rng,
+                run_config=run_config,
+                opsim_db=args.opsim_db,
+                obsid=args.obsid,
+                instcat=args.instcat,
+                instcat_out=instcat_out,
+                ccds=ccds,
+                sim_config=sim_config,
+            )
+        elif args.objfile is not None:
+            atm_psf.process.run_make_instcat_from_opsim_and_objfile(
+                sim_config=sim_config,
+                opsim_db=args.opsim_db,
+                obsid=args.obsid,
+                object_file=args.objfile,
+                instcat_out=instcat_out,
+            )
+        else:
+            raise RuntimeError('send either objfile or instcat')
 
     atm_psf.process.run_sim(
         rng=sim_rng,

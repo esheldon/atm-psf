@@ -248,7 +248,7 @@ def run_sim_and_piff(
 
     if not os.path.exists(instcat_out) or not use_existing:
         dup = run_config.get('dup', 1)
-        run_make_instcat(
+        run_replace_instcat(
             rng=instcat_rng,
             run_config=run_config,
             sim_config=sim_config,
@@ -510,7 +510,7 @@ def run_sim_and_nnpsf(
 
     if not os.path.exists(instcat_out) or not use_existing:
         dup = run_config.get('dup', 1)
-        run_make_instcat(
+        run_replace_instcat(
             rng=instcat_rng,
             run_config=run_config,
             sim_config=sim_config,
@@ -625,8 +625,14 @@ def _get_paths(obsid, ccd):
     return image_file, truth_file, piff_file, source_file
 
 
-def run_make_instcat(
-    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds,
+def run_replace_instcat(
+    rng,
+    run_config,
+    opsim_db,
+    obsid,
+    instcat,
+    instcat_out,
+    ccds,
     sim_config={},
     dup=1,
 ):
@@ -662,19 +668,94 @@ def run_make_instcat(
     print('using magmin:', magmin)
 
     with sqlite3.connect(opsim_db) as conn:
-        instcat_tools.replace_instcat_from_db(
+        conn.row_factory = sqlite3.Row
+
+        query = f'select * from observations where observationId = {obsid}'
+        data = conn.execute(query).fetchall()
+        assert len(data) == 1
+
+        opsim_data = data[0]
+
+        instcat_tools.replace_instcat_streamed(
             rng=rng,
             fname=instcat,
-            conn=conn,
-            obsid=obsid,
+            opsim_data=opsim_data,
             output_fname=instcat_out,
             allowed_include=run_config['allowed_include'],
             # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
-            sed=run_config.get('sed', None),
             selector=lambda d: d['magnorm'] > magmin,
             galaxy_file=run_config.get('galaxy_file', None),
             ccds=ccds,
             dup=dup,
+        )
+
+        # instcat_tools.replace_instcat_from_opsim_data(
+        #     rng=rng,
+        #     fname=instcat,
+        #     conn=conn,
+        #     obsid=obsid,
+        #     output_fname=instcat_out,
+        #     allowed_include=run_config['allowed_include'],
+        #     # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
+        #     sed=run_config.get('sed', None),
+        #     selector=lambda d: d['magnorm'] > magmin,
+        #     galaxy_file=run_config.get('galaxy_file', None),
+        #     ccds=ccds,
+        #     dup=dup,
+        # )
+
+
+def run_make_instcat_from_opsim_and_objfile(
+    sim_config,
+    opsim_db,
+    obsid,
+    object_file,
+    instcat_out,
+):
+    """
+    Run the code to make a new instcat from an input one and a pointing from
+    the obsim db
+
+    Parameters
+    ----------
+    sim_config: dict
+        The simulation configuration
+    opsim_db: str
+        Path to opsim database
+    obsid: int
+        The observation id
+    instcat: str
+        Path for the input instcat
+    instcat_out: str
+        Path for the output instcat
+    ccds: list of int
+        List of CCD numbers
+    dup: int, optional
+        Number of times to duplicate, with random ra/dec
+    """
+    import sqlite3
+    from . import instcat_tools
+
+    print('connecting to:', opsim_db)
+
+    magmin = sim_config.get('magmin', -1000)
+    print('using magmin:', magmin)
+
+    with sqlite3.connect(opsim_db) as conn:
+
+        conn.row_factory = sqlite3.Row
+
+        query = f'select * from observations where observationId = {obsid}'
+        data = conn.execute(query).fetchall()
+        assert len(data) == 1
+
+        opsim_data = data[0]
+
+        instcat_tools.make_instcat_from_opsim_and_objfile(
+            object_file=object_file,
+            opsim_data=opsim_data,
+            output_fname=instcat_out,
+            selector=lambda d: d['magnorm'] > magmin,
         )
 
 
