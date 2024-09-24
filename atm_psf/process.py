@@ -706,6 +706,7 @@ def run_replace_instcat(
 
 
 def run_make_instcat_from_opsim_and_objfile(
+    rng,
     sim_config,
     opsim_db,
     obsid,
@@ -752,6 +753,7 @@ def run_make_instcat_from_opsim_and_objfile(
         opsim_data = data[0]
 
         instcat_tools.make_instcat_from_opsim_and_objfile(
+            rng=rng,
             object_file=object_file,
             opsim_data=opsim_data,
             output_fname=instcat_out,

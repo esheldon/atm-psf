@@ -55,6 +55,7 @@ if __name__ == '__main__':
     # generate these now so runs with and without existing instcat
     # are consistent
     sim_rng = np.random.default_rng(rng.integers(0, 2**60))
+    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
 
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
@@ -66,7 +67,6 @@ if __name__ == '__main__':
                 raise ValueError('send run_config when replacing instcat')
 
             run_config = atm_psf.io.load_yaml(args.run_config)
-            instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
             atm_psf.process.run_replace_instcat(
                 rng=instcat_rng,
                 run_config=run_config,
@@ -79,6 +79,7 @@ if __name__ == '__main__':
             )
         elif args.objfile is not None:
             atm_psf.process.run_make_instcat_from_opsim_and_objfile(
+                rng=instcat_rng,
                 sim_config=sim_config,
                 opsim_db=args.opsim_db,
                 obsid=args.obsid,
@@ -88,6 +89,7 @@ if __name__ == '__main__':
         else:
             raise RuntimeError('send either objfile or instcat')
 
+    print('running sim')
     atm_psf.process.run_sim(
         rng=sim_rng,
         config=sim_config,

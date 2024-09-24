@@ -38,17 +38,20 @@ NAME_MAP = {
     'moonalt': 'moonAlt',
     'moonphase': 'moonPhase',
     'moonra': 'moonRA',
+    'moondec': 'moonDec',
     # 'nsnap': missing,
     'obshistid': 'observationId',
     'rottelpos': 'rotTelPos',
     # 'seed': to be set
     'seeing': 'seeingFwhm500',  # TODO which to use of this and seeingFwhmEff?
     'sunalt': 'sunAlt',
+    'vistime': 'visitExposureTime',
+    'nsnap': 'numExposures',
     # 'minsource': missing
 }
 
 
-def replace_instcat_meta(rng, meta, opsim_data):
+def replace_instcat_meta(rng, opsim_data, meta=None):
     """
     Replace the metadata from an instcat with entries from an opsim
     database row
@@ -64,10 +67,14 @@ def replace_instcat_meta(rng, meta, opsim_data):
     opsim_data: mapping
         E.g. a sqlite.Row read from an opsim database.
     """
-    new_meta = meta.copy()
-    for key in NAME_MAP:
-        assert key in meta
+    if meta is None:
+        new_meta = {}
+        # for key in opsim_data.keys():
+        #     new_meta[key] = opsim_data[key]
+    else:
+        new_meta = meta.copy()
 
+    for key in NAME_MAP:
         opsim_val = opsim_data[NAME_MAP[key]]
 
         if key == 'filter':
@@ -539,6 +546,7 @@ def replace_instcat_streamed(
 
 
 def make_instcat_from_opsim_and_objfile(
+    rng,
     object_file,
     opsim_data,
     output_fname,
@@ -572,18 +580,21 @@ def make_instcat_from_opsim_and_objfile(
     eu.ostools.makedirs_fromfile(output_fname, allow_fail=True)
 
     with open(output_fname, 'w') as fout:
-        _write_instcat_meta(fout=fout, meta=opsim_data)
+        meta = replace_instcat_meta(rng=rng, meta=None, opsim_data=opsim_data)
+        _write_instcat_meta(fout=fout, meta=meta)
 
         obj_data = _read_data(object_file)
         nobj = obj_data.size
 
-        ra = opsim_data['rightascension']
-        dec = opsim_data['declination']
+        # ra = opsim_data['rightascension']
+        # dec = opsim_data['declination']
+        ra = meta['rightascension']
+        dec = meta['declination']
 
         print(f'matching within {INSTCAT_RADIUS:.3g} degrees')
         dist = eu.coords.sphdist(
             ra1=ra, dec1=dec,
-            ra2=obj_data['ra'], dec2=obj_data['dec2'],
+            ra2=obj_data['ra'], dec2=obj_data['dec'],
         )
 
         w, = np.where(dist < INSTCAT_RADIUS)
@@ -715,8 +726,6 @@ def _copy_galaxies_ccds(
 
 
 def _write_instcat_meta(fout, meta):
-    import IPython; IPython.embed()
-
     for key, value in meta.items():
         line = f'{key} {value}\n'
         fout.write(line)
