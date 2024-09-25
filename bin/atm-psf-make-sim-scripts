@@ -28,7 +28,7 @@ atm-psf-make-cat \
     --objfile %(objfile)s \
     --instcat ${instcat} &>> ${logfile}
 
-echo "running atm-psf-run-sim"
+echo "running atm-psf-run-sim" >> ${logfile}
 atm-psf-run-sim \
     %(sim_extra)s \
     --seed ${sim_seed} \
