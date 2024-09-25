@@ -1,4 +1,4 @@
-def run_sim(rng, config, instcat, ccds, use_existing=False):
+def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
     import os
     import numpy as np
     import logging
@@ -83,6 +83,9 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
             ccd=ccd,
             band=obsdata['band'],
         )
+
+        fname = os.path.join(outdir, fname)
+
         if use_existing and os.path.exists(fname):
             logger.info(f'using existing file {fname}')
             continue
