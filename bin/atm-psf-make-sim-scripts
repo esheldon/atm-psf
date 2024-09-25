@@ -10,6 +10,7 @@ outdir=$(printf '%%08d' $obsid)
 mkdir -v -p $outdir
 instcat="$outdir/instcat.txt"
 
+echo "running atm-psf-make-cat"
 atm-psf-make-cat \
     %(cat_extra)s \
     --seed ${cat_seed} \
@@ -18,7 +19,7 @@ atm-psf-make-cat \
     --objfile %(objfile)s \
     --instcat ${instcat}
 
-
+echo "running atm-psf-run-sim"
 atm-psf-run-sim \
     %(sim_extra)s \
     --seed ${sim_seed} \
