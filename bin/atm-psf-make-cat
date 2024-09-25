@@ -1,43 +1,59 @@
 #!/usr/bin/env python
 
-from atm_psf.process import (
-    run_make_instcat, get_instcat_output_path,
-)
-from atm_psf.io import load_config
-from atm_psf.util import split_ccds_string
-
-
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run-config', required=True)
-    parser.add_argument('--opsim-db', required=True)
-    parser.add_argument('--obsid', type=int, required=True)
-    parser.add_argument('--instcat', required=True)
-    parser.add_argument('--ccds', required=True,
-                        help='e.g. "[35,66]"')
-    parser.add_argument('--seed', type=int, required=True)
-    parser.add_argument('--sim-config')
+    parser.add_argument(
+        '--seed', type=int, required=True,
+        help='seed for random number generator'
+    )
+    parser.add_argument(
+        '--opsim-db', required=True, help='path to opsim database'
+    )
+    parser.add_argument(
+        '--obsid', type=int, required=True,
+        help='obsid of entry in opsim database'
+    )
+    parser.add_argument(
+        '--objfile', required=True, help='path to input objects'
+    )
+    parser.add_argument(
+        '--instcat', required=True, help='path to output file'
+    )
+    parser.add_argument('--sim-config', help='optional simulation config')
     return parser.parse_args()
 
 
-if __name__ == '__main__':
-    args = get_args()
+def go(args):
+    import numpy as np
+    import atm_psf
+    import esutil
 
-    run_config = load_config(args.run_config)
+    esutil.ostools.makedirs_fromfile(args.instcat)
+
+    rng = np.random.default_rng(args.seed)
+
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
-    instcat_out = get_instcat_output_path(args.obsid)
-
-    ccds = split_ccds_string(args.ccds)
-
-    run_make_instcat(
-        run_config=run_config,
-        opsim_db=args.opsim_db,
-        obsid=args.obsid,
-        instcat=args.instcat,
-        instcat_out=instcat_out,
-        ccds=ccds,
-        seed=args.seed,
-        sim_config=sim_config,
+    opsim_data = atm_psf.process.get_opsim_data_by_id(
+        opsim_db=args.opsim_db, obsid=args.obsid,
     )
+
+    magmin = sim_config.get('magmin', -1000)
+    print('using magmin:', magmin)
+
+    atm_psf.instcat_tools.make_instcat_by_obsid_and_objfile(
+        rng=rng,
+        object_file=args.objfile,
+        opsim_data=opsim_data,
+        output_fname=args.instcat,
+        selector=lambda d: d['magnorm'] > magmin,
+    )
+
+
+def main():
+    args = get_args()
+    go(args)
+
+
+main()
