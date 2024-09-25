@@ -24,6 +24,8 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
 
     logger.info(f'making {psf_type} PSF')
 
+    nobj_for_wcs = 200
+
     if psf_type == 'psfws':
         psf = montauk.psfws.make_psfws_psf(
             obsdata=obsdata,
@@ -98,8 +100,11 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
         logger.info(f'loading objects from {instcat}')
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
 
-        if cat.getNObjects() == 0:
-            logger.info(f'No objects found for CCD {ccd}')
+        nobj = cat.getNObjects()
+        if nobj < nobj_for_wcs:
+            logger.info(
+                f'too few objects ({nobj} < {nobj_for_wcs}) for CCD {ccd}'
+            )
             continue
 
         diffraction_fft = imsim.stamp.DiffractionFFT(
@@ -156,7 +161,7 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
         )
 
         calc_xy_indices = rng.choice(
-            cat.getNObjects(), size=200, replace=False,
+            nobj, size=nobj_for_wcs, replace=False,
         )
 
         image, sky_image, truth = montauk.runner.run_sim(

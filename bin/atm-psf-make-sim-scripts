@@ -45,6 +45,37 @@ fi
 """
 
 
+# this version is for local testing
+TEST_SCRIPT = r"""#!/usr/bin/bash
+# make sure to source ~/imsim-setup/imsim-setup.sh first
+obsid=$1
+cat_seed=$2
+sim_seed=$3
+
+outdir=$(printf '%%08d' $obsid)
+mkdir -v -p $outdir
+instcat="$outdir/instcat.txt"
+
+echo "running atm-psf-make-cat"
+
+atm-psf-make-cat \
+    %(cat_extra)s \
+    --seed ${cat_seed} \
+    --opsim-db %(opsim_db)s \
+    --obsid ${obsid} \
+    --objfile %(objfile)s \
+    --instcat ${instcat}
+
+echo "running atm-psf-run-sim"
+atm-psf-run-sim \
+    %(sim_extra)s \
+    --seed ${sim_seed} \
+    --instcat ${instcat} \
+    --outdir ${outdir} \
+    --nccds %(nccds)d
+"""
+
+
 CONDOR_HEAD = r"""
 universe = vanilla
 
@@ -82,7 +113,7 @@ def get_args():
     return parser.parse_args()
 
 
-def write_script(args, run_config, run_dir):
+def write_script(args, run_config, run_dir, dotest=False):
     import os
 
     cat_extra = []
@@ -100,10 +131,18 @@ def write_script(args, run_config, run_dir):
     cat_extra = ' '.join(cat_extra)
     sim_extra = ' '.join(sim_extra)
 
+    # the script used in condor
     outfile = f'{run_dir}/run.sh'
     print('writing:', outfile)
 
-    script = SCRIPT % {
+    if dotest:
+        template = SCRIPT
+        outfile = f'{run_dir}/test.sh'
+    else:
+        template = TEST_SCRIPT
+        outfile = f'{run_dir}/run.sh'
+
+    script = template % {
         'cat_extra': cat_extra,
         'sim_extra': sim_extra,
         'opsim_db': run_config['opsim_db'],
@@ -216,7 +255,12 @@ def main():
     if 'sim_config' in run_config:
         copy_file(run_config['sim_config'], run_dir)
 
-    write_script(args=args, run_config=run_config, run_dir=run_dir)
+    write_script(
+        args=args, run_config=run_config, run_dir=run_dir
+    )
+    write_script(
+        args=args, run_config=run_config, run_dir=run_dir, dotest=True
+    )
 
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
