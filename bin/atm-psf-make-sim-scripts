@@ -13,12 +13,14 @@ instcat="$outdir/instcat.txt"
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
     logdir=${_CONDOR_SCRATCH_DIR}
 else
-    logdir="."
+    logdir=${outdir}
 fi
 
 logfile="${logdir}/${outdir}.log"
 
-echo "running atm-psf-make-cat" > ${logfile}
+echo "using logdir: ${logdir}" > ${logfile}
+
+echo "running atm-psf-make-cat" >> ${logfile}
 
 atm-psf-make-cat \
     %(cat_extra)s \
@@ -37,7 +39,8 @@ atm-psf-run-sim \
     --nccds %(nccds)d &>> ${logfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
-    mv -v ${logfile} .
+    echo "moving ${logfile} to directory ${outdir}"
+    mv -v ${logfile} ${outdir}
 fi
 """
 
