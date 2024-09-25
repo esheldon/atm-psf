@@ -136,10 +136,10 @@ def write_script(args, run_config, run_dir, dotest=False):
     print('writing:', outfile)
 
     if dotest:
-        template = SCRIPT
+        template = TEST_SCRIPT
         outfile = f'{run_dir}/test.sh'
     else:
-        template = TEST_SCRIPT
+        template = SCRIPT
         outfile = f'{run_dir}/run.sh'
 
     script = template % {
