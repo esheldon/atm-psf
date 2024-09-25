@@ -199,7 +199,7 @@ def main():
     if 'sim_config' in run_config:
         copy_file(run_config['sim_config'], run_dir)
 
-    write_script(args=args, config=run_config, run_dir=run_dir)
+    write_script(args=args, run_config=run_config, run_dir=run_dir)
 
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
