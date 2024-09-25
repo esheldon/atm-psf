@@ -544,7 +544,7 @@ def replace_instcat_streamed(
         ds.pop()
 
 
-def make_instcat_from_opsim_and_objfile(
+def make_instcat_by_obsid_and_objfile(
     rng,
     object_file,
     opsim_data,
@@ -560,6 +560,8 @@ def make_instcat_from_opsim_and_objfile(
 
     Parameters
     ----------
+    rng: np.random.default_rng
+        The random number generator
     object_file: str
         The input file with objects
     opsim_data: mapping

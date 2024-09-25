@@ -638,7 +638,7 @@ def run_replace_instcat(
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
-    the obsim db
+    the opsim db
 
     Parameters
     ----------
@@ -705,43 +705,12 @@ def run_replace_instcat(
         # )
 
 
-def run_make_instcat_from_opsim_and_objfile(
-    rng,
-    sim_config,
-    opsim_db,
-    obsid,
-    object_file,
-    instcat_out,
-):
+def get_opsim_data_by_id(opsim_db, obsid):
     """
-    Run the code to make a new instcat from an input one and a pointing from
-    the obsim db
-
-    Parameters
-    ----------
-    sim_config: dict
-        The simulation configuration
-    opsim_db: str
-        Path to opsim database
-    obsid: int
-        The observation id
-    instcat: str
-        Path for the input instcat
-    instcat_out: str
-        Path for the output instcat
-    ccds: list of int
-        List of CCD numbers
-    dup: int, optional
-        Number of times to duplicate, with random ra/dec
+    query the db to get the data for the requested obsid
     """
     import sqlite3
-    from . import instcat_tools
-
     print('connecting to:', opsim_db)
-
-    magmin = sim_config.get('magmin', -1000)
-    print('using magmin:', magmin)
-
     with sqlite3.connect(opsim_db) as conn:
 
         conn.row_factory = sqlite3.Row
@@ -752,13 +721,7 @@ def run_make_instcat_from_opsim_and_objfile(
 
         opsim_data = data[0]
 
-        instcat_tools.make_instcat_from_opsim_and_objfile(
-            rng=rng,
-            object_file=object_file,
-            opsim_data=opsim_data,
-            output_fname=instcat_out,
-            selector=lambda d: d['magnorm'] > magmin,
-        )
+    return opsim_data
 
 
 GALSIM_COMMAND = r"""
