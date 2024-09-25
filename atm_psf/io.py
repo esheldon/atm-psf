@@ -591,6 +591,9 @@ def save_sim_data(
         truth_header.update(extra)
 
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
-        fits.write(image.array, extname='image', header=header)
+        fits.write(
+            image.array, extname='image', header=header, compress='gzip',
+            qlevel=0,
+        )
         fits.write(sky_image.array, extname='sky')
         fits.write(truth, extname='truth', header=truth_header)
