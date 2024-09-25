@@ -6,7 +6,7 @@ obsid=$1
 cat_seed=$2
 sim_seed=$3
 
-outdir=$(printf '%08d' $obsid)
+outdir=$(printf '%%08d' $obsid)
 mkdir -v -p $outdir
 instcat="$outdir/instcat.txt"
 
