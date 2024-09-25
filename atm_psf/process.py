@@ -101,9 +101,12 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
 
         nobj = cat.getNObjects()
+        logger.info(f'matched {nobj} objects to CCD area')
+
         if nobj < nobj_for_wcs:
             logger.info(
-                f'too few objects ({nobj} < {nobj_for_wcs}) for CCD {ccd}'
+                f'too few objects ({nobj} < {nobj_for_wcs}) to fit WCS '
+                f'on CCD {ccd}'
             )
             continue
 
