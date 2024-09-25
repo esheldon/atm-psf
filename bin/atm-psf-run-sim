@@ -39,6 +39,7 @@ def go(args):
         ccds = args.ccds
     else:
         ccds = rng.choice(189, size=args.nccds, replace=False)
+        ccds.sort()
 
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
