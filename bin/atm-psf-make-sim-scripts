@@ -16,7 +16,7 @@ else
     logdir="."
 fi
 
-logfile="${logdir}/{outdir}.log"
+logfile="${logdir}/${outdir}.log"
 
 echo "running atm-psf-make-cat" > ${logfile}
 
