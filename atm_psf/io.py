@@ -433,6 +433,16 @@ def load_yaml(fname):
     return data
 
 
+def makedir(dir):
+    import os
+    if not os.path.exists(dir):
+        print('making dir:', dir)
+        try:
+            os.path.makedirs(dir)
+        except FileExistsError:
+            pass
+
+
 def get_sim_output_fname(obsid, ccd, band):
     """
     Get the relative output path, e.g.
