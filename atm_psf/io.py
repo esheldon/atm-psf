@@ -438,7 +438,7 @@ def makedir(dir):
     if not os.path.exists(dir):
         print('making dir:', dir)
         try:
-            os.path.makedirs(dir)
+            os.makedirs(dir)
         except FileExistsError:
             pass
 
