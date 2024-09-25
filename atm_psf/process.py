@@ -90,13 +90,6 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
             logger.info(f'using existing file {fname}')
             continue
 
-        diffraction_fft = imsim.stamp.DiffractionFFT(
-            exptime=obsdata['exptime'],
-            altitude=obsdata['altitude'],
-            azimuth=obsdata['azimuth'],
-            rotTelPos=obsdata['rotTelPos'],
-        )
-
         dm_detector = montauk.camera.make_dm_detector(ccd)
 
         wcs, icrf_to_field = montauk.wcs.make_batoid_wcs(
@@ -104,6 +97,17 @@ def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
         )
         logger.info(f'loading objects from {instcat}')
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
+
+        if cat.getNObjects() == 0:
+            logger.info(f'No objects found for CCD {ccd}')
+            continue
+
+        diffraction_fft = imsim.stamp.DiffractionFFT(
+            exptime=obsdata['exptime'],
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            rotTelPos=obsdata['rotTelPos'],
+        )
 
         if config['vignetting']:
             vignetter = montauk.vignetting.Vignetter(dm_detector)
