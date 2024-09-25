@@ -35,6 +35,7 @@ def load_sim_config(fname=None):
     from .io import load_yaml
 
     if fname is not None:
+        print('loading:', fname)
         data = load_yaml(fname)
     else:
         data = {}
