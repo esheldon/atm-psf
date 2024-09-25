@@ -39,7 +39,7 @@ atm-psf-run-sim \
     --nccds %(nccds)d &>> ${logfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
-    echo "moving ${logfile} to directory ${outdir}"
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
     mv -v ${logfile} ${outdir}
 fi
 """
