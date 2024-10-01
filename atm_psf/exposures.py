@@ -76,7 +76,11 @@ def fits_to_exposure(fname, rng, fwhm=0.8):
 
 def load_galsim_info(fname):
     import galsim
-    gsim = galsim.fits.read(fname)
+    try:
+        gsim = galsim.fits.read(fname)
+    except OSError:
+        gsim = galsim.fits.read(fname, hdu=1)
+
     return gsim.wcs, gsim.bounds
 
 
