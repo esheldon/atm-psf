@@ -17,6 +17,7 @@ else
 fi
 
 logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 
@@ -28,7 +29,7 @@ atm-psf-make-cat \
     --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
     --objfile %(objfile)s \
-    --instcat ${instcat} &>> ${logfile}
+    --instcat ${instcat} >> ${logfile} 2>> ${errfile}
 
 echo "running atm-psf-run-sim" >> ${logfile}
 atm-psf-run-sim \
@@ -36,11 +37,13 @@ atm-psf-run-sim \
     --seed ${sim_seed} \
     --instcat ${instcat} \
     --outdir ${outdir} \
-    --nccds %(nccds)d &>> ${logfile}
+    --nccds %(nccds)d >> ${logfile} 2>> ${errfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
     echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
-    mv -v ${logfile} ${outdir}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
 fi
 """
 
