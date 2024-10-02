@@ -4,7 +4,7 @@ SCRIPT_WITH_PLOTS = r"""#!/usr/bin/bash
 pointing_dir=$1
 sources=$2
 
-valid_plot=${sources/.fits/-valid.jpg}
+valid_plot=${sources/.fits/-valid.pdf}
 stats_plot=${sources/.fits/-stats.png}
 
 export OMP_NUM_THREADS=1
@@ -128,8 +128,8 @@ def main():
 
     args = get_args()
 
-    absd = os.path.abspath(args.simdir)
-    sim_run = os.path.basename(absd)
+    out_absdir = os.path.abspath(args.outdir)
+    run_name = os.path.basename(out_absdir)
 
     dlist = get_file_data(args.simdir)
 
@@ -154,7 +154,7 @@ def main():
         for i, pointing_dir in enumerate(dlist):
             obsid = os.path.basename(pointing_dir)
 
-            sources_name = f'nnpsf-{sim_run}-{obsid}.fits'
+            sources_name = f'{run_name}-{obsid}.fits'
 
             sources_file_local = os.path.join(
                 obsid,

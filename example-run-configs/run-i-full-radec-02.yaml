@@ -1,0 +1,24 @@
+seed: 5721
+
+memory: "8G"
+
+filter: "i"
+
+sim_config: /astro/u/esheldon/git/atm-psf/example-sim-configs/psfws-nocosmics-skip-bright-01.yaml
+
+# This is range of object_file.  We can trim later
+ra_range: [65, 75]
+dec_range: [-45, -35]
+
+# render this many random CCDs per pointing
+ccds_per_pointing: 189
+
+# get observing conditions from here, including pointing
+opsim_db: /astro/u/esheldon/oh2/rubin_sim_data/opsim-databases/baseline_v3.3_10yrs.db
+
+# all object data in this file, for each observation a spatial
+# match is performed
+object_file: /gpfs02/astro/workarea/esheldon/rubin_sim_data/example_instance_catalogs/combined-catalogs/starcat-sub.fits
+
+# data from this run will be located in base_dir/{run_name}
+base_dir: /astro/u/esheldon/imsim_outputs/sim-runs
