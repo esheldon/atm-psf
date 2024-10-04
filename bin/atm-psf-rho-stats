@@ -79,7 +79,7 @@ def calc_rho_stats(
     return data
 
 
-def plot_rho_stats(data, logger=None, **kwargs):
+def plot_rho_stats(args, data, logger=None, **kwargs):
     import numpy as np
 
     from matplotlib.figure import Figure
@@ -89,13 +89,8 @@ def plot_rho_stats(data, logger=None, **kwargs):
     axs = [fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)]
     axs = np.array(axs, dtype=object)
 
-    if 'min_sep' in kwargs:
-        xlim = [
-            0.5 * kwargs['min_sep'],
-            1.5 * kwargs['max_sep'],
-        ]
-        axs[0].set_xlim(xlim[0], xlim[1])
-        axs[1].set_xlim(xlim[0], xlim[1])
+    axs[0].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
+    axs[1].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
 
     axs[0].set_xlabel(r'$\theta$ (arcmin)')
     axs[0].set_ylabel(r'$\rho(\theta)$')
@@ -126,8 +121,8 @@ def plot_rho_stats(data, logger=None, **kwargs):
                   [r'$\rho_2(\theta)$', r'$\rho_5(\theta)$'],
                   loc='upper right', fontsize=12)
 
-    axs[0].set_ylim(1.e-9, 2.2e-4)
-    axs[1].set_ylim(1.e-9, 2.2e-4)
+    axs[0].set_ylim(args.ymin, args.ymax)
+    axs[1].set_ylim(args.ymin, args.ymax)
     fig.tight_layout()
     return fig, axs
 
@@ -165,8 +160,9 @@ def read_one(inputs):
     import numpy as np
     import esutil as eu
     import fitsio
+    import ngmix
 
-    fname, nstar_min = inputs
+    fname, nstar_min, seeing_min = inputs
 
     columns = [
         'ra', 'dec',
@@ -188,8 +184,12 @@ def read_one(inputs):
 
         data = data[w]
 
-        if 'am_flags' in data.dtype.names:
-            data = eu.numpy_util.extract_fields(data, columns)
+        seeing = np.median(ngmix.moments.T_to_fwhm(data['am_psf_T']))
+        if seeing < seeing_min:
+            data = None
+        else:
+            if 'am_flags' in data.dtype.names:
+                data = eu.numpy_util.extract_fields(data, columns)
     else:
         data = None
 
@@ -207,7 +207,7 @@ def read_data(args):
     mininterval = 0.5
     if args.nproc != 1:
         inputs = [
-            (fname, args.nstar_min) for fname in flist
+            (fname, args.nstar_min, args.seeing_min) for fname in flist
         ]
         pool = multiprocessing.Pool(args.nproc)
 
@@ -251,6 +251,30 @@ def get_args():
         '--nproc', type=int, default=1,
         help='number of processes to use, default 1'
     )
+
+    parser.add_argument(
+        '--min-sep', type=float, default=0.5,
+        help='minimum separation, default 0.5 arcmin'
+    )
+    parser.add_argument(
+        '--max-sep', type=float, default=50,
+        help='maximum separation, default 50 arcmin'
+    )
+
+    parser.add_argument(
+        '--ymin', type=float, default=1.0e-9,
+        help='ymin for plot, default 1.0e-9'
+    )
+    parser.add_argument(
+        '--ymax', type=float, default=2.2e-4,
+        help='ymax for plot, default 2.2e-4'
+    )
+
+    parser.add_argument(
+        '--seeing-min', type=float, default=0,
+        help='min seeing, default 0'
+    )
+
     return parser.parse_args()
 
 
@@ -259,9 +283,6 @@ def main():
 
     print('reading data')
     st = read_data(args)
-
-    min_sep = 0.5
-    max_sep = 50
 
     print('running treecorr')
 
@@ -290,15 +311,11 @@ def main():
         psf_g1=psf_g1,
         psf_g2=psf_g2,
         psf_T=psf_T,
-        min_sep=min_sep,
-        max_sep=max_sep,
+        min_sep=args.min_sep,
+        max_sep=args.max_sep,
     )
 
-    fig, ax = plot_rho_stats(
-        data, logger=None,
-        min_sep=min_sep,
-        max_sep=max_sep,
-    )
+    fig, ax = plot_rho_stats(args, data, logger=None)
     print('writing:', args.plot_file)
     fig.savefig(args.plot_file, dpi=150)
 
