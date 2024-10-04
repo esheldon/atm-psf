@@ -203,6 +203,8 @@ def read_data(args):
 
     flist = get_flist(args.flist)
 
+    ncols = 70
+    mininterval = 0.5
     if args.nproc != 1:
         inputs = [
             (fname, args.nstar_min) for fname in flist
@@ -212,14 +214,19 @@ def read_data(args):
         dlist = []
         for data in tqdm(
             pool.imap_unordered(read_one, inputs),
-            total=len(inputs)
+            total=len(inputs),
+            ascii=True,
+            ncols=ncols,
+            mininterval=mininterval,
         ):
             if data is not None:
                 dlist.append(data)
 
     else:
         dlist = []
-        for f in tqdm(flist):
+        for f in tqdm(
+            flist, ncols=ncols, ascii=True, mininterval=mininterval,
+        ):
             data = read_one((f, args.nstar_min))
             if data is not None:
                 dlist.append(data)
