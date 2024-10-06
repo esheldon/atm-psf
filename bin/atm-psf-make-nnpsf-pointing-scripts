@@ -9,14 +9,27 @@ stats_plot=${sources/.fits/-stats.png}
 
 export OMP_NUM_THREADS=1
 
-mkdir -v -p $(dirname $sources)
+outdir=$(dirname $sources)
+
+mkdir -v -p ${outdir}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    logdir=${_CONDOR_SCRATCH_DIR}
+else
+    logdir=${outdir}
+fi
+
+logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
+
+echo "using logdir: ${logdir}" > ${logfile}
 
 nnpsf-fit-many-images \
     %(extra)s \
-    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
+    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | egrep -v "R41_S20|R41_S21|R43_S21|R43_S22|R30_S20|R30_S10|R34_S21|R34_S22|R10_S10|R10_S00|R14_S02|R14_S12|R01_S00|R01_S01|R02_S01|R03_S02" | sort) \
     --output ${sources} \
     --stats-plot ${stats_plot} \
-    --validation-plot ${valid_plot}
+    --validation-plot ${valid_plot} >> ${logfile} 2>> ${errfile}
 """  # noqa
 
 
@@ -26,13 +39,34 @@ sources=$2
 
 export OMP_NUM_THREADS=1
 
-mkdir -v -p $(dirname $sources)
+outdir=$(dirname $sources)
+
+mkdir -v -p ${outdir}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    logdir=${_CONDOR_SCRATCH_DIR}
+else
+    logdir=${outdir}
+fi
+
+logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
+
+echo "using logdir: ${logdir}" > ${logfile}
 
 nnpsf-fit-many-images \
     %(extra)s \
     --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
-    --output ${sources}
+    --output ${sources} >> ${logfile} 2>> ${errfile}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
+fi
 """  # noqa
+
 
 CONDOR_HEAD = r"""
 Universe = vanilla
