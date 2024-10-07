@@ -76,7 +76,7 @@ Notification = Never
 # Run this exe with these args
 Executable = run-nnpsf.sh
 
-request_memory = 2G
+request_memory = 3G
 
 GetEnv = True
 
