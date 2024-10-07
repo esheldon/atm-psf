@@ -30,6 +30,13 @@ nnpsf-fit-many-images \
     --output ${sources} \
     --stats-plot ${stats_plot} \
     --validation-plot ${valid_plot} >> ${logfile} 2>> ${errfile}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
+fi
 """  # noqa
 
 
