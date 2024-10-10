@@ -83,7 +83,7 @@ Notification = Never
 # Run this exe with these args
 Executable = run-nnpsf.sh
 
-request_memory = 3G
+request_memory = %s
 
 GetEnv = True
 
@@ -108,6 +108,8 @@ def get_args():
     parser.add_argument('--fit-config')
     parser.add_argument('--skip-existing', action='store_true')
     parser.add_argument('--doplots', action='store_true')
+    parser.add_argument('--mem', default='3G',
+                        help='requested memory, default 3G')
     return parser.parse_args()
 
 
@@ -151,8 +153,8 @@ def makedir(d):
         os.makedirs(d)
 
 
-def write_condor_head(condorf):
-    condorf.write(CONDOR_HEAD)
+def write_condor_head(condorf, mem):
+    condorf.write(CONDOR_HEAD % mem)
 
 
 def get_file_data(directory):
@@ -190,7 +192,7 @@ def main():
     print('opening:', condor_file)
 
     with open(condor_file, 'w') as condor_fobj:
-        write_condor_head(condor_fobj)
+        write_condor_head(condor_fobj, mem=args.mem)
 
         for i, pointing_dir in enumerate(dlist):
             obsid = os.path.basename(pointing_dir)
