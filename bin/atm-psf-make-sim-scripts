@@ -32,7 +32,7 @@ atm-psf-make-cat \
     --instcat ${instcat} >> ${logfile} 2>> ${errfile}
 
 echo "running atm-psf-run-sim" >> ${logfile}
-atm-psf-run-sim \
+%(command)s \
     %(sim_extra)s \
     --seed ${sim_seed} \
     --instcat ${instcat} \
@@ -70,7 +70,7 @@ atm-psf-make-cat \
     --instcat ${instcat}
 
 echo "running atm-psf-run-sim"
-atm-psf-run-sim \
+%(command)s \
     %(sim_extra)s \
     --seed ${sim_seed} \
     --instcat ${instcat} \
@@ -107,16 +107,15 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('run_config')
-    parser.add_argument(
-        '--use-existing',
-        action='store_true',
-        help='whether to use existing sim files',
-    )
+    parser.add_argument('--run-config', required=True)
+    parser.add_argument( '--run-piff', action='store_true')
+    parser.add_argument( '--nocleanup', action='store_true')
+    parser.add_argument( '--use-existing', action='store_true',
+                        help='whether to use existing sim files')
     return parser.parse_args()
 
 
-def write_script(args, run_config, run_dir, dotest=False):
+def write_script(args, run_config, dotest=False):
     import os
 
     cat_extra = []
@@ -131,21 +130,27 @@ def write_script(args, run_config, run_dir, dotest=False):
         cat_extra.append(f'--sim-config {sim_config_base}')
         sim_extra.append(f'--sim-config {sim_config_base}')
 
+    if args.run_piff:
+        command = 'atm-psf-run-sim-and-piff'
+        sim_extra.append(f'--run-config {args.run_config}')
+    else:
+        command = 'atm-psf-run-sim'
+
+    if args.nocleanup:
+        sim_extra.append('--nocleanup')
+
     cat_extra = ' '.join(cat_extra)
     sim_extra = ' '.join(sim_extra)
 
-    # the script used in condor
-    outfile = f'{run_dir}/run.sh'
-    print('writing:', outfile)
-
     if dotest:
         template = TEST_SCRIPT
-        outfile = f'{run_dir}/test.sh'
+        outfile = 'test.sh'
     else:
         template = SCRIPT
-        outfile = f'{run_dir}/run.sh'
+        outfile = 'run.sh'
 
     script = template % {
+        'command': command,
         'cat_extra': cat_extra,
         'sim_extra': sim_extra,
         'opsim_db': run_config['opsim_db'],
@@ -153,6 +158,7 @@ def write_script(args, run_config, run_dir, dotest=False):
         'nccds': run_config['ccds_per_pointing'],
     }
 
+    print('writing:', outfile)
     with open(outfile, 'w') as fobj:
         fobj.write(script)
 
@@ -162,6 +168,14 @@ def write_script(args, run_config, run_dir, dotest=False):
 def copy_file(path, run_dir):
     import os
     import shutil
+
+    abspath = os.path.abspath(path)
+    outpath = os.path.abspath(
+        os.path.join(run_dir, os.path.basename(path))
+    )
+
+    if abspath == outpath:
+        return
 
     print(f'copying {path} -> {run_dir}')
     shutil.copy(path, run_dir)
@@ -239,7 +253,7 @@ def main():
     import os
     import numpy as np
     import atm_psf
-    from tqdm import tqdm
+    from esutil.pbar import pbar
 
     args = get_args()
 
@@ -248,30 +262,23 @@ def main():
 
     run = atm_psf.util.config_file_to_run(args.run_config)
 
-    run_dir = os.path.join(run_config['base_dir'], run)
-    atm_psf.util.makedir(run_dir)
-
     obsids = get_obsids(config=run_config, rng=rng)
 
-    copy_file(args.run_config, run_dir)
+    copy_file(args.run_config, run_dir='.')
 
     if 'sim_config' in run_config:
-        copy_file(run_config['sim_config'], run_dir)
+        copy_file(run_config['sim_config'], run_dir='.')
 
-    write_script(
-        args=args, run_config=run_config, run_dir=run_dir
-    )
-    write_script(
-        args=args, run_config=run_config, run_dir=run_dir, dotest=True
-    )
+    write_script(args=args, run_config=run_config)
+    write_script(args=args, run_config=run_config, dotest=True)
 
-    condor_file = os.path.join(run_dir, 'submit.condor')
+    condor_file = os.path.join('submit.condor')
     print('opening:', condor_file)
     with open(condor_file, 'w') as condorf:
 
         write_condor_head(condorf, run_config)
 
-        for obsid in tqdm(obsids):
+        for obsid in pbar(obsids):
             cat_seed = rng.integers(0, 2**30)
             sim_seed = rng.integers(0, 2**30)
             job_name = f'{run}-{obsid:08d}'

@@ -3,24 +3,22 @@
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--instcat', help='instcat file for sim',
-        required=True,
-    )
+
+    parser.add_argument('--instcat', required=True)
     parser.add_argument('--seed', type=int, required=True)
-    parser.add_argument('--outdir', required=True)
-
     parser.add_argument('--sim-config', help='optional sim config')
-
     parser.add_argument('--nccds', type=int,
                         help='simulate this many random ccds, up to 189')
     parser.add_argument('--ccds', type=int, nargs='+',
                         help='simulate these ccds, e.g. "35 66"')
+    parser.add_argument('--outdir', required=True)
+
     parser.add_argument(
         '--use-existing',
         action='store_true',
         help='do not overwrite existing data',
     )
+
     return parser.parse_args()
 
 
@@ -43,7 +41,7 @@ def go(args):
 
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
-    atm_psf.process.run_sim(
+    atm_psf.util.run_sim_by_type(
         rng=rng,
         config=sim_config,
         instcat=args.instcat,

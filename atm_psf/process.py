@@ -1,4 +1,11 @@
-def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
+def run_sim(
+    rng,
+    config,
+    instcat,
+    ccds,
+    outdir,
+    use_existing=False,
+):
     import os
     import numpy as np
     import logging
@@ -214,10 +221,9 @@ def run_sim_and_piff(
     rng,
     run_config,
     sim_config,
-    opsim_db,
-    obsid,
     instcat,
     ccds,
+    outdir,
     cleanup=True,
     use_existing=False,
     plot_dir=None,
@@ -233,12 +239,8 @@ def run_sim_and_piff(
         The run configuration
     sim_config: dict
         Simulation configuration
-    opsim_db: str
-        Path to opsim database
-    obsid: int
-        The observation id
     instcat: str
-        Path for the the output instcat
+        Path to instcat
     ccds: list of int
         List of CCD numbers
     cleanup: bool, optional
@@ -252,32 +254,18 @@ def run_sim_and_piff(
     import numpy as np
     import montauk
     from . import io
+    from .util import run_sim_by_type
 
     # generate these now so runs with and without existing instcat
     # are consistent
-    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
+    # instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
     sim_rng = np.random.default_rng(rng.integers(0, 2**60))
     piff_rng = np.random.default_rng(rng.integers(0, 2**60))
 
-    instcat_out = get_instcat_output_path(obsid)
-
-    if not os.path.exists(instcat_out) or not use_existing:
-        dup = run_config.get('dup', 1)
-        run_replace_instcat(
-            rng=instcat_rng,
-            run_config=run_config,
-            sim_config=sim_config,
-            opsim_db=opsim_db,
-            obsid=obsid,
-            instcat=instcat,
-            instcat_out=instcat_out,
-            ccds=ccds,
-            dup=dup,
-        )
-
     do_run_sim = True
     if use_existing:
-        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        print('loading imsim and checking list existing sim files')
+        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
         fnames = [
             io.get_sim_output_fname(
                 obsid=obsdata['obshistid'],
@@ -290,15 +278,16 @@ def run_sim_and_piff(
             do_run_sim = False
 
     if do_run_sim:
-        run_sim(
+        run_sim_by_type(
             rng=sim_rng,
             config=sim_config,
-            instcat=instcat_out,
+            instcat=instcat,
             ccds=ccds,
+            outdir=outdir,
             use_existing=use_existing,
         )
 
-    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
 
     for ccd in ccds:
 
@@ -306,16 +295,25 @@ def run_sim_and_piff(
             obsid=obsdata['obshistid'],
             ccd=ccd,
             band=obsdata['band'],
+            dirname=outdir,
         )
+
+        if not os.path.exists(fname):
+            # probably no objects in image so it wasn't written
+            print('skipping missing sim file:', fname)
+            continue
+
         piff_file = io.get_piff_output_fname(
             obsid=obsdata['obshistid'],
             ccd=ccd,
             band=obsdata['band'],
+            dirname=outdir,
         )
         source_file = io.get_source_output_fname(
             obsid=obsdata['obshistid'],
             ccd=ccd,
             band=obsdata['band'],
+            dirname=outdir,
         )
 
         process_image_with_piff(
@@ -514,6 +512,8 @@ def run_sim_and_nnpsf(
     import numpy as np
     import montauk
     from . import io
+
+    raise RuntimeError('adapt to always using existing instcat')
 
     # generate these now so runs with and without existing instcat
     # are consistent

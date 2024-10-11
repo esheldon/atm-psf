@@ -89,3 +89,31 @@ def get_band(val):
         return val
     except TypeError:
         return 'ugrizy'[val]
+
+
+def run_sim_by_type(config, **kw):
+    from .process import run_sim
+    from .runner_fast import run_fast_sim
+
+    sim_type = config['sim_type']
+
+    print(f'running sim_type: {sim_type}')
+    print('importing imsim....')
+    _do_import_imsim()
+
+    if sim_type == 'imsim':
+        run_sim(config=config, **kw)
+    elif sim_type == 'fast':
+        run_fast_sim(config=config, **kw)
+    else:
+        raise ValueError(f'bad sim_type {sim_type}')
+
+
+def _do_import_imsim():
+    import time
+
+    tm0 = time.time()
+    import imsim  # noqa
+    tm = (time.time() - tm0) / 60
+
+    print(f'took {tm:.1f} minutes')

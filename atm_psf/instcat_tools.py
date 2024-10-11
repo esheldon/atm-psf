@@ -321,27 +321,6 @@ def instcat_to_fits(fname, out_fname, allowed_include=None):
     ds.pop()
 
 
-# def _write_dlist_to_fits(fits, meta, dlist, extname):
-#     from tqdm import trange
-#     chunksize = 10000
-#     nchunks = len(dlist) // chunksize
-#     if len(dlist) % chunksize != 0:
-#         nchunks += 1
-#
-#     dtype = _get_dtype(dlist)
-#
-#     for ichunk in trange(nchunks):
-#         start = ichunk * chunksize
-#         end = (ichunk + 1) * chunksize
-#         sublist = dlist[start:end]
-#
-#         outdata = _dlist_to_np(dlist=sublist, dtype=dtype)
-#         if ichunk == 0:
-#             fits.write(outdata, header=meta, extname=extname)
-#         else:
-#             fits[-1].append(outdata)
-
-
 def _check_allowed_include(allowed_include, string):
     if allowed_include is not None:
         keep = False
@@ -356,7 +335,7 @@ def _check_allowed_include(allowed_include, string):
 
 
 def _copy_include_to_fits(fits, fname, meta, extname):
-    from tqdm import tqdm
+    from esutil.pbar import pbar
     opener, mode = _get_opener(fname)
     dlist = []
 
@@ -376,7 +355,7 @@ def _copy_include_to_fits(fits, fname, meta, extname):
 
             num = 0
             dlist = []
-            for line in tqdm(fobj):
+            for line in pbar(fobj):
                 ntot += 1
                 ls = line.split()
                 entry = _read_instcat_object_line_as_dict(ls)
@@ -397,19 +376,6 @@ def _copy_include_to_fits(fits, fname, meta, extname):
                             fits[-1].append(data)
                         del dlist
                         dlist = []
-
-
-# def _load_include_dlist(fname, nokeep):
-#     from tqdm import tqdm
-#     opener, mode = _get_opener(fname)
-#     dlist = []
-#     with opener(fname, mode) as fobj:
-#         for line in tqdm(fobj):
-#             ls = line.split()
-#             entry = _read_instcat_object_line_as_dict(ls)
-#             dlist.append(entry)
-#
-#     return dlist
 
 
 def _dlist_to_np(dlist, dtype):
@@ -620,7 +586,7 @@ def _copy_objects(
     fout, fname, selector, allowed_include, sed, radec_gen,
     dup=1,
 ):
-    from tqdm import tqdm
+    from esutil.pbar import pbar
 
     opener, mode = _get_opener(fname)
 
@@ -630,7 +596,7 @@ def _copy_objects(
         print(f'duplicating {dup} times')
 
     with opener(fname, mode) as fobj:
-        for line in tqdm(fobj):
+        for line in pbar(fobj):
 
             ls = line.split()
 
@@ -740,10 +706,10 @@ def _write_instcat_line(fout, entry):
 
 
 def _write_instcat_lines_from_array(fout, data):
-    from tqdm import tqdm
+    from esutil.pbar import pbar
     names = data.dtype.names
 
-    for d in tqdm(data):
+    for d in pbar(data):
         line = ['object']
         for name in names:
             line += [str(d[name])]
