@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+
+SCRIPT = r"""#!/usr/bin/bash
+flist=$1
+outdir=$2
+
+export OMP_NUM_THREADS=1
+
+mkdir -v -p $outdir
+
+nnpsf-fit-flist \
+    %(extra)s \
+    --flist $(cat $flist) \
+    --outdir ${outdir}
+"""  # noqa
+
+CONDOR_HEAD = r"""
+Universe = vanilla
+
+Notification = Never
+
+# Run this exe with these args
+Executable = run-nnpsf.sh
+
+request_memory = 2G
+
+GetEnv = True
+
+kill_sig = SIGINT
+
++Experiment = "astro"
+
+"""
+
+JOB_TEMPLATE = r"""
++job_name = "%(job_name)s"
+arguments = %(flist)s %(outdir)s
+Queue
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--simdir', required=True)
+    parser.add_argument('--outdir', required=True)
+    parser.add_argument('--fit-config')
+    parser.add_argument('--skip-existing', action='store_true')
+    return parser.parse_args()
+
+
+def copy_file(path, run_dir):
+    import shutil
+
+    try:
+        print(f'copying {path} -> {run_dir}')
+        shutil.copy(path, run_dir)
+    except shutil.SameFileError:
+        pass
+
+
+def write_script(run_dir, fit_config):
+    import os
+
+    if fit_config is not None:
+        bname = os.path.basename(fit_config)
+        extra = f'--fit-config {bname}'
+    else:
+        extra = ''
+
+    outfile = f'{run_dir}/run-nnpsf.sh'
+    print('writing:', outfile)
+
+    with open(outfile, 'w') as fobj:
+        fobj.write(SCRIPT % {'extra': extra})
+
+    os.system(f'chmod 755 {outfile}')
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        os.makedirs(d)
+
+
+def write_condor_head(condorf):
+    condorf.write(CONDOR_HEAD)
+
+
+def get_directories(directory):
+    import os
+    from glob import glob
+
+    pattern = os.path.join(directory, '[0-9]*')
+    dlist = glob(pattern)
+    return dlist
+
+
+def main():
+    import os
+    from glob import glob
+
+    args = get_args()
+
+    out_absdir = os.path.abspath(args.outdir)
+    run_name = os.path.basename(out_absdir)
+
+    dlist = get_directories(args.simdir)
+
+    print('found:', len(dlist), 'directories')
+
+    makedir(args.outdir)
+
+    if args.fit_config is not None:
+        copy_file(args.fit_config, args.outdir)
+
+    write_script(
+        run_dir=args.outdir,
+        fit_config=args.fit_config,
+    )
+    condor_file = os.path.join(args.outdir, 'submit-nnpsf.condor')
+    print('opening:', condor_file)
+
+    with open(condor_file, 'w') as condor_fobj:
+        write_condor_head(condor_fobj)
+
+        for i, pointing_dir in enumerate(dlist):
+            obsid = os.path.basename(pointing_dir)
+
+            flist_all = glob(os.path.join(pointing_dir, 'simdata*fits'))
+            local_outdir = obsid
+
+            if args.skip_existing:
+                flist = []
+                for f in flist_all:
+                    bname = os.path.basename(f)
+                    oname = bname.replace('simdata', 'nnpsf')
+                    assert oname != bname
+                    local_file = os.path.join(local_outdir, oname)
+                    if not os.path.exists(local_file):
+                        flist.append(f)
+            else:
+                flist = flist_all
+
+            if len(flist) > 0:
+                flist_file = obsid + '-flist.txt'
+                with open(flist_file, 'w') as fobj:
+                    for f in flist:
+                        fobj.write(f+'\n')
+
+                job_name = f'{run_name}-{obsid}'
+
+                jobtext = JOB_TEMPLATE % {
+                    'job_name': job_name,
+                    'flist': flist_file,
+                    'outdir': local_outdir,
+                }
+                condor_fobj.write(jobtext)
+
+
+if __name__ == '__main__':
+    main()

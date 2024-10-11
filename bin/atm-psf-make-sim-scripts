@@ -3,17 +3,79 @@
 SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 obsid=$1
-instcat=$2
-seed=$3
+cat_seed=$2
+sim_seed=$3
 
-%(command)s \
-    %(extra)s \
-    --run-config %(run_config)s \
+outdir=$(printf '%%08d' $obsid)
+mkdir -v -p $outdir
+instcat="$outdir/instcat.txt"
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    logdir=${_CONDOR_SCRATCH_DIR}
+else
+    logdir=${outdir}
+fi
+
+logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
+
+echo "using logdir: ${logdir}" > ${logfile}
+
+echo "running atm-psf-make-cat" >> ${logfile}
+
+atm-psf-make-cat \
+    %(cat_extra)s \
+    --seed ${cat_seed} \
     --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
+    --objfile %(objfile)s \
+    --instcat ${instcat} >> ${logfile} 2>> ${errfile}
+
+echo "running atm-psf-run-sim" >> ${logfile}
+atm-psf-run-sim \
+    %(sim_extra)s \
+    --seed ${sim_seed} \
     --instcat ${instcat} \
-    --nccds %(nccds)d \
-    --seed ${seed}
+    --outdir ${outdir} \
+    --nccds %(nccds)d >> ${logfile} 2>> ${errfile}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
+fi
+"""
+
+
+# this version is for local testing
+TEST_SCRIPT = r"""#!/usr/bin/bash
+# make sure to source ~/imsim-setup/imsim-setup.sh first
+obsid=$1
+cat_seed=$2
+sim_seed=$3
+
+outdir=$(printf '%%08d' $obsid)
+mkdir -v -p $outdir
+instcat="$outdir/instcat.txt"
+
+echo "running atm-psf-make-cat"
+
+atm-psf-make-cat \
+    %(cat_extra)s \
+    --seed ${cat_seed} \
+    --opsim-db %(opsim_db)s \
+    --obsid ${obsid} \
+    --objfile %(objfile)s \
+    --instcat ${instcat}
+
+echo "running atm-psf-run-sim"
+atm-psf-run-sim \
+    %(sim_extra)s \
+    --seed ${sim_seed} \
+    --instcat ${instcat} \
+    --outdir ${outdir} \
+    --nccds %(nccds)d
 """
 
 
@@ -37,7 +99,7 @@ kill_sig = SIGINT
 
 JOB_TEMPLATE = r"""
 +job_name = "%(job_name)s"
-arguments = %(obsid)d %(instcat)s %(seed)d
+arguments = %(obsid)d %(cat_seed)s %(sim_seed)d
 Queue
 """
 
@@ -47,16 +109,6 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('run_config')
     parser.add_argument(
-        '--run-piff',
-        action='store_true',
-        help='if set, also run piff and maybe clean up sim files',
-    )
-    parser.add_argument(
-        '--nocleanup',
-        action='store_true',
-        help='whether to clean up sim files when running piff',
-    )
-    parser.add_argument(
         '--use-existing',
         action='store_true',
         help='whether to use existing sim files',
@@ -64,38 +116,41 @@ def get_args():
     return parser.parse_args()
 
 
-def write_script(args, config, run_dir):
+def write_script(args, run_config, run_dir, dotest=False):
     import os
 
-    extra = []
+    cat_extra = []
+    sim_extra = []
 
     if args.use_existing:
-        extra.append('--use-existing')
+        sim_extra.append('--use-existing')
 
-    if args.run_piff:
-        command = 'atm-psf-run-sim-and-piff'
-        if args.nocleanup:
-            extra.append('--nocleanup')
-    else:
-        command = 'atm-psf-run-sim'
-
-    if 'sim_config' in config:
+    if 'sim_config' in run_config:
         # we copied the config into the dir
-        sim_config_base = os.path.basename(config['sim_config'])
-        extra.append(f'--sim-config {sim_config_base}')
+        sim_config_base = os.path.basename(run_config['sim_config'])
+        cat_extra.append(f'--sim-config {sim_config_base}')
+        sim_extra.append(f'--sim-config {sim_config_base}')
 
-    extra = ' '.join(extra)
+    cat_extra = ' '.join(cat_extra)
+    sim_extra = ' '.join(sim_extra)
 
+    # the script used in condor
     outfile = f'{run_dir}/run.sh'
     print('writing:', outfile)
 
-    script = SCRIPT % {
-        'command': command,
-        'extra': extra,
-        # we copied the config into the dir
-        'run_config': os.path.basename(args.run_config),
-        'opsim_db': config['opsim_db'],
-        'nccds': config['ccds_per_pointing'],
+    if dotest:
+        template = TEST_SCRIPT
+        outfile = f'{run_dir}/test.sh'
+    else:
+        template = SCRIPT
+        outfile = f'{run_dir}/run.sh'
+
+    script = template % {
+        'cat_extra': cat_extra,
+        'sim_extra': sim_extra,
+        'opsim_db': run_config['opsim_db'],
+        'objfile': run_config['object_file'],
+        'nccds': run_config['ccds_per_pointing'],
     }
 
     with open(outfile, 'w') as fobj:
@@ -148,7 +203,7 @@ def get_radec_cut(config):
     return [ra_cut, dec_cut]
 
 
-def get_random_obsids(config, rng):
+def get_obsids(config, rng):
     import sqlite3
     import numpy as np
 
@@ -196,15 +251,19 @@ def main():
     run_dir = os.path.join(run_config['base_dir'], run)
     atm_psf.util.makedir(run_dir)
 
-    instcats = atm_psf.io.load_instcat_paths(run_config['instcats'])
-    obsids = get_random_obsids(config=run_config, rng=rng)
+    obsids = get_obsids(config=run_config, rng=rng)
 
     copy_file(args.run_config, run_dir)
 
     if 'sim_config' in run_config:
         copy_file(run_config['sim_config'], run_dir)
 
-    write_script(args=args, config=run_config, run_dir=run_dir)
+    write_script(
+        args=args, run_config=run_config, run_dir=run_dir
+    )
+    write_script(
+        args=args, run_config=run_config, run_dir=run_dir, dotest=True
+    )
 
     condor_file = os.path.join(run_dir, 'submit.condor')
     print('opening:', condor_file)
@@ -213,16 +272,15 @@ def main():
         write_condor_head(condorf, run_config)
 
         for obsid in tqdm(obsids):
-            this_seed = rng.integers(0, 2**30)
+            cat_seed = rng.integers(0, 2**30)
+            sim_seed = rng.integers(0, 2**30)
             job_name = f'{run}-{obsid:08d}'
-
-            instcat = rng.choice(instcats)
 
             jobtext = JOB_TEMPLATE % {
                 'job_name': job_name,
                 'obsid': obsid,
-                'instcat': instcat,
-                'seed': this_seed,
+                'cat_seed': cat_seed,
+                'sim_seed': sim_seed,
             }
             condorf.write(jobtext)
 

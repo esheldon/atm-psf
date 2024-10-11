@@ -1,4 +1,4 @@
-def run_sim(rng, config, instcat, ccds, use_existing=False):
+def run_sim(rng, config, instcat, ccds, outdir, use_existing=False):
     import os
     import numpy as np
     import logging
@@ -23,6 +23,8 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
     psf_type = config['psf']['type']
 
     logger.info(f'making {psf_type} PSF')
+
+    nobj_for_wcs = 200
 
     if psf_type == 'psfws':
         psf = montauk.psfws.make_psfws_psf(
@@ -83,16 +85,12 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
             ccd=ccd,
             band=obsdata['band'],
         )
+
+        fname = os.path.join(outdir, fname)
+
         if use_existing and os.path.exists(fname):
             logger.info(f'using existing file {fname}')
             continue
-
-        diffraction_fft = imsim.stamp.DiffractionFFT(
-            exptime=obsdata['exptime'],
-            altitude=obsdata['altitude'],
-            azimuth=obsdata['azimuth'],
-            rotTelPos=obsdata['rotTelPos'],
-        )
 
         dm_detector = montauk.camera.make_dm_detector(ccd)
 
@@ -101,6 +99,23 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
         )
         logger.info(f'loading objects from {instcat}')
         cat = imsim.instcat.InstCatalog(file_name=instcat, wcs=wcs)
+
+        nobj = cat.getNObjects()
+        logger.info(f'matched {nobj} objects to CCD area')
+
+        if nobj < nobj_for_wcs:
+            logger.info(
+                f'too few objects ({nobj} < {nobj_for_wcs}) to fit WCS '
+                f'on CCD {ccd}'
+            )
+            continue
+
+        diffraction_fft = imsim.stamp.DiffractionFFT(
+            exptime=obsdata['exptime'],
+            altitude=obsdata['altitude'],
+            azimuth=obsdata['azimuth'],
+            rotTelPos=obsdata['rotTelPos'],
+        )
 
         if config['vignetting']:
             vignetter = montauk.vignetting.Vignetter(dm_detector)
@@ -149,7 +164,7 @@ def run_sim(rng, config, instcat, ccds, use_existing=False):
         )
 
         calc_xy_indices = rng.choice(
-            cat.getNObjects(), size=200, replace=False,
+            nobj, size=nobj_for_wcs, replace=False,
         )
 
         image, sky_image, truth = montauk.runner.run_sim(
@@ -248,7 +263,7 @@ def run_sim_and_piff(
 
     if not os.path.exists(instcat_out) or not use_existing:
         dup = run_config.get('dup', 1)
-        run_make_instcat(
+        run_replace_instcat(
             rng=instcat_rng,
             run_config=run_config,
             sim_config=sim_config,
@@ -510,7 +525,7 @@ def run_sim_and_nnpsf(
 
     if not os.path.exists(instcat_out) or not use_existing:
         dup = run_config.get('dup', 1)
-        run_make_instcat(
+        run_replace_instcat(
             rng=instcat_rng,
             run_config=run_config,
             sim_config=sim_config,
@@ -625,14 +640,20 @@ def _get_paths(obsid, ccd):
     return image_file, truth_file, piff_file, source_file
 
 
-def run_make_instcat(
-    rng, run_config, opsim_db, obsid, instcat, instcat_out, ccds,
+def run_replace_instcat(
+    rng,
+    run_config,
+    opsim_db,
+    obsid,
+    instcat,
+    instcat_out,
+    ccds,
     sim_config={},
     dup=1,
 ):
     """
     Run the code to make a new instcat from an input one and a pointing from
-    the obsim db
+    the opsim db
 
     Parameters
     ----------
@@ -662,20 +683,60 @@ def run_make_instcat(
     print('using magmin:', magmin)
 
     with sqlite3.connect(opsim_db) as conn:
-        instcat_tools.replace_instcat_from_db(
+        conn.row_factory = sqlite3.Row
+
+        query = f'select * from observations where observationId = {obsid}'
+        data = conn.execute(query).fetchall()
+        assert len(data) == 1
+
+        opsim_data = data[0]
+
+        instcat_tools.replace_instcat_streamed(
             rng=rng,
             fname=instcat,
-            conn=conn,
-            obsid=obsid,
+            opsim_data=opsim_data,
             output_fname=instcat_out,
             allowed_include=run_config['allowed_include'],
             # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
-            sed=run_config.get('sed', None),
             selector=lambda d: d['magnorm'] > magmin,
             galaxy_file=run_config.get('galaxy_file', None),
             ccds=ccds,
             dup=dup,
         )
+
+        # instcat_tools.replace_instcat_from_opsim_data(
+        #     rng=rng,
+        #     fname=instcat,
+        #     conn=conn,
+        #     obsid=obsid,
+        #     output_fname=instcat_out,
+        #     allowed_include=run_config['allowed_include'],
+        #     # sed='starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz',
+        #     sed=run_config.get('sed', None),
+        #     selector=lambda d: d['magnorm'] > magmin,
+        #     galaxy_file=run_config.get('galaxy_file', None),
+        #     ccds=ccds,
+        #     dup=dup,
+        # )
+
+
+def get_opsim_data_by_id(opsim_db, obsid):
+    """
+    query the db to get the data for the requested obsid
+    """
+    import sqlite3
+    print('connecting to:', opsim_db)
+    with sqlite3.connect(opsim_db) as conn:
+
+        conn.row_factory = sqlite3.Row
+
+        query = f'select * from observations where observationId = {obsid}'
+        data = conn.execute(query).fetchall()
+        assert len(data) == 1
+
+        opsim_data = data[0]
+
+    return opsim_data
 
 
 GALSIM_COMMAND = r"""

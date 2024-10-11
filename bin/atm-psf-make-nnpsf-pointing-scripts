@@ -1,0 +1,231 @@
+#!/usr/bin/env python
+
+SCRIPT_WITH_PLOTS = r"""#!/usr/bin/bash
+pointing_dir=$1
+sources=$2
+
+valid_plot=${sources/.fits/-valid.pdf}
+stats_plot=${sources/.fits/-stats.png}
+
+export OMP_NUM_THREADS=1
+
+outdir=$(dirname $sources)
+
+mkdir -v -p ${outdir}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    logdir=${_CONDOR_SCRATCH_DIR}
+else
+    logdir=${outdir}
+fi
+
+logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
+
+echo "using logdir: ${logdir}" > ${logfile}
+
+nnpsf-fit-many-images \
+    %(extra)s \
+    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | egrep -v "R41_S20|R41_S21|R43_S21|R43_S22|R30_S20|R30_S10|R34_S21|R34_S22|R10_S10|R10_S00|R14_S02|R14_S12|R01_S00|R01_S01|R02_S01|R03_S02" | sort) \
+    --output ${sources} \
+    --stats-plot ${stats_plot} \
+    --validation-plot ${valid_plot} >> ${logfile} 2>> ${errfile}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
+fi
+"""  # noqa
+
+
+SCRIPT = r"""#!/usr/bin/bash
+pointing_dir=$1
+sources=$2
+
+export OMP_NUM_THREADS=1
+
+outdir=$(dirname $sources)
+
+mkdir -v -p ${outdir}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    logdir=${_CONDOR_SCRATCH_DIR}
+else
+    logdir=${outdir}
+fi
+
+logfile="${logdir}/${outdir}.log"
+errfile="${logdir}/${outdir}.err"
+
+echo "using logdir: ${logdir}" > ${logfile}
+
+nnpsf-fit-many-images \
+    %(extra)s \
+    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
+    --output ${sources} >> ${logfile} 2>> ${errfile}
+
+if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
+    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
+    mv -v ${logfile} ${outdir}/
+    mv -v ${errfile} ${outdir}/
+fi
+"""  # noqa
+
+
+CONDOR_HEAD = r"""
+Universe = vanilla
+
+Notification = Never
+
+# Run this exe with these args
+Executable = run-nnpsf.sh
+
+request_memory = %s
+
+GetEnv = True
+
+kill_sig = SIGINT
+
++Experiment = "astro"
+
+"""
+
+JOB_TEMPLATE = r"""
++job_name = "%(job_name)s"
+arguments = %(pointing_dir)s %(sources)s
+Queue
+"""
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--simdir', required=True)
+    parser.add_argument('--outdir', required=True)
+    parser.add_argument('--fit-config')
+    parser.add_argument('--skip-existing', action='store_true')
+    parser.add_argument('--doplots', action='store_true')
+    parser.add_argument('--mem', default='3G',
+                        help='requested memory, default 3G')
+    return parser.parse_args()
+
+
+def copy_file(path, run_dir):
+    import shutil
+
+    try:
+        print(f'copying {path} -> {run_dir}')
+        shutil.copy(path, run_dir)
+    except shutil.SameFileError:
+        pass
+
+
+def write_script(run_dir, fit_config, doplots):
+    import os
+
+    if fit_config is not None:
+        bname = os.path.basename(fit_config)
+        extra = f'--fit-config {bname}'
+    else:
+        extra = ''
+
+    outfile = f'{run_dir}/run-nnpsf.sh'
+    print('writing:', outfile)
+
+    if doplots:
+        script = SCRIPT_WITH_PLOTS
+    else:
+        script = SCRIPT
+
+    with open(outfile, 'w') as fobj:
+        fobj.write(script % {'extra': extra})
+
+    os.system(f'chmod 755 {outfile}')
+
+
+def makedir(d):
+    import os
+    if not os.path.exists(d):
+        print('making dir:', d)
+        os.makedirs(d)
+
+
+def write_condor_head(condorf, mem):
+    condorf.write(CONDOR_HEAD % mem)
+
+
+def get_file_data(directory):
+    import os
+    from glob import glob
+
+    pattern = os.path.join(directory, '[0-9]*')
+    dlist = glob(pattern)
+    return dlist
+
+
+def main():
+    import os
+
+    args = get_args()
+
+    out_absdir = os.path.abspath(args.outdir)
+    run_name = os.path.basename(out_absdir)
+
+    dlist = get_file_data(args.simdir)
+
+    print('found:', len(dlist), 'files')
+
+    makedir(args.outdir)
+
+    if args.fit_config is not None:
+        copy_file(args.fit_config, args.outdir)
+
+    write_script(
+        run_dir=args.outdir,
+        fit_config=args.fit_config,
+        doplots=args.doplots,
+    )
+    condor_file = os.path.join(args.outdir, 'submit-nnpsf.condor')
+    print('opening:', condor_file)
+
+    with open(condor_file, 'w') as condor_fobj:
+        write_condor_head(condor_fobj, mem=args.mem)
+
+        for i, pointing_dir in enumerate(dlist):
+            obsid = os.path.basename(pointing_dir)
+
+            sources_name = f'{run_name}-{obsid}.fits'
+
+            sources_file_local = os.path.join(
+                obsid,
+                sources_name,
+            )
+
+            sources_file = os.path.join(
+                args.outdir,
+                sources_file_local,
+            )
+
+            if args.skip_existing and os.path.exists(sources_file):
+                print('skipping existing:', sources_file)
+                continue
+
+            job_name = sources_name.replace(
+                '.fits', ''
+            ).replace(
+                'nnpsf-', ''
+            )
+
+            jobtext = JOB_TEMPLATE % {
+                'job_name': job_name,
+                'pointing_dir': pointing_dir,
+                'sources': sources_file_local,
+            }
+            condor_fobj.write(jobtext)
+
+
+if __name__ == '__main__':
+    main()

@@ -433,11 +433,14 @@ def load_yaml(fname):
     return data
 
 
-def get_obsid_dirname(obsid):
-    """
-    get obsid formatted as 08d
-    """
-    return f'{obsid:08d}'
+def makedir(dir):
+    import os
+    if not os.path.exists(dir):
+        print('making dir:', dir)
+        try:
+            os.makedirs(dir)
+        except FileExistsError:
+            pass
 
 
 def get_sim_output_fname(obsid, ccd, band):
@@ -458,7 +461,6 @@ def get_sim_output_fname(obsid, ccd, band):
     --------
     path
     """
-    import os
     import montauk
 
     dm_detector = montauk.camera.make_dm_detector(ccd)
@@ -466,9 +468,7 @@ def get_sim_output_fname(obsid, ccd, band):
     detnum = dm_detector.getId()
 
     # simdata-00355204-0-i-R14_S00-det063.fits
-    dirname = get_obsid_dirname(obsid)
-    fname = f'simdata-{dirname}-0-{band}-{detname}-det{detnum:03d}.fits'
-    return os.path.join(dirname, fname)
+    return f'simdata-{obsid:08d}-0-{band}-{detname}-det{detnum:03d}.fits'
 
 
 def get_piff_output_fname(obsid, ccd, band):
@@ -591,6 +591,12 @@ def save_sim_data(
         truth_header.update(extra)
 
     with fitsio.FITS(fname, 'rw', clobber=True) as fits:
-        fits.write(image.array, extname='image', header=header)
-        fits.write(sky_image.array, extname='sky')
+        fits.write(
+            image.array, extname='image', header=header,
+            compress='gzip', qlevel=0,
+        )
+        fits.write(
+            sky_image.array, extname='sky',
+            compress='gzip', qlevel=0,
+        )
         fits.write(truth, extname='truth', header=truth_header)

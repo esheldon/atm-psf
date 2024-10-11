@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 # radius for disc of random points
 INSTCAT_RADIUS = 2.1
 
@@ -36,98 +38,20 @@ NAME_MAP = {
     'moonalt': 'moonAlt',
     'moonphase': 'moonPhase',
     'moonra': 'moonRA',
+    'moondec': 'moonDec',
     # 'nsnap': missing,
     'obshistid': 'observationId',
     'rottelpos': 'rotTelPos',
     # 'seed': to be set
     'seeing': 'seeingFwhm500',  # TODO which to use of this and seeingFwhmEff?
     'sunalt': 'sunAlt',
+    'vistime': 'visitExposureTime',
+    'nsnap': 'numExposures',
     # 'minsource': missing
 }
 
 
-def replace_instcat_from_db(
-    rng,
-    fname,
-    conn,
-    obsid,
-    output_fname,
-    allowed_include=None,
-    sed=None,
-    selector=None,
-    galaxy_file=None,
-    ccds=None,
-    dup=1,
-):
-    """
-    Replace the instacat metadata and positions according to
-    opsim data
-
-    The ra/dec are generated uniformly in a disc centered at the
-    boresight from the opsim data.
-
-    One can limit the objects in the output file with the input selector
-    function and/or by limiting included source files with a list
-    of strings for matching with allowed_include
-
-    Parameters
-    ----------
-    rng: np.random.default_rng
-        The random number generator
-    fname: str
-        The input instcat filename, typically only used for stars
-    gals_fname: str
-        The input fits file for galaxies
-    conn: connection to opsim db
-        e.g. a sqlite3 connection
-    obsid: int
-        The observationId to use
-    output_fname: str
-        Name for new output instcat file
-    allowed_include: list of strings
-        Only includes with a filename that includes the string
-        are kept.  For  ['star', 'gal'] we would keep filenames
-        that had star or gal in them
-    sed: str
-        Force use if the input SED for all objects
-        e.g starSED/phoSimMLT/lte034-4.5-1.0a+0.4.BT-Settl.spec.gz
-    selector: function
-        Evaluates True for objects to be kept, e.g.
-            f = lambda d: d['magnorm'] > 17
-    galaxy_file: str
-        Path to the file for galaxies
-    ccds: list
-        List off CCDS, only used when galaxy_file is sent, to limit
-        random ra/dec to the specified ccds
-    dup: int, optional
-        Number of times to duplicate, with random ra/dec
-    """
-
-    import sqlite3
-
-    conn.row_factory = sqlite3.Row
-
-    query = f'select * from observations where observationId = {obsid}'
-    data = conn.execute(query).fetchall()
-    assert len(data) == 1
-
-    opsim_data = data[0]
-
-    replace_instcat_streamed(
-        rng=rng,
-        fname=fname,
-        opsim_data=opsim_data,
-        output_fname=output_fname,
-        allowed_include=allowed_include,
-        sed=sed,
-        selector=selector,
-        galaxy_file=galaxy_file,
-        ccds=ccds,
-        dup=dup,
-    )
-
-
-def replace_instcat_meta(rng, meta, opsim_data):
+def replace_instcat_meta(rng, opsim_data, meta=None):
     """
     Replace the metadata from an instcat with entries from an opsim
     database row
@@ -143,10 +67,12 @@ def replace_instcat_meta(rng, meta, opsim_data):
     opsim_data: mapping
         E.g. a sqlite.Row read from an opsim database.
     """
-    new_meta = meta.copy()
-    for key in NAME_MAP:
-        assert key in meta
+    if meta is None:
+        new_meta = {}
+    else:
+        new_meta = meta.copy()
 
+    for key in NAME_MAP:
         opsim_val = opsim_data[NAME_MAP[key]]
 
         if key == 'filter':
@@ -156,6 +82,7 @@ def replace_instcat_meta(rng, meta, opsim_data):
             new_meta[key] = opsim_val
 
     new_meta['seed'] = rng.integers(0, 2**30)
+    new_meta['nsnap'] = 1
     new_meta['seqnum'] = 0
     return new_meta
 
@@ -617,6 +544,78 @@ def replace_instcat_streamed(
         ds.pop()
 
 
+def make_instcat_by_obsid_and_objfile(
+    rng,
+    object_file,
+    opsim_data,
+    output_fname,
+    selector=None,
+):
+    """
+    Make a new instcat using the input opsim data and the object file.
+    Objects within INSTCAT_RADIUS of the ra/dec in the opsim data will
+    be written to the output
+
+    TODO allow limiting to CCDs
+
+    Parameters
+    ----------
+    rng: np.random.default_rng
+        The random number generator
+    object_file: str
+        The input file with objects
+    opsim_data: mapping
+        E.g. a sqlite.Row read from an opsim database.
+    output_fname: str
+        Name for new output instcat file
+    selector: function
+        Evaluates True for objects to be kept, e.g.
+            f = lambda d: d['magnorm'] > 17
+    """
+    import esutil as eu
+    import numpy as np
+
+    assert output_fname != object_file
+
+    print('writing new instcat:', output_fname)
+    eu.ostools.makedirs_fromfile(output_fname, allow_fail=True)
+
+    with open(output_fname, 'w') as fout:
+        meta = replace_instcat_meta(rng=rng, opsim_data=opsim_data)
+        _write_instcat_meta(fout=fout, meta=meta)
+
+        obj_data = _read_data(object_file)
+        nobj = obj_data.size
+
+        # ra = opsim_data['rightascension']
+        # dec = opsim_data['declination']
+        ra = meta['rightascension']
+        dec = meta['declination']
+
+        print(f'matching within {INSTCAT_RADIUS:.3g} degrees')
+        dist = eu.coords.sphdist(
+            ra1=ra, dec1=dec,
+            ra2=obj_data['ra'], dec2=obj_data['dec'],
+        )
+
+        w, = np.where(dist < INSTCAT_RADIUS)
+        print(f'kept {w.size} / {nobj} stars')
+        if w.size == 0:
+            raise RuntimeError('no matches found')
+
+        obj_data = obj_data[w]
+
+        if selector is not None:
+            w, = np.where(selector(obj_data))
+            print(f'kept {w.size} / {nobj} from selector')
+            if w.size == 0:
+                raise RuntimeError('no matches found')
+
+            obj_data = obj_data[w]
+
+        _write_instcat_lines_from_array(fout=fout, data=obj_data)
+
+
 def _copy_objects(
     fout, fname, selector, allowed_include, sed, radec_gen,
     dup=1,
@@ -996,3 +995,10 @@ def path_split(fname):
 #             line = ' '.join(line)
 #             fobj.write(line)
 #             fobj.write('\n')
+
+
+@lru_cache
+def _read_data(fname):
+    import fitsio
+    print('reading:', fname)
+    return fitsio.read(fname)
