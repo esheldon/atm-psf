@@ -33,15 +33,23 @@ def select_stars(sources, plot_dir=None):
         & (sources['deblend_parentNPeaks'] == 0)
     )
     task = ObjectSizeStarSelectorTask(config=config)
-    res = task.selectSources(sources[selected])
-    print('    selected', res.selected.sum())
 
-    w, = np.where(selected)
-    selected[w[~res.selected]] = False
-    print('    kept', selected.sum(), 'after blending cuts')
+    try:
+        res = task.selectSources(sources[selected])
 
-    if plot_dir is not None:
-        plot_sizemag(sources=sources, keep=selected, plot_dir=plot_dir)
+        print('    selected', res.selected.sum())
+
+        w, = np.where(selected)
+        selected[w[~res.selected]] = False
+        print('    kept', selected.sum(), 'after blending cuts')
+
+        if plot_dir is not None:
+            plot_sizemag(sources=sources, keep=selected, plot_dir=plot_dir)
+
+    except RuntimeError as err:
+        # the select sources task just raises a RuntimeError, ugh
+        print(str(err))
+        selected[:] = False
 
     return selected
 
