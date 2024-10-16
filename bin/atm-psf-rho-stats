@@ -12,11 +12,9 @@ def calc_rho_stats(
     bin_size=0.1,
     file_name=None,
     model_properties=None,
-    logger=None,
     **kwargs,
 ):
     import treecorr
-    import galsim
 
     # treecorr.set_max_omp_threads(1)
 
@@ -31,8 +29,6 @@ def calc_rho_stats(
     # Set this to true if there is a problem and we need to skip plots.
     # skip = False
 
-    logger = galsim.config.LoggerWrapper(logger)
-
     # get the shapes
     print(f'Calculating rho statistics for {ra.size} stars')
 
@@ -41,7 +37,7 @@ def calc_rho_stats(
     dg2 = g2 - psf_g2
 
     # make the treecorr catalogs
-    logger.info("Creating Treecorr Catalogs")
+    print("Creating Treecorr Catalogs")
 
     cat_g = treecorr.Catalog(
         ra=ra, dec=dec,
@@ -60,7 +56,7 @@ def calc_rho_stats(
     )
 
     # setup and run the correlations
-    logger.info("Processing rho PSF statistics")
+    print("Processing rho PSF statistics")
 
     # save the rho objects
     data = {}
