@@ -99,8 +99,7 @@ def read_one(inputs):
 
     try:
         data = fitsio.read(fname)
-    except OSError as err:
-        print(f'\n{fname} {str(err)}')
+    except OSError:
         return None
 
     n = data['star_select'].sum()
