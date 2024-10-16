@@ -170,7 +170,12 @@ def read_one(inputs):
         'am_psf_T', 'am_psf_e1', 'am_psf_e2',
     ]
 
-    data = fitsio.read(fname)
+    try:
+        data = fitsio.read(fname)
+    except OSError as err:
+        print(f'\n{fname} {str(err)}')
+        return None
+
     n = data['star_select'].sum()
     if 'am_flags' in data.dtype.names and n >= nstar_min:
 
@@ -227,7 +232,7 @@ def read_data(args):
         for f in tqdm(
             flist, ncols=ncols, ascii=True, mininterval=mininterval,
         ):
-            data = read_one((f, args.nstar_min))
+            data = read_one((f, args.nstar_min, args.seeing_min))
             if data is not None:
                 dlist.append(data)
 
