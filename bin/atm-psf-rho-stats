@@ -116,7 +116,8 @@ def read_one(inputs):
 
         data = data[w]
 
-        seeing = np.sqrt(data['am_psf_T'] / 2) * 2.3548
+        all_seeing = np.sqrt(data['am_psf_T'] / 2) * 2.3548
+        seeing = np.median(all_seeing)
         if seeing < seeing_min:
             data = None
         else:
