@@ -14,13 +14,18 @@ def plot_rho_stats(args, data, logger=None, **kwargs):
     axs[0].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
     axs[1].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
 
+    gcolor = 'lightgrey'
+    for ax in axs:
+        ax.grid(which='minor', color=gcolor, linestyle=':', linewidth=0.5)
+        ax.grid(True, color=gcolor)
+
     axs[0].set_xlabel(r'$\theta$ (arcmin)')
     axs[0].set_ylabel(r'$\rho(\theta)$')
     axs[0].set_xscale('log')
     axs[0].set_yscale('log', nonpositive='clip')
 
     axs[1].set_xlabel(r'$\theta$ (arcmin)')
-    axs[1].set_ylabel(r'$\rho(\theta)$')
+    # axs[1].set_ylabel(r'$\rho(\theta)$')
     axs[1].set_xscale('log')
     axs[1].set_yscale('log', nonpositive='clip')
 
