@@ -227,7 +227,7 @@ def read_data(args):
         for f in tqdm(
             flist, ncols=ncols, ascii=True, mininterval=mininterval,
         ):
-            data = read_one((f, args.nstar_min))
+            data = read_one((f, args.nstar_min, args.seeing_min))
             if data is not None:
                 dlist.append(data)
 
@@ -262,12 +262,12 @@ def get_args():
     )
 
     parser.add_argument(
-        '--ymin', type=float, default=1.0e-9,
-        help='ymin for plot, default 1.0e-9'
+        '--ymin', type=float, default=1.0e-10,
+        help='ymin for plot, default 1.0e-10'
     )
     parser.add_argument(
-        '--ymax', type=float, default=2.2e-4,
-        help='ymax for plot, default 2.2e-4'
+        '--ymax', type=float, default=1.e-6,
+        help='ymax for plot, default 1,0e-6'
     )
 
     parser.add_argument(
