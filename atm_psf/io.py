@@ -541,6 +541,31 @@ def get_nnpsf_output_fname(obsid, ccd, band, dirname=None):
     return fname
 
 
+def get_nnpsf_ffov_output_fname(obsid, band, dirname=None):
+    """
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    band: str
+        e.g. 'r'
+    dirname: str
+        Optional directory name
+
+    Returns
+    --------
+    path
+    """
+    import os
+
+    fname = f'nnpsf-{obsid:08d}-{band}.fits'
+
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
+
+    return fname
+
+
 def get_source_output_fname(obsid, ccd, band, dirname=None):
     """
     Get the relative output path, e.g.
