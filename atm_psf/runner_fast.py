@@ -16,7 +16,6 @@ def run_fast_sim(
     from pprint import pformat
     from .logging import setup_logging
     import montauk
-    from esutil.pbar import prange
 
     setup_logging('info')
     logger = logging.getLogger('runner_fast.run_sim_fast')
@@ -98,7 +97,7 @@ def run_fast_sim(
         nskipped_select = 0
         nskipped_bounds = 0
 
-        for iobj in prange(nobj):
+        for iobj in range(nobj):
             obj_coord = cat.world_pos[iobj]
             image_pos = cat.image_pos[iobj]
 

@@ -1,22 +1,20 @@
 #!/usr/bin/env python
 
-import numpy as np
-import atm_psf
-
 
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
+
+    parser.add_argument('--instcat', required=True)
+    parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--run-config', required=True)
     parser.add_argument('--sim-config', help='optional sim config')
-    parser.add_argument('--opsim-db', required=True)
-    parser.add_argument('--obsid', type=int, required=True)
-    parser.add_argument('--instcat', required=True)
     parser.add_argument('--nccds', type=int,
                         help='simulate this many random ccds')
     parser.add_argument('--ccds', type=int, nargs='+',
                         help='simulate these ccds, e.g. "35 66"')
-    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--outdir', required=True)
+
     parser.add_argument(
         '--use-existing',
         action='store_true',
@@ -29,11 +27,14 @@ def get_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
-    args = get_args()
+def go(args):
+    import numpy as np
+    import atm_psf
 
     if args.nccds is None and args.ccds is None:
         raise RuntimeError('send either ccds or nccds')
+
+    atm_psf.io.makedir(args.outdir)
 
     rng = np.random.default_rng(args.seed)
 
@@ -50,11 +51,18 @@ if __name__ == '__main__':
         rng=rng,
         run_config=run_config,
         sim_config=sim_config,
-        opsim_db=args.opsim_db,
-        obsid=args.obsid,
         instcat=args.instcat,
         ccds=ccds,
+        outdir=args.outdir,
         cleanup=cleanup,
         use_existing=args.use_existing,
         plot_dir=args.plot_dir,
     )
+
+
+def main():
+    args_ = get_args()
+    go(args_)
+
+
+main()

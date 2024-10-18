@@ -263,8 +263,8 @@ def run_sim_and_piff(
     piff_rng = np.random.default_rng(rng.integers(0, 2**60))
 
     obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
-    do_run_sim = True
     if use_existing:
         print('checking list of existing sim files')
         fnames = [
@@ -272,13 +272,20 @@ def run_sim_and_piff(
                 obsid=obsdata['obshistid'],
                 ccd=ccd,
                 band=obsdata['band'],
+                dirname=outdir,
             )
             for ccd in ccds
         ]
-        if all([os.path.exists(fname) for fname in fnames]):
+
+        if any([not os.path.exists(fname) for fname in fnames]):
+            do_run_sim = True
+        else:
             do_run_sim = False
+    else:
+        do_run_sim = True
 
     if do_run_sim:
+        print('will run sim')
         run_sim_by_type(
             rng=sim_rng,
             config=sim_config,
@@ -519,8 +526,8 @@ def run_sim_and_nnpsf(
     nnpsf_rng = np.random.default_rng(rng.integers(0, 2**60))
 
     obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
-    do_run_sim = True
     if use_existing:
         print('checking list of existing sim files')
         fnames = [
@@ -528,13 +535,20 @@ def run_sim_and_nnpsf(
                 obsid=obsdata['obshistid'],
                 ccd=ccd,
                 band=obsdata['band'],
+                dirname=outdir,
             )
             for ccd in ccds
         ]
-        if all([os.path.exists(fname) for fname in fnames]):
+
+        if any([not os.path.exists(fname) for fname in fnames]):
+            do_run_sim = True
+        else:
             do_run_sim = False
+    else:
+        do_run_sim = True
 
     if do_run_sim:
+        print('will run sim')
         run_sim_by_type(
             rng=sim_rng,
             config=sim_config,
