@@ -34,10 +34,10 @@ atm-psf-make-cat \
 echo "running atm-psf-run-sim" >> ${logfile}
 %(command)s \
     %(sim_extra)s \
+    --nocorners \
     --seed ${sim_seed} \
     --instcat ${instcat} \
-    --outdir ${outdir} \
-    --nccds %(nccds)d >> ${logfile} 2>> ${errfile}
+    --outdir ${outdir} >> ${logfile} 2>> ${errfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
     echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
@@ -74,6 +74,7 @@ atm-psf-make-cat \
 echo "running atm-psf-run-sim"
 %(command)s \
     %(sim_extra)s \
+    --nocorners \
     --seed ${sim_seed} \
     --instcat ${instcat} \
     --outdir ${outdir} \
@@ -166,7 +167,6 @@ def write_script(args, run_config, dotest=False):
         'sim_extra': sim_extra,
         'opsim_db': run_config['opsim_db'],
         'objfile': run_config['object_file'],
-        'nccds': run_config['ccds_per_pointing'],
     }
 
     print('writing:', outfile)
