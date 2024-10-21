@@ -515,6 +515,7 @@ def make_instcat_by_obsid_and_objfile(
     object_file,
     opsim_data,
     output_fname,
+    progress=False,
     selector=None,
 ):
     """
@@ -579,7 +580,9 @@ def make_instcat_by_obsid_and_objfile(
 
             obj_data = obj_data[w]
 
-        _write_instcat_lines_from_array(fout=fout, data=obj_data)
+        _write_instcat_lines_from_array(
+            fout=fout, data=obj_data, progress=progress,
+        )
 
 
 def _copy_objects(
@@ -640,6 +643,7 @@ def _copy_galaxies_ccds(
     rng,
     selector,
     ccds,
+    progress=False,
     sed=None,
 ):
     import numpy as np
@@ -687,7 +691,9 @@ def _copy_galaxies_ccds(
             if sed is not None:
                 data['sed1'] = sed
 
-            _write_instcat_lines_from_array(fout=fout, data=data)
+            _write_instcat_lines_from_array(
+                fout=fout, data=data, progress=progress,
+            )
 
             start = end
 
@@ -705,11 +711,17 @@ def _write_instcat_line(fout, entry):
     fout.write('\n')
 
 
-def _write_instcat_lines_from_array(fout, data):
+def _write_instcat_lines_from_array(fout, data, progress=False):
     from esutil.pbar import pbar
+
+    if progress:
+        miter = pbar(data)
+    else:
+        miter = data
+
     names = data.dtype.names
 
-    for d in pbar(data):
+    for d in miter:
         line = ['object']
         for name in names:
             line += [str(d[name])]
