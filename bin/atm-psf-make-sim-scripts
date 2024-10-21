@@ -77,8 +77,7 @@ echo "running atm-psf-run-sim"
     --nocorners \
     --seed ${sim_seed} \
     --instcat ${instcat} \
-    --outdir ${outdir} \
-    --nccds %(nccds)d
+    --outdir ${outdir}
 """
 
 
