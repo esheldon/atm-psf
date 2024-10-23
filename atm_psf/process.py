@@ -174,7 +174,7 @@ def run_sim(
             nobj, size=nobj_for_wcs, replace=False,
         )
 
-        image, sky_image, truth = montauk.runner.run_sim(
+        image, variance, sky_image, truth = montauk.runner.run_sim(
             rng=rng,
             cat=cat,
             obsdata=obsdata,
@@ -211,7 +211,11 @@ def run_sim(
         extra.update(wcs_stats)
 
         io.save_sim_data(
-            fname=fname, image=image, sky_image=sky_image, truth=truth,
+            fname=fname,
+            image=image,
+            var=variance,
+            sky_image=sky_image,
+            truth=truth,
             obsdata=obsdata,
             extra=extra,
         )
