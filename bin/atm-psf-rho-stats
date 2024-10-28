@@ -5,11 +5,14 @@ def calc_rho_stats(
     ra, dec,
     T,
     g1, g2,
+    weights,
     psf_T,
     psf_g1, psf_g2,
+    nproc=1,
+    npatch=None,
     min_sep=0.5,
     max_sep=50,
-    bin_size=0.1,
+    bin_size=0.2,
     file_name=None,
     model_properties=None,
     **kwargs,
@@ -22,6 +25,10 @@ def calc_rho_stats(
     tckwargs['min_sep'] = min_sep
     tckwargs['max_sep'] = max_sep
     tckwargs['bin_size'] = bin_size
+    # tckwargs['var_method'] = 'jackknife'
+    tckwargs['num_threads'] = nproc
+    # tckwargs['verbose'] = 2  # show some progress
+    tckwargs['var_method'] = 'bootstrap'
 
     if 'sep_units' not in tckwargs:
         tckwargs['sep_units'] = 'arcmin'
@@ -30,33 +37,39 @@ def calc_rho_stats(
     # skip = False
 
     # get the shapes
-    print(f'Calculating rho statistics for {ra.size} stars')
+    print(f'using {ra.size} stars')
 
     dT = T - psf_T
     dg1 = g1 - psf_g1
     dg2 = g2 - psf_g2
 
     # make the treecorr catalogs
-    print("Creating Treecorr Catalogs")
+    print("creating Treecorr Catalogs")
 
     cat_g = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=g1, g2=g2,
+        w=weights,
+        npatch=npatch,
     )
     cat_dg = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=dg1, g2=dg2,
+        w=weights,
+        patch_centers=cat_g.patch_centers,
     )
     cat_gdTT = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=g1 * dT / T, g2=g2 * dT / T,
+        w=weights,
+        patch_centers=cat_g.patch_centers,
     )
 
     # setup and run the correlations
-    print("Processing rho PSF statistics")
+    print("doing rho stats")
 
     # save the rho objects
     data = {}
@@ -77,7 +90,7 @@ def calc_rho_stats(
 
 def get_flist(fname):
     flist = []
-    print('reading files from:', fname)
+    print('getting file list from:', fname)
     with open(fname) as fobj:
         for line in fobj:
             flist.append(line.strip())
@@ -93,7 +106,9 @@ def read_one(inputs):
 
     columns = [
         'ra', 'dec',
-        'am_T', 'am_e1', 'am_e2',
+        'am_T', 'am_T_err',
+        'am_e1', 'am_e1_err',
+        'am_e2', 'am_e2_err',
         'am_psf_T', 'am_psf_e1', 'am_psf_e2',
     ]
 
@@ -185,6 +200,10 @@ def get_args():
         '--nproc', type=int, default=1,
         help='number of processes to use, default 1'
     )
+    parser.add_argument(
+        '--npatch', type=int, default=40,
+        help='number of patches for bootstrap, default 40'
+    )
 
     parser.add_argument(
         '--min-sep', type=float, default=0.5,
@@ -209,8 +228,6 @@ def main():
     print('reading data')
     st = read_data(args)
 
-    print('running treecorr')
-
     # note e1/e2 get factor of 1/2 to convert to reduced shear style
     if 'am_e1' in st.dtype.names:
         g1 = st['am_e1'] * 0.5
@@ -219,6 +236,15 @@ def main():
         psf_g1 = st['am_psf_e1'] * 0.5
         psf_g2 = st['am_psf_e2'] * 0.5
         psf_T = st['am_psf_T']
+
+        # g_err2 = (
+        #     0.0002**2
+        #     + (st['am_e1_err'] * 0.5) ** 2 + (st['am_e2_err'] * 0.5) ** 2
+        # )
+        # weights = 1 / g_err2
+        weights = None
+        # weights = 1/st['am_T_err'] ** 2
+        # weights = (st['am_T'] /st['am_T_err']) ** 2
     else:
         g1 = st['g1_data']
         g2 = st['g2_data']
@@ -232,12 +258,15 @@ def main():
         dec=st['dec'],
         g1=g1,
         g2=g2,
+        weights=weights,
         T=T,
         psf_g1=psf_g1,
         psf_g2=psf_g2,
         psf_T=psf_T,
+        npatch=args.npatch,
         min_sep=args.min_sep,
         max_sep=args.max_sep,
+        nproc=args.nproc,
     )
 
     for key in data:
