@@ -15,6 +15,7 @@ def calc_rho_stats(
     bin_size=0.2,
     file_name=None,
     model_properties=None,
+    low_mem=False,
     **kwargs,
 ):
     import treecorr
@@ -78,23 +79,23 @@ def calc_rho_stats(
     data = {}
     print('    rho1')
     data['rho1'] = treecorr.GGCorrelation(tckwargs)
-    data['rho1'].process(cat_dg, low_mem=True)
+    data['rho1'].process(cat_dg, low_mem=low_mem)
 
     print('    rho2')
     data['rho2'] = treecorr.GGCorrelation(tckwargs)
-    data['rho2'].process(cat_g, cat_dg, low_mem=True)
+    data['rho2'].process(cat_g, cat_dg, low_mem=low_mem)
 
     print('    rho3')
     data['rho3'] = treecorr.GGCorrelation(tckwargs)
-    data['rho3'].process(cat_gdTT, low_mem=True)
+    data['rho3'].process(cat_gdTT, low_mem=low_mem)
 
     print('    rho4')
     data['rho4'] = treecorr.GGCorrelation(tckwargs)
-    data['rho4'].process(cat_dg, cat_gdTT, low_mem=True)
+    data['rho4'].process(cat_dg, cat_gdTT, low_mem=low_mem)
 
     print('    rho5')
     data['rho5'] = treecorr.GGCorrelation(tckwargs)
-    data['rho5'].process(cat_g, cat_gdTT, low_mem=True)
+    data['rho5'].process(cat_g, cat_gdTT, low_mem=low_mem)
     # treecorr.set_max_omp_threads(None)
 
     return data
@@ -220,6 +221,10 @@ def get_args():
         '--save-and-exit', action='store_true',
         help='save read data to a file and exit',
     )
+    parser.add_argument(
+        '--low-mem', action='store_true',
+        help='use low_mem mode',
+    )
 
     parser.add_argument(
         '--nstar-min',
@@ -304,6 +309,7 @@ def main():
         min_sep=args.min_sep,
         max_sep=args.max_sep,
         nproc=args.nproc,
+        low_mem=args.low_mem,
     )
 
     for key in data:
