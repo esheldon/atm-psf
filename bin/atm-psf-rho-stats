@@ -46,6 +46,7 @@ def calc_rho_stats(
     # make the treecorr catalogs
     print("creating Treecorr Catalogs")
 
+    print('    cat_g')
     cat_g = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
@@ -53,6 +54,7 @@ def calc_rho_stats(
         w=weights,
         npatch=npatch,
     )
+    print('    cat_dg')
     cat_dg = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
@@ -60,6 +62,7 @@ def calc_rho_stats(
         w=weights,
         patch_centers=cat_g.patch_centers,
     )
+    print('    cat_gdTT')
     cat_gdTT = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
@@ -73,16 +76,25 @@ def calc_rho_stats(
 
     # save the rho objects
     data = {}
+    print('    rho1')
     data['rho1'] = treecorr.GGCorrelation(tckwargs)
-    data['rho1'].process(cat_dg)
+    data['rho1'].process(cat_dg, low_mem=True)
+
+    print('    rho2')
     data['rho2'] = treecorr.GGCorrelation(tckwargs)
-    data['rho2'].process(cat_g, cat_dg)
+    data['rho2'].process(cat_g, cat_dg, low_mem=True)
+
+    print('    rho3')
     data['rho3'] = treecorr.GGCorrelation(tckwargs)
-    data['rho3'].process(cat_gdTT)
+    data['rho3'].process(cat_gdTT, low_mem=True)
+
+    print('    rho4')
     data['rho4'] = treecorr.GGCorrelation(tckwargs)
-    data['rho4'].process(cat_dg, cat_gdTT)
+    data['rho4'].process(cat_dg, cat_gdTT, low_mem=True)
+
+    print('    rho5')
     data['rho5'] = treecorr.GGCorrelation(tckwargs)
-    data['rho5'].process(cat_g, cat_gdTT)
+    data['rho5'].process(cat_g, cat_gdTT, low_mem=True)
     # treecorr.set_max_omp_threads(None)
 
     return data
@@ -106,9 +118,12 @@ def read_one(inputs):
 
     columns = [
         'ra', 'dec',
-        'am_T', 'am_T_err',
-        'am_e1', 'am_e1_err',
-        'am_e2', 'am_e2_err',
+        'am_T',
+        # 'am_T_err',
+        'am_e1',
+        # 'am_e1_err',
+        'am_e2',
+        # 'am_e2_err',
         'am_psf_T', 'am_psf_e1', 'am_psf_e2',
     ]
 
@@ -190,7 +205,10 @@ def get_args():
                         help='file holding list of inputs')
     parser.add_argument('--front', required=True,
                         help='front for file names')
-
+    parser.add_argument(
+        '--save-and-exit', action='store_true',
+        help='save read data to a file and exit',
+    )
     parser.add_argument(
         '--nstar-min',
         type=int, default=50,
@@ -227,6 +245,13 @@ def main():
 
     print('reading data')
     st = read_data(args)
+
+    if args.save_and_exit:
+        import fitsio
+        oname = args.front+'-objdata.fits'
+        print('writing:', oname)
+        fitsio.write(oname, st, clobber=True)
+        return
 
     # note e1/e2 get factor of 1/2 to convert to reduced shear style
     if 'am_e1' in st.dtype.names:
