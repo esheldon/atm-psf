@@ -162,8 +162,14 @@ def read_data(args):
     import esutil as eu
     from tqdm import tqdm
     import multiprocessing
+    import fitsio
 
-    flist = get_flist(args.flist)
+    if args.fname is not None:
+        return fitsio.read(args.fname)
+    elif args.flist is not None:
+        flist = get_flist(args.flist)
+    else:
+        raise RuntimeError('send --fname or --flist')
 
     ncols = 70
     mininterval = 0.5
@@ -201,14 +207,20 @@ def get_args():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--flist', required=True,
-                        help='file holding list of inputs')
     parser.add_argument('--front', required=True,
                         help='front for file names')
+
+    parser.add_argument('--flist', help='file holding list of inputs')
+
+    parser.add_argument(
+        '--fname', help='single file with data',
+    )
+
     parser.add_argument(
         '--save-and-exit', action='store_true',
         help='save read data to a file and exit',
     )
+
     parser.add_argument(
         '--nstar-min',
         type=int, default=50,
