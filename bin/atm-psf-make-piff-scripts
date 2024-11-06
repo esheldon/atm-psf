@@ -3,55 +3,51 @@
 SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 seed=$1
-image=$2
-piff=$3
-sources=$4
+flist=$2
 
 export OMP_NUM_THREADS=1
 
-outdir=$(dirname $piff)
-mkdir -v -p $outdir
+outdir=$(dirname $flist)
+
+final_logdir="%(final_logdir)s"
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
     logdir=${_CONDOR_SCRATCH_DIR}
 else
-    logdir=${outdir}
+    logdir=${final_logdir}
 fi
 
-logfile="${logdir}/${outdir}.log"
-errfile="${logdir}/${outdir}.err"
+mkdir -v -p $final_logdir
+mkdir -v -p $logdir
+
+logfile="${logdir}/${seed}.log"
+errfile="${logdir}/${seed}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 echo "running atm-psf-make-cat" >> ${logfile}
 
 /usr/bin/time -v atm-psf-run-piff \
     --seed $seed \
-    --image $image \
-    --piff $piff \
-    --sources $sources >> ${logfile} 2>> ${errfile}
+    --flist ${flist} >> ${logfile} 2>> ${errfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then
-    echo "moving ${logfile} to directory ${outdir}" >> ${logfile}
-    echo "moving ${errfile} to directory ${outdir}" >> ${logfile}
-    mv -v ${logfile} ${outdir}/
-    mv -v ${errfile} ${outdir}/
+    echo "moving ${logfile} to directory ${final_logdir}" >> ${logfile}
+    echo "moving ${errfile} to directory ${final_logdir}" >> ${logfile}
+    mv -v ${logfile} ${final_logdir}/
+    mv -v ${errfile} ${final_logdir}/
 fi
 """
 
 TEST_SCRIPT = r"""#!/usr/bin/bash
 # make sure to source ~/imsim-setup/imsim-setup.sh first
 seed=$1
-image=$2
-piff=$3
-sources=$4
+flist=$2
 
 export OMP_NUM_THREADS=1
 
-/usr/bin/time -v atm-psf-run-piff \
-    --seed $seed \
-    --image $image \
-    --piff $piff \
-    --sources $sources
+/usr/bin/time -v atm-psf-run-piff-many \
+    --seed ${seed} \
+    --flist ${flist}
 """
 
 
@@ -63,7 +59,7 @@ Notification = Never
 # Run this exe with these args
 Executable = run-piff.sh
 
-request_memory = 2G
+request_memory = 2.5G
 
 GetEnv = True
 
@@ -75,7 +71,7 @@ kill_sig = SIGINT
 
 JOB_TEMPLATE = r"""
 +job_name = "%(job_name)s"
-arguments = %(seed)d %(image)s %(piff)s %(sources)s
+arguments = %(seed)d %(flist)s
 Queue
 """
 
@@ -83,22 +79,25 @@ Queue
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--simdir', required=True)
     parser.add_argument('--outdir', required=True)
-    parser.add_argument('--nper', type=int, default=1000,
+    parser.add_argument('--nper', type=int, default=30,
+                        help='number of files to process job')
+    parser.add_argument('--nper-condor', type=int, default=1000,
                         help='number of jobs per condor file')
     parser.add_argument('--skip-existing', action='store_true')
     return parser.parse_args()
 
 
-def write_scripts(run_dir):
+def write_scripts(run_dir, logdir):
     import os
 
     outfile = f'{run_dir}/run-piff.sh'
     print('writing:', outfile)
 
     with open(outfile, 'w') as fobj:
-        fobj.write(SCRIPT)
+        fobj.write(SCRIPT % {'final_logdir': logdir})
 
     os.system(f'chmod 755 {outfile}')
 
@@ -122,112 +121,149 @@ def write_condor_head(condorf):
     condorf.write(CONDOR_HEAD)
 
 
-def get_file_data(directory):
-    import random
+def get_output(fname, front, ext):
     import os
 
-    flist = []
-    for root, dirs, files in os.walk(directory, topdown=False):
+    dname, bname = os.path.split(fname)
+    odir = os.path.basename(dname)
+
+    tmp_bname = bname.replace('simdata', front)
+    assert tmp_bname != bname
+
+    tmp_bname_noext, old_ext = os.path.splitext(tmp_bname)
+    out_bname = f'{tmp_bname_noext}.{ext}'
+    outfile = os.path.join(odir, out_bname)
+    assert outfile != fname
+
+    return outfile
+
+
+def get_file_data(args):
+    import os
+    import numpy as np
+    import esutil as eu
+
+    all_flist = []
+    for root, dirs, files in os.walk(args.simdir, topdown=False):
         for basename in files:
             if 'simdata' in basename:
-                fname = os.path.join(root, basename)
-                fname = os.path.abspath(fname)
-                flist.append(fname)
+                image_file = os.path.join(root, basename)
+                image_file = os.path.abspath(image_file)
 
-    flist.sort()
+                all_flist.append(image_file)
 
-    dlist = []
-    for image_fname in flist:
-        obsid = os.path.basename(os.path.dirname(image_fname))
-        d = {'image': image_fname, 'obsid': obsid}
-        dlist.append(d)
+    all_flist.sort()
 
-    # shuffle so not writing into same directory all the time
-    random.shuffle(dlist)
+    print('found:', len(all_flist), 'simdata files')
+
+    image_flist = []
+    source_flist = []
+    piff_flist = []
+
+    for image_file in all_flist:
+        piff_file = get_output(
+            fname=image_file, front='piff', ext='pkl',
+        )
+        source_file = get_output(
+            fname=image_file, front='sources', ext='fits',
+        )
+
+        if args.skip_existing and os.path.exists(source_file):
+            continue
+
+        image_flist.append(image_file)
+        source_flist.append(source_file)
+        piff_flist.append(piff_file)
+
+    print('kept:', len(image_flist))
+
+    image_flist = np.array(image_flist)
+    source_flist = np.array(source_flist)
+    piff_flist = np.array(piff_flist)
+
+    dtype = [
+        ('image_file', image_flist.dtype.descr[0][1]),
+        ('source_file', source_flist.dtype.descr[0][1]),
+        ('piff_file', piff_flist.dtype.descr[0][1]),
+    ]
+
+    data = np.zeros(image_flist.size, dtype=dtype)
+    data['image_file'] = image_flist
+    data['source_file'] = source_flist
+    data['piff_file'] = piff_flist
+
+    dlist = eu.numpy_util.splitarray(args.nper, data)
     return dlist
+
+
+def write_file_data(args, dlist):
+    import os
+    import fitsio
+
+    odir = os.path.join(args.outdir, f'flists-seed{args.seed}')
+    makedir(odir)
+
+    fnames = []
+
+    for i, file_data in enumerate(dlist):
+        ofile = os.path.join(
+            odir,
+            f'file-data-seed{args.seed}-{i:05d}.fits'
+        )
+
+        if i == 0:
+            print(f'example file: {ofile}')
+
+        fitsio.write(ofile, file_data, clobber=True)
+
+        fnames.append(ofile)
+
+    return fnames
 
 
 def main():
     import os
+    import numpy as np
+    import esutil as eu
 
     args = get_args()
 
-    dlist = get_file_data(args.simdir)
-    print('found:', len(dlist), 'simdata files')
+    rng = np.random.default_rng(args.seed)
 
     makedir(args.outdir)
 
-    write_scripts(args.outdir)
+    # this holds an array of file data, one for each job
+    dlist = get_file_data(args)
+    big_file_data_list = write_file_data(args=args, dlist=dlist)
 
-    icondor = 0
-    condorf = None
-    this_njobs = 0
+    file_data_list_splits = eu.numpy_util.splitarray(
+        args.nper_condor, big_file_data_list,
+    )
+    print('will write', len(file_data_list_splits), 'condor files')
 
-    for i, data in enumerate(dlist):
+    logdir = os.path.join(args.outdir, f'logs-seed{args.seed}')
+    print('logdir:', logdir)
+    makedir(logdir)
 
-        if condorf is None or this_njobs == args.nper:
-            if condorf is not None:
-                condorf.close()
+    write_scripts(args.outdir, logdir)
 
-            condor_file = os.path.join(
-                args.outdir, f'submit-piff{icondor:04d}.condor'
-            )
-            print('opening:', condor_file)
-            condorf = open(condor_file, 'w')
-
+    for icondor, file_data_list in enumerate(file_data_list_splits):
+        condor_file = os.path.join(
+            args.outdir, f'submit-piff{icondor:04d}.condor'
+        )
+        print('opening:', condor_file)
+        with open(condor_file, 'w') as condorf:
             write_condor_head(condorf)
-            icondor += 1
-            this_njobs = 0
 
-        bname = os.path.basename(data['image'])
+            for ijob, file_data_fname in enumerate(file_data_list):
+                job_name = f'piff{icondor:04d}-{ijob:04d}'
 
-        sources_name = bname.replace('simdata', 'sources')
-        piff_name = bname.replace(
-            'simdata', 'piff'
-        ).replace(
-            '.fits', '.pkl',
-        )
-        assert sources_name != bname
-
-        sources_file_local = os.path.join(
-            data['obsid'],
-            sources_name,
-        )
-        piff_file_local = os.path.join(
-            data['obsid'],
-            piff_name,
-        )
-
-        sources_file = os.path.join(
-            args.outdir,
-            sources_file_local,
-        )
-
-        if args.skip_existing and os.path.exists(sources_file):
-            print('skipping existing:', sources_file)
-            continue
-
-        job_name = sources_name.replace(
-            '.fits', ''
-        ).replace(
-            'sources-', ''
-        )
-
-        jobtext = JOB_TEMPLATE % {
-            'job_name': job_name,
-            'seed': get_seed(data['image']),
-            'image': data['image'],
-            'piff': piff_file_local,
-            'sources': sources_file_local,
-        }
-        condorf.write(jobtext)
-        this_njobs += 1
-
-
-def get_seed(fname):
-    import hashlib
-    h = hashlib.sha1(fname.encode("utf-8")).hexdigest()
-    return int(h, 16) % 2**30
+                jobtext = JOB_TEMPLATE % {
+                    'job_name': job_name,
+                    'seed': rng.integers(0, 2**30),
+                    'flist': file_data_fname,
+                }
+                condorf.write(jobtext)
 
 
 if __name__ == '__main__':
