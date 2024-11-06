@@ -55,13 +55,15 @@ def ngmix_measure(exp, sources, stamp_size, rng):
 
 
 def _do_meas(exp, source, stamp_size, runner):
+    import ngmix
+
     from metadetect.lsst.measure import (
         AllZeroWeightError, CentroidFailError,
     )
     from metadetect.procflags import (
         EDGE_HIT, ZERO_WEIGHTS, CENTROID_FAILURE,
-        # OBJ_FAILURE,
-        # PSF_FAILURE
+        OBJ_FAILURE,
+        PSF_FAILURE
     )
     from lsst.pex.exceptions import LengthError
 
@@ -84,23 +86,19 @@ def _do_meas(exp, source, stamp_size, runner):
         flags |= CENTROID_FAILURE
 
     if flags == 0:
-        psf_am_res = runner.go(obs.psf)
-        if psf_am_res['flags'] == 0:
-            _add_higher_order_moms(res=psf_am_res, obs=obs.psf)
-        # try:
-        #     psf_am_res = runner.go(obs.psf)
-        #     _add_higher_order_moms(res=psf_am_res, obs=obs.psf)
-        # except Exception:
-        #     psf_am_res = {'flags': PSF_FAILURE}
+        try:
+            psf_am_res = runner.go(obs.psf)
+            if psf_am_res['flags'] == 0:
+                _add_higher_order_moms(res=psf_am_res, obs=obs.psf)
+        except ngmix.GMixRangeError:
+            psf_am_res = {'flags': PSF_FAILURE}
 
-        obj_am_res = runner.go(obs)
-        if obj_am_res['flags'] == 0:
-            _add_higher_order_moms(res=obj_am_res, obs=obs)
-        # try:
-        #     obj_am_res = runner.go(obs)
-        #     _add_higher_order_moms(res=obj_am_res, obs=obs)
-        # except Exception:
-        #     obj_am_res = {'flags': OBJ_FAILURE}
+        try:
+            obj_am_res = runner.go(obs)
+            if obj_am_res['flags'] == 0:
+                _add_higher_order_moms(res=obj_am_res, obs=obs)
+        except ngmix.GMixRangeError:
+            obj_am_res = {'flags': OBJ_FAILURE}
 
     else:
         psf_am_res = {'flags': flags}
