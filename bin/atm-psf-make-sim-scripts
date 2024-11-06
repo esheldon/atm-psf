@@ -6,6 +6,9 @@ obsid=$1
 cat_seed=$2
 sim_seed=$3
 
+set -e
+export OMP_NUM_THREADS=1
+
 outdir=$(printf '%%08d' $obsid)
 mkdir -v -p $outdir
 instcat="$outdir/instcat.txt"
@@ -23,7 +26,7 @@ echo "using logdir: ${logdir}" > ${logfile}
 
 echo "running atm-psf-make-cat" >> ${logfile}
 
-atm-psf-make-cat \
+/usr/bin/time -v atm-psf-make-cat \
     %(cat_extra)s \
     --seed ${cat_seed} \
     --opsim-db %(opsim_db)s \
@@ -32,7 +35,7 @@ atm-psf-make-cat \
     --instcat ${instcat} >> ${logfile} 2>> ${errfile}
 
 echo "running atm-psf-run-sim" >> ${logfile}
-%(command)s \
+/usr/bin/time -v %(command)s \
     %(sim_extra)s \
     --nocorners \
     --seed ${sim_seed} \
@@ -56,6 +59,7 @@ cat_seed=$2
 sim_seed=$3
 
 set -e
+export OMP_NUM_THREADS=1
 
 outdir=$(printf '%%08d' $obsid)
 mkdir -v -p $outdir
