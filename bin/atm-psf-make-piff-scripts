@@ -26,7 +26,7 @@ errfile="${logdir}/${seed}.err"
 echo "using logdir: ${logdir}" > ${logfile}
 echo "running atm-psf-make-cat" >> ${logfile}
 
-/usr/bin/time -v atm-psf-run-piff \
+/usr/bin/time -v atm-psf-run-piff-many \
     --seed $seed \
     --flist ${flist} >> ${logfile} 2>> ${errfile}
 
