@@ -4,8 +4,9 @@ SCRIPT_WITH_PLOTS = r"""#!/usr/bin/bash
 pointing_dir=$1
 sources=$2
 
-valid_plot=${sources/.fits/-valid.pdf}
+valid_plot=${sources/.fits/-valid.png}
 stats_plot=${sources/.fits/-stats.png}
+complot_front=${sources/.fits/}
 
 export OMP_NUM_THREADS=1
 
@@ -24,10 +25,11 @@ errfile="${logdir}/${outdir}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 
-nnpsf-fit-many-images \
+/usr/bin/time -v nnpsf-fit-many-images \
     %(extra)s \
-    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | egrep -v "R41_S20|R41_S21|R43_S21|R43_S22|R30_S20|R30_S10|R34_S21|R34_S22|R10_S10|R10_S00|R14_S02|R14_S12|R01_S00|R01_S01|R02_S01|R03_S02" | sort) \
+    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
     --output ${sources} \
+    --complot-front ${complot_front} \
     --stats-plot ${stats_plot} \
     --validation-plot ${valid_plot} >> ${logfile} 2>> ${errfile}
 
@@ -61,7 +63,7 @@ errfile="${logdir}/${outdir}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 
-nnpsf-fit-many-images \
+/usr/bin/time -v nnpsf-fit-many-images \
     %(extra)s \
     --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
     --output ${sources} >> ${logfile} 2>> ${errfile}
