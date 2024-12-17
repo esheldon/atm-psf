@@ -174,7 +174,7 @@ def run_sim(
             nobj, size=nobj_for_wcs, replace=False,
         )
 
-        image, sky_image, truth = montauk.runner.run_sim(
+        image, variance, sky_image, truth = montauk.runner.run_sim(
             rng=rng,
             cat=cat,
             obsdata=obsdata,
@@ -211,7 +211,11 @@ def run_sim(
         extra.update(wcs_stats)
 
         io.save_sim_data(
-            fname=fname, image=image, sky_image=sky_image, truth=truth,
+            fname=fname,
+            image=image,
+            var=variance,
+            sky_image=sky_image,
+            truth=truth,
             obsdata=obsdata,
             extra=extra,
         )
@@ -265,21 +269,30 @@ def run_sim_and_piff(
     obsdata = instcat_tools.read_instcat_meta(instcat)
     obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
-    do_run_sim = True
+    obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
+
     if use_existing:
-        print('checking list existing sim files')
+        print('checking list of existing sim files')
         fnames = [
             io.get_sim_output_fname(
                 obsid=obsdata['obshistid'],
                 ccd=ccd,
                 band=obsdata['band'],
+                dirname=outdir,
             )
             for ccd in ccds
         ]
-        if all([os.path.exists(fname) for fname in fnames]):
+
+        if any([not os.path.exists(fname) for fname in fnames]):
+            do_run_sim = True
+        else:
             do_run_sim = False
+    else:
+        do_run_sim = True
 
     if do_run_sim:
+        print('will run sim')
         run_sim_by_type(
             rng=sim_rng,
             config=sim_config,
@@ -474,10 +487,9 @@ def run_sim_and_nnpsf(
     rng,
     run_config,
     sim_config,
-    opsim_db,
-    obsid,
     instcat,
     ccds,
+    outdir,
     cleanup=True,
     use_existing=False,
     plot_dir=None,
@@ -510,57 +522,73 @@ def run_sim_and_nnpsf(
 
     import os
     import numpy as np
-    import montauk
+    from .util import run_sim_by_type
+    from . import instcat_tools
     from . import io
-
-    raise RuntimeError('adapt to always using existing instcat')
+    import nnpsf
 
     # generate these now so runs with and without existing instcat
     # are consistent
-    instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
     sim_rng = np.random.default_rng(rng.integers(0, 2**60))
     nnpsf_rng = np.random.default_rng(rng.integers(0, 2**60))
 
-    instcat_out = get_instcat_output_path(obsid)
+    obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
-    if not os.path.exists(instcat_out) or not use_existing:
-        dup = run_config.get('dup', 1)
-        run_replace_instcat(
-            rng=instcat_rng,
-            run_config=run_config,
-            sim_config=sim_config,
-            opsim_db=opsim_db,
-            obsid=obsid,
-            instcat=instcat,
-            instcat_out=instcat_out,
-            ccds=ccds,
-            dup=dup,
-        )
-
-    do_run_sim = True
     if use_existing:
-        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+        print('checking list of existing sim files')
         fnames = [
             io.get_sim_output_fname(
                 obsid=obsdata['obshistid'],
                 ccd=ccd,
                 band=obsdata['band'],
+                dirname=outdir,
             )
             for ccd in ccds
         ]
-        if all([os.path.exists(fname) for fname in fnames]):
+
+        if any([not os.path.exists(fname) for fname in fnames]):
+            do_run_sim = True
+        else:
             do_run_sim = False
+    else:
+        do_run_sim = True
 
     if do_run_sim:
-        run_sim(
+        print('will run sim')
+        run_sim_by_type(
             rng=sim_rng,
             config=sim_config,
-            instcat=instcat_out,
+            instcat=instcat,
             ccds=ccds,
+            outdir=outdir,
             use_existing=use_existing,
         )
 
-    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat_out)
+    fit_config = run_config.get('nnpsf', None)
+    do_ffov = fit_config.pop('do_ffov', True)
+
+    fit_config = nnpsf.fit_config.get_fit_config(config=fit_config)
+
+    if do_ffov:
+        _process_ffov_with_nnpsf(
+            rng=nnpsf_rng, run_config=run_config, fit_config=fit_config,
+            obsdata=obsdata, ccds=ccds, outdir=outdir, plot_dir=plot_dir,
+            cleanup=cleanup,
+        )
+    else:
+        _process_ccds_with_nnpsf(
+            rng=nnpsf_rng, run_config=run_config, fit_config=fit_config,
+            obsdata=obsdata, ccds=ccds,
+            outdir=outdir, plot_dir=plot_dir, cleanup=cleanup,
+        )
+
+
+def _process_ccds_with_nnpsf(
+    rng, run_config, fit_config, obsdata, ccds, outdir, plot_dir, cleanup,
+):
+    import os
+    from . import io
 
     for ccd in ccds:
 
@@ -568,21 +596,96 @@ def run_sim_and_nnpsf(
             obsid=obsdata['obshistid'],
             ccd=ccd,
             band=obsdata['band'],
+            dirname=outdir,
         )
+
+        if not os.path.exists(fname):
+            # probably no objects in image so it wasn't written
+            print('skipping missing sim file:', fname)
+            continue
+
         nnpsf_file = io.get_nnpsf_output_fname(
             obsid=obsdata['obshistid'],
             ccd=ccd,
             band=obsdata['band'],
+            dirname=outdir,
         )
         process_image_with_nnpsf(
-            rng=nnpsf_rng,
+            rng=rng,
             fname=fname,
-            output=nnpsf_file,
-            config=run_config.get('nnpsf', None),
+            source_file=nnpsf_file,
+            config=fit_config,
             plot_dir=plot_dir,
         )
         if cleanup:
             _remove_file(fname)
+
+
+def _process_ffov_with_nnpsf(
+    rng, run_config, fit_config, obsdata, ccds, outdir, plot_dir, cleanup,
+):
+    import os
+    from . import io
+    import nnpsf
+
+    flist = []
+    for ccd in ccds:
+
+        fname = io.get_sim_output_fname(
+            obsid=obsdata['obshistid'],
+            ccd=ccd,
+            band=obsdata['band'],
+            dirname=outdir,
+        )
+
+        if not os.path.exists(fname):
+            # probably no objects in image so it wasn't written
+            print('skipping missing sim file:', fname)
+            continue
+
+        flist.append(fname)
+
+    fitting_data = nnpsf.process.load_and_extract_many(
+        rng=rng,
+        fit_config=fit_config,
+        flist=flist,
+        # progress=progress,
+        # verbose=verbose,
+    )
+
+    output_file = io.get_nnpsf_ffov_output_fname(
+        obsid=obsdata['obshistid'],
+        band=obsdata['band'],
+        dirname=outdir,
+    )
+
+    nnpsf.process.process_stamps(
+        rng=rng,
+        fitting_data=fitting_data,
+        fit_config=fit_config,
+        output_file=output_file,
+        # show=show,
+        # show_pixel_fits=show_pixel_fits,
+        # validation_plot=validation_plot,
+        # max_valid=max_valid,
+        # stats_plot=stats_plot,
+        # save_stamps=save_stamps,
+        # progress=progress,
+        # verbose=verbose,
+        # no_psf_fits=no_psf_fits,
+    )
+
+    if cleanup:
+        for ccd in ccds:
+
+            fname = io.get_sim_output_fname(
+                obsid=obsdata['obshistid'],
+                ccd=ccd,
+                band=obsdata['band'],
+                dirname=outdir,
+            )
+            if os.path.exists(fname):
+                _remove_file(fname)
 
 
 def get_instcat_output_path(obsid):

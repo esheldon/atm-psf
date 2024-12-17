@@ -16,7 +16,6 @@ def run_fast_sim(
     from pprint import pformat
     from .logging import setup_logging
     import montauk
-    from esutil.pbar import prange
 
     setup_logging('info')
     logger = logging.getLogger('runner_fast.run_sim_fast')
@@ -98,7 +97,7 @@ def run_fast_sim(
         nskipped_select = 0
         nskipped_bounds = 0
 
-        for iobj in prange(nobj):
+        for iobj in range(nobj):
             obj_coord = cat.world_pos[iobj]
             image_pos = cat.image_pos[iobj]
 
@@ -148,7 +147,7 @@ def run_fast_sim(
             # to 0.
             stamp.array[stamp.array < 0] = 0.
 
-            stamp.addNoise(galsim.PoissonNoise(rng=gs_rng))
+            # stamp.addNoise(galsim.PoissonNoise(rng=gs_rng))
 
             bounds = stamp.bounds & image.bounds
             if not bounds.isDefined():  # pragma: no cover
@@ -159,7 +158,11 @@ def run_fast_sim(
 
             truth['skipped'][iobj] = False
 
-        image.array[:, :] += rng.poisson(lam=sky_image.array)
+        # we have variance for sky and signal
+        sky_plus_signal = image.array + sky_image.array
+
+        # replace image with poisson deviate, including sky and signal
+        image.array[:, :] = rng.poisson(lam=sky_plus_signal)
 
         logging.info(f'writing to: {fname}')
 
@@ -174,7 +177,11 @@ def run_fast_sim(
         logger.info(f'skipped {nskipped_bounds}/{nobj} bounds')
 
         io.save_sim_data(
-            fname=fname, image=image, sky_image=sky_image, truth=truth,
+            fname=fname,
+            image=image,
+            var=sky_plus_signal,
+            sky_image=sky_image,
+            truth=truth,
             obsdata=obsdata,
             extra=extra,
         )

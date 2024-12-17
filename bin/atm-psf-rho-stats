@@ -5,18 +5,20 @@ def calc_rho_stats(
     ra, dec,
     T,
     g1, g2,
+    weights,
     psf_T,
     psf_g1, psf_g2,
+    nproc=1,
+    npatch=None,
     min_sep=0.5,
     max_sep=50,
-    bin_size=0.1,
+    bin_size=0.2,
     file_name=None,
     model_properties=None,
-    logger=None,
+    low_mem=False,
     **kwargs,
 ):
     import treecorr
-    import galsim
 
     # treecorr.set_max_omp_threads(1)
 
@@ -24,6 +26,10 @@ def calc_rho_stats(
     tckwargs['min_sep'] = min_sep
     tckwargs['max_sep'] = max_sep
     tckwargs['bin_size'] = bin_size
+    # tckwargs['var_method'] = 'jackknife'
+    tckwargs['num_threads'] = nproc
+    # tckwargs['verbose'] = 2  # show some progress
+    tckwargs['var_method'] = 'bootstrap'
 
     if 'sep_units' not in tckwargs:
         tckwargs['sep_units'] = 'arcmin'
@@ -31,125 +37,73 @@ def calc_rho_stats(
     # Set this to true if there is a problem and we need to skip plots.
     # skip = False
 
-    logger = galsim.config.LoggerWrapper(logger)
-
     # get the shapes
-    print(f'Calculating rho statistics for {ra.size} stars')
+    print(f'using {ra.size} stars')
 
     dT = T - psf_T
     dg1 = g1 - psf_g1
     dg2 = g2 - psf_g2
 
     # make the treecorr catalogs
-    logger.info("Creating Treecorr Catalogs")
+    print("creating Treecorr Catalogs")
 
+    print('    cat_g')
     cat_g = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=g1, g2=g2,
+        w=weights,
+        npatch=npatch,
     )
+    print('    cat_dg')
     cat_dg = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=dg1, g2=dg2,
+        w=weights,
+        patch_centers=cat_g.patch_centers,
     )
+    print('    cat_gdTT')
     cat_gdTT = treecorr.Catalog(
         ra=ra, dec=dec,
         ra_units='deg', dec_units='deg',
         g1=g1 * dT / T, g2=g2 * dT / T,
+        w=weights,
+        patch_centers=cat_g.patch_centers,
     )
 
     # setup and run the correlations
-    logger.info("Processing rho PSF statistics")
+    print("doing rho stats")
 
     # save the rho objects
     data = {}
+    print('    rho1')
     data['rho1'] = treecorr.GGCorrelation(tckwargs)
-    data['rho1'].process(cat_dg)
+    data['rho1'].process(cat_dg, low_mem=low_mem)
+
+    print('    rho2')
     data['rho2'] = treecorr.GGCorrelation(tckwargs)
-    data['rho2'].process(cat_g, cat_dg)
+    data['rho2'].process(cat_g, cat_dg, low_mem=low_mem)
+
+    print('    rho3')
     data['rho3'] = treecorr.GGCorrelation(tckwargs)
-    data['rho3'].process(cat_gdTT)
+    data['rho3'].process(cat_gdTT, low_mem=low_mem)
+
+    print('    rho4')
     data['rho4'] = treecorr.GGCorrelation(tckwargs)
-    data['rho4'].process(cat_dg, cat_gdTT)
+    data['rho4'].process(cat_dg, cat_gdTT, low_mem=low_mem)
+
+    print('    rho5')
     data['rho5'] = treecorr.GGCorrelation(tckwargs)
-    data['rho5'].process(cat_g, cat_gdTT)
+    data['rho5'].process(cat_g, cat_gdTT, low_mem=low_mem)
     # treecorr.set_max_omp_threads(None)
 
     return data
 
 
-def plot_rho_stats(args, data, logger=None, **kwargs):
-    import numpy as np
-
-    from matplotlib.figure import Figure
-    fig = Figure(figsize=(10.5, 5))
-    # In matplotlib 2.0, this will be
-    # axs = fig.subplots(ncols=2)
-    axs = [fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)]
-    axs = np.array(axs, dtype=object)
-
-    axs[0].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
-    axs[1].set_xlim(0.5 * args.min_sep, 1.5 * args.max_sep)
-
-    axs[0].set_xlabel(r'$\theta$ (arcmin)')
-    axs[0].set_ylabel(r'$\rho(\theta)$')
-    axs[0].set_xscale('log')
-    axs[0].set_yscale('log', nonpositive='clip')
-
-    axs[1].set_xlabel(r'$\theta$ (arcmin)')
-    axs[1].set_ylabel(r'$\rho(\theta)$')
-    axs[1].set_xscale('log')
-    axs[1].set_yscale('log', nonpositive='clip')
-
-    # Left plot is rho1,3,4
-    rho1 = _plot_single(axs[0], data['rho1'], 'blue', 'o')
-    rho3 = _plot_single(axs[0], data['rho3'], 'green', 's', 0.1)
-    rho4 = _plot_single(axs[0], data['rho4'], 'red', '^', 0.2)
-
-    axs[0].legend([rho1, rho3, rho4],
-                  [r'$\rho_1(\theta)$',
-                   r'$\rho_3(\theta)$',
-                   r'$\rho_4(\theta)$'],
-                  loc='upper right', fontsize=12)
-
-    # Right plot is rho2,5
-    rho2 = _plot_single(axs[1], data['rho2'], 'blue', 'o')
-    rho5 = _plot_single(axs[1], data['rho5'], 'green', 's', 0.1)
-
-    axs[1].legend([rho2, rho5],
-                  [r'$\rho_2(\theta)$', r'$\rho_5(\theta)$'],
-                  loc='upper right', fontsize=12)
-
-    axs[0].set_ylim(args.ymin, args.ymax)
-    axs[1].set_ylim(args.ymin, args.ymax)
-    fig.tight_layout()
-    return fig, axs
-
-
-def _plot_single(ax, rho, color, marker, offset=0.):
-    import numpy as np
-
-    # Add a single rho stat to the plot.
-    meanr = rho.meanr * (1. + rho.bin_size * offset)
-    xip = rho.xip
-    sig = np.sqrt(rho.varxip)
-    ax.plot(meanr, xip, color=color)
-    ax.plot(meanr, -xip, color=color, ls=':')
-    ax.errorbar(
-        meanr[xip > 0], xip[xip > 0], yerr=sig[xip > 0], color=color, ls='',
-        marker=marker
-    )
-    ax.errorbar(
-        meanr[xip < 0], -xip[xip < 0], yerr=sig[xip < 0], color=color, ls='',
-        marker=marker, fillstyle='none', mfc='white'
-    )
-    return ax.errorbar(-meanr, xip, yerr=sig, color=color, marker=marker)
-
-
 def get_flist(fname):
     flist = []
-    print('reading files from:', fname)
+    print('getting file list from:', fname)
     with open(fname) as fobj:
         for line in fobj:
             flist.append(line.strip())
@@ -160,17 +114,25 @@ def read_one(inputs):
     import numpy as np
     import esutil as eu
     import fitsio
-    import ngmix
 
     fname, nstar_min, seeing_min = inputs
 
     columns = [
         'ra', 'dec',
-        'am_T', 'am_e1', 'am_e2',
+        'am_T',
+        # 'am_T_err',
+        'am_e1',
+        # 'am_e1_err',
+        'am_e2',
+        # 'am_e2_err',
         'am_psf_T', 'am_psf_e1', 'am_psf_e2',
     ]
 
-    data = fitsio.read(fname)
+    try:
+        data = fitsio.read(fname)
+    except OSError:
+        return None
+
     n = data['star_select'].sum()
     if 'am_flags' in data.dtype.names and n >= nstar_min:
 
@@ -184,7 +146,8 @@ def read_one(inputs):
 
         data = data[w]
 
-        seeing = np.median(ngmix.moments.T_to_fwhm(data['am_psf_T']))
+        all_seeing = np.sqrt(data['am_psf_T'] / 2) * 2.3548
+        seeing = np.median(all_seeing)
         if seeing < seeing_min:
             data = None
         else:
@@ -200,8 +163,14 @@ def read_data(args):
     import esutil as eu
     from tqdm import tqdm
     import multiprocessing
+    import fitsio
 
-    flist = get_flist(args.flist)
+    if args.fname is not None:
+        return fitsio.read(args.fname)
+    elif args.flist is not None:
+        flist = get_flist(args.flist)
+    else:
+        raise RuntimeError('send --fname or --flist')
 
     ncols = 70
     mininterval = 0.5
@@ -227,7 +196,7 @@ def read_data(args):
         for f in tqdm(
             flist, ncols=ncols, ascii=True, mininterval=mininterval,
         ):
-            data = read_one((f, args.nstar_min))
+            data = read_one((f, args.nstar_min, args.seeing_min))
             if data is not None:
                 dlist.append(data)
 
@@ -239,9 +208,24 @@ def get_args():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--flist', required=True,
-                        help='file holding list of inputs')
-    parser.add_argument('--plot-file', required=True)
+    parser.add_argument('--front', required=True,
+                        help='front for file names')
+
+    parser.add_argument('--flist', help='file holding list of inputs')
+
+    parser.add_argument(
+        '--fname', help='single file with data',
+    )
+
+    parser.add_argument(
+        '--save-and-exit', action='store_true',
+        help='save read data to a file and exit',
+    )
+    parser.add_argument(
+        '--low-mem', action='store_true',
+        help='use low_mem mode',
+    )
+
     parser.add_argument(
         '--nstar-min',
         type=int, default=50,
@@ -251,6 +235,10 @@ def get_args():
         '--nproc', type=int, default=1,
         help='number of processes to use, default 1'
     )
+    parser.add_argument(
+        '--npatch', type=int, default=40,
+        help='number of patches for bootstrap, default 40'
+    )
 
     parser.add_argument(
         '--min-sep', type=float, default=0.5,
@@ -259,15 +247,6 @@ def get_args():
     parser.add_argument(
         '--max-sep', type=float, default=50,
         help='maximum separation, default 50 arcmin'
-    )
-
-    parser.add_argument(
-        '--ymin', type=float, default=1.0e-9,
-        help='ymin for plot, default 1.0e-9'
-    )
-    parser.add_argument(
-        '--ymax', type=float, default=2.2e-4,
-        help='ymax for plot, default 2.2e-4'
     )
 
     parser.add_argument(
@@ -284,7 +263,12 @@ def main():
     print('reading data')
     st = read_data(args)
 
-    print('running treecorr')
+    if args.save_and_exit:
+        import fitsio
+        oname = args.front+'-objdata.fits'
+        print('writing:', oname)
+        fitsio.write(oname, st, clobber=True)
+        return
 
     # note e1/e2 get factor of 1/2 to convert to reduced shear style
     if 'am_e1' in st.dtype.names:
@@ -294,6 +278,15 @@ def main():
         psf_g1 = st['am_psf_e1'] * 0.5
         psf_g2 = st['am_psf_e2'] * 0.5
         psf_T = st['am_psf_T']
+
+        # g_err2 = (
+        #     0.0002**2
+        #     + (st['am_e1_err'] * 0.5) ** 2 + (st['am_e2_err'] * 0.5) ** 2
+        # )
+        # weights = 1 / g_err2
+        weights = None
+        # weights = 1/st['am_T_err'] ** 2
+        # weights = (st['am_T'] /st['am_T_err']) ** 2
     else:
         g1 = st['g1_data']
         g2 = st['g2_data']
@@ -307,17 +300,22 @@ def main():
         dec=st['dec'],
         g1=g1,
         g2=g2,
+        weights=weights,
         T=T,
         psf_g1=psf_g1,
         psf_g2=psf_g2,
         psf_T=psf_T,
+        npatch=args.npatch,
         min_sep=args.min_sep,
         max_sep=args.max_sep,
+        nproc=args.nproc,
+        low_mem=args.low_mem,
     )
 
-    fig, ax = plot_rho_stats(args, data, logger=None)
-    print('writing:', args.plot_file)
-    fig.savefig(args.plot_file, dpi=150)
+    for key in data:
+        fname = args.front + f'-{key}.fits'
+        print(f'writing: {fname}')
+        data[key].write(fname)
 
 
 main()
