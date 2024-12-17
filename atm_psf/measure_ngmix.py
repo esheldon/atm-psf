@@ -1,7 +1,7 @@
 import logging
 LOG = logging.getLogger('measure_ngmix')
 
-HMOM_NAMES = ['M00', 'M22', 'M13', 'M31']
+HMOM_NAMES = ['M00', 'M11', 'M22', 'M13', 'M31']
 
 
 def ngmix_measure(exp, sources, stamp_size, rng):
@@ -108,13 +108,11 @@ def _do_meas(exp, source, stamp_size, runner):
 
 
 def _add_higher_order_moms(res, obs):
-    from ngmix.moments import MOMENTS_NAME_MAP
-
     gmix = res.get_gmix()
     moms = gmix.get_weighted_moments(obs, with_higher_order=True)
     sums = moms['sums']
     for name in HMOM_NAMES:
-        res[name] = sums[MOMENTS_NAME_MAP[name]]
+        res[name] = sums[name]
 
 
 def get_ngmix_output_struct():
