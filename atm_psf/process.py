@@ -252,20 +252,22 @@ def run_sim_and_piff(
 
     import os
     import numpy as np
-    import montauk
     from . import io
+    from . import instcat_tools
     from .util import run_sim_by_type
 
     # generate these now so runs with and without existing instcat
     # are consistent
     # instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
-    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
-    piff_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.choice(2**60))
+    piff_rng = np.random.default_rng(rng.choice(2**60))
+
+    obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
     do_run_sim = True
     if use_existing:
-        print('loading imsim and checking list existing sim files')
-        obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
+        print('checking list existing sim files')
         fnames = [
             io.get_sim_output_fname(
                 obsid=obsdata['obshistid'],
@@ -286,8 +288,6 @@ def run_sim_and_piff(
             outdir=outdir,
             use_existing=use_existing,
         )
-
-    obsdata = montauk.opsim_data.load_obsdata_from_instcat(instcat)
 
     for ccd in ccds:
 
