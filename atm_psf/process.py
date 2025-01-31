@@ -263,8 +263,11 @@ def run_sim_and_piff(
     # generate these now so runs with and without existing instcat
     # are consistent
     # instcat_rng = np.random.default_rng(rng.integers(0, 2**60))
-    sim_rng = np.random.default_rng(rng.integers(0, 2**60))
-    piff_rng = np.random.default_rng(rng.integers(0, 2**60))
+    sim_rng = np.random.default_rng(rng.choice(2**60))
+    piff_rng = np.random.default_rng(rng.choice(2**60))
+
+    obsdata = instcat_tools.read_instcat_meta(instcat)
+    obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]
 
     obsdata = instcat_tools.read_instcat_meta(instcat)
     obsdata['band'] = instcat_tools.RFILTERMAP[obsdata['filter']]

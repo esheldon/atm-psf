@@ -114,8 +114,6 @@ def _do_meas(exp, source, stamp_size, runner):
 
 
 def _add_higher_order_moms(res, obs):
-    from ngmix.moments import MOMENTS_NAME_MAP
-
     gmix = res.get_gmix()
     moms = gmix.get_weighted_moments(obs, with_higher_order=True)
     for name in HMOM_NAMES:
