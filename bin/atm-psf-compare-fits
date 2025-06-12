@@ -22,11 +22,10 @@ def plot_image_with_colorbar(
     fig.colorbar(cim, cax=cax)
 
 
-def plot_one_whisker(ax, x, y, e1, e2):
+def plot_one_whisker(ax, x, y, e1, e2, color='black'):
     import numpy as np
     import esutil as eu
 
-    whisker_color = 'black'
     fac = 2000 / 0.03
     e1plot = e1 * fac
     e2plot = e2 * fac
@@ -37,10 +36,9 @@ def plot_one_whisker(ax, x, y, e1, e2):
 
     ax.plot(
         xvals, yvals,
-        color=whisker_color,
+        color=color,
         linewidth=0.1,
         linestyle='-',
-        # **plotting_keywords
     )
 
 
@@ -203,24 +201,35 @@ def do_whisker_plot(
     e2stats_model,
 ):
     import matplotlib.pyplot as mplt
+    import numpy as np
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(10, 10))
 
     tpos = -32000, 30000
-    axs[0, 0].text(tpos[0], tpos[1], 'data')
-    axs[0, 1].text(tpos[0], tpos[1], 'model')
-    axs[1, 0].text(tpos[0], tpos[1], 'resid')
+    # axs[0, 0].text(tpos[0], tpos[1], 'data')
+    # axs[0, 1].text(tpos[0], tpos[1], 'model')
+    # axs[1, 0].text(tpos[0], tpos[1], 'resid')
+    tpos = [0.1, 0.9]
+    axs[0, 0].text(tpos[0], tpos[1], 'data', transform=axs[0, 0].transAxes)
+    axs[0, 1].text(tpos[0], tpos[1], 'model', transform=axs[0, 1].transAxes)
+    axs[1, 0].text(tpos[0], tpos[1], 'resid', transform=axs[1, 0].transAxes)
 
     for ax in axs.ravel():
         # ax.set(xlim=lim, ylim=lim)
         ax.set_aspect('equal')
     axs[1, 1].axis('off')
 
+    xmax = np.nanmax(e1stats['x'])
+    ymax = np.nanmax(e1stats['y'])
     plot_one_whisker(
-        ax=axs[0, 0], x=23000, y=30000,
+        ax=axs[0, 0],
+        # x=23000, y=30000,
+        x=0.9 * xmax, y=0.9 * ymax,
         e1=0.03, e2=0.00,
+        color='red'
     )
-    axs[0, 0].text(25000, 29300, "0.03")
+    # axs[0, 0].text(25000, 29300, "0.03")
+    axs[0, 0].text(0.97 * xmax, 0.9 * ymax, "0.03", va='center')
 
     plot_one_whisker(
         ax=axs[0, 0],
@@ -250,6 +259,22 @@ def do_whisker_plot(
     return fig, ax
 
 
+def get_range(args, x, y):
+
+    if args.trim:
+        xmin = x.min()
+        xmax = x.max()
+        ymin = y.min()
+        ymax = y.max()
+    else:
+        xmin = args.xmin
+        xmax = args.xmax
+        ymin = args.ymin
+        ymax = args.ymax
+
+    return xmin, xmax, ymin, ymax
+
+
 def main(args):
     import numpy as np
     import esutil as eu
@@ -271,9 +296,11 @@ def main(args):
     )
     weights = t['am_s2n'] ** 2
 
+    xmin, xmax, ymin, ymax = get_range(args, x, y)
+
     bins = [
-        np.linspace(args.xmin, args.xmax, args.nbin),
-        np.linspace(args.xmin, args.xmax, args.nbin),
+        np.linspace(xmin, xmax, args.nbin),
+        np.linspace(ymin, ymax, args.nbin),
     ]
     Tstats = get_xy_bindata(
         x=x, y=y, z=t['am_T'], weights=weights, bins=bins,
@@ -330,8 +357,14 @@ def get_args():
     parser.add_argument('--flist', nargs='+', required=True)
     parser.add_argument('--whisker-output', required=True)
     parser.add_argument('--fwhm-output', required=True)
+
+    parser.add_argument('--trim', action='store_true',
+                        help='trim x/y to that covered by input data')
+
     parser.add_argument('--xmin', type=float, default=-35000.0)
     parser.add_argument('--xmax', type=float, default=+35000.0)
+    parser.add_argument('--ymin', type=float, default=-35000.0)
+    parser.add_argument('--ymax', type=float, default=+35000.0)
     parser.add_argument('--nbin', type=int, default=45)
     return parser.parse_args()
 
