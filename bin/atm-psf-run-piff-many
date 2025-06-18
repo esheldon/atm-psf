@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+import numpy as np
+from atm_psf.process import process_image_with_piff
+from atm_psf.io import load_yaml
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--flist', required=True)
+    parser.add_argument(
+        '--run-config',
+        help='optional run config, can have piff entry'
+    )
+    parser.add_argument('--plot-dir')
+    return parser.parse_args()
+
+
+def load_flist(fname):
+    import fitsio
+    print(f'loading file list from {fname}')
+
+    fdata = fitsio.read(fname)
+    return fdata
+
+
+def get_output(fname, front, ext):
+    import os
+
+    dname, bname = os.path.split(fname)
+    odir = os.path.basename(dname)
+
+    tmp_bname = bname.replace('simdata', front)
+    assert tmp_bname != bname
+
+    out_bname = os.path.splitext(tmp_bname) + '.' + ext
+    assert out_bname != tmp_bname
+
+    outfile = os.path.join(odir, out_bname)
+    return outfile
+
+
+def main():
+    args = get_args()
+
+    rng = np.random.RandomState(args.seed)
+    if args.run_config is not None:
+        run_config = load_yaml(args.run_config)
+    else:
+        run_config = {}
+
+    fdata = load_flist(args.flist)
+
+    for fnames in fdata:
+
+        image_file = fnames['image_file']
+        piff_file = fnames['piff_file']
+        source_file = fnames['source_file']
+
+        process_image_with_piff(
+            rng=rng,
+            fname=image_file,
+            piff_file=piff_file,
+            source_file=source_file,
+            piff_config=run_config.get('piff', None),
+            plot_dir=args.plot_dir,
+        )
+
+
+if __name__ == '__main__':
+    main()

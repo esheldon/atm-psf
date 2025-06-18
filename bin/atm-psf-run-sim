@@ -3,33 +3,34 @@
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--instcat', help='instcat file for sim',
-        required=True,
-    )
+
+    parser.add_argument('--instcat', required=True)
     parser.add_argument('--seed', type=int, required=True)
-    parser.add_argument('--outdir', required=True)
-
     parser.add_argument('--sim-config', help='optional sim config')
-
+    parser.add_argument('--nocorners', action='store_true',
+                        help='do not use corner CCDS')
     parser.add_argument('--nccds', type=int,
                         help='simulate this many random ccds, up to 189')
     parser.add_argument('--ccds', type=int, nargs='+',
                         help='simulate these ccds, e.g. "35 66"')
+    parser.add_argument('--outdir', required=True)
+
     parser.add_argument(
         '--use-existing',
         action='store_true',
         help='do not overwrite existing data',
     )
+
     return parser.parse_args()
 
 
 def go(args):
     import numpy as np
     import atm_psf
+    from atm_psf.ccds import get_random_ccdnums, get_ccdnums_nocorners
 
-    if args.nccds is None and args.ccds is None:
-        raise RuntimeError('send either ccds or nccds')
+    if args.nccds is None and args.ccds is None and not args.nocorners:
+        raise RuntimeError('send either ccds or nccds or --nocorners')
 
     atm_psf.io.makedir(args.outdir)
 
@@ -37,13 +38,14 @@ def go(args):
 
     if args.ccds is not None:
         ccds = args.ccds
+    elif args.nocorners:
+        ccds = get_ccdnums_nocorners()
     else:
-        ccds = rng.choice(189, size=args.nccds, replace=False)
-        ccds.sort()
+        ccds = get_random_ccdnums(rng, size=args.nccds)
 
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
-    atm_psf.process.run_sim(
+    atm_psf.util.run_sim_by_type(
         rng=rng,
         config=sim_config,
         instcat=args.instcat,

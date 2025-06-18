@@ -20,6 +20,9 @@ def get_args():
     parser.add_argument(
         '--instcat', required=True, help='path to output file'
     )
+    parser.add_argument(
+        '--progress', action='store_true',
+    )
     parser.add_argument('--sim-config', help='optional simulation config')
     return parser.parse_args()
 
@@ -47,6 +50,7 @@ def go(args):
         object_file=args.objfile,
         opsim_data=opsim_data,
         output_fname=args.instcat,
+        progress=args.progress,
         selector=lambda d: d['magnorm'] > magmin,
     )
 

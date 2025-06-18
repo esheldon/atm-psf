@@ -2,6 +2,7 @@ def get_default_sim_config():
     import montauk
 
     return {
+        'sim_type': 'imsim',  # imsim or fast
         'sky_gradient': True,
         'vignetting': True,
         'apply_pixel_areas': True,

@@ -433,17 +433,17 @@ def load_yaml(fname):
     return data
 
 
-def makedir(dir):
+def makedir(dirname):
     import os
-    if not os.path.exists(dir):
-        print('making dir:', dir)
+    if not os.path.exists(dirname):
+        print('making dir:', dirname)
         try:
-            os.makedirs(dir)
+            os.makedirs(dirname)
         except FileExistsError:
             pass
 
 
-def get_sim_output_fname(obsid, ccd, band):
+def get_sim_output_fname(obsid, ccd, band, dirname=None):
     """
     Get the relative output path, e.g.
         00355204/simdata-00355204-0-i-R14_S00-det063.fits
@@ -461,6 +461,7 @@ def get_sim_output_fname(obsid, ccd, band):
     --------
     path
     """
+    import os
     import montauk
 
     dm_detector = montauk.camera.make_dm_detector(ccd)
@@ -468,10 +469,15 @@ def get_sim_output_fname(obsid, ccd, band):
     detnum = dm_detector.getId()
 
     # simdata-00355204-0-i-R14_S00-det063.fits
-    return f'simdata-{obsid:08d}-0-{band}-{detname}-det{detnum:03d}.fits'
+    fname = f'simdata-{obsid:08d}-0-{band}-{detname}-det{detnum:03d}.fits'
+
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
+
+    return fname
 
 
-def get_piff_output_fname(obsid, ccd, band):
+def get_piff_output_fname(obsid, ccd, band, dirname=None):
     """
     Get the relative output path, e.g.
         00355204/piff-00355204-0-i-R14_S00-det063.pkl
@@ -489,16 +495,22 @@ def get_piff_output_fname(obsid, ccd, band):
     --------
     path
     """
+    import os
 
     sim_output_fname = get_sim_output_fname(obsid, ccd, band)
-    return sim_output_fname.replace(
+    fname = sim_output_fname.replace(
         'simdata-', 'piff-'
     ).replace(
         '.fits', '.pkl',
     )
 
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
 
-def get_nnpsf_output_fname(obsid, ccd, band):
+    return fname
+
+
+def get_nnpsf_output_fname(obsid, ccd, band, dirname=None):
     """
     Get the relative output path, e.g.
         00355204/piff-00355204-0-i-R14_S00-det063.pkl
@@ -516,14 +528,45 @@ def get_nnpsf_output_fname(obsid, ccd, band):
     --------
     path
     """
+    import os
 
     sim_output_fname = get_sim_output_fname(obsid, ccd, band)
-    return sim_output_fname.replace(
+    fname = sim_output_fname.replace(
         'simdata-', 'nnpsf-'
     )
 
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
 
-def get_source_output_fname(obsid, ccd, band):
+    return fname
+
+
+def get_nnpsf_ffov_output_fname(obsid, band, dirname=None):
+    """
+    Parameters
+    ----------
+    obsid: int
+        Observation id in opsim db
+    band: str
+        e.g. 'r'
+    dirname: str
+        Optional directory name
+
+    Returns
+    --------
+    path
+    """
+    import os
+
+    fname = f'nnpsf-{obsid:08d}-{band}.fits'
+
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
+
+    return fname
+
+
+def get_source_output_fname(obsid, ccd, band, dirname=None):
     """
     Get the relative output path, e.g.
         00355204/source-00355204-0-i-R14_S00-det063.fits
@@ -541,15 +584,28 @@ def get_source_output_fname(obsid, ccd, band):
     --------
     path
     """
+    import os
 
     sim_output_fname = get_sim_output_fname(obsid, ccd, band)
-    return sim_output_fname.replace(
+
+    fname = sim_output_fname.replace(
         'simdata-', 'source-'
     )
 
+    if dirname is not None:
+        fname = os.path.join(dirname, fname)
+
+    return fname
+
 
 def save_sim_data(
-    fname, image, sky_image, truth, obsdata, extra=None,
+    fname,
+    image,
+    var,
+    sky_image,
+    truth,
+    obsdata,
+    extra=None,
 ):
     """
     Save the data to a FITS file.  The wcs is written to the header
@@ -596,7 +652,9 @@ def save_sim_data(
             compress='gzip', qlevel=0,
         )
         fits.write(
-            sky_image.array, extname='sky',
-            compress='gzip', qlevel=0,
+            var, extname='variance', compress='gzip', qlevel=0,
+        )
+        fits.write(
+            sky_image.array, extname='sky', compress='gzip', qlevel=0,
         )
         fits.write(truth, extname='truth', header=truth_header)

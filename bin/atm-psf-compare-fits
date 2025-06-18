@@ -1,0 +1,381 @@
+#!/usr/bin/env python
+
+
+def plot_image_with_colorbar(
+    figax, image, cmap='inferno', symmetric=False,
+    show=False, fname=None, **kw
+):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import numpy as np
+
+    fig, ax = figax
+
+    if symmetric:
+        w = np.where(np.isfinite(image))
+        maxval = np.abs(image[w]).max()
+        kw['vmin'] = -maxval
+        kw['vmax'] = maxval
+
+    cim = ax.imshow(image, cmap=cmap, **kw)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(cim, cax=cax)
+
+
+def plot_one_whisker(ax, x, y, e1, e2, color='black'):
+    import numpy as np
+    import esutil as eu
+
+    fac = 2000 / 0.03
+    e1plot = e1 * fac
+    e2plot = e2 * fac
+    u, v = eu.plotting.polar2whisker(e1plot, e2plot)
+
+    xvals = x + np.array([-u/2.0, u/2.0], dtype='f4')
+    yvals = y + np.array([-v/2.0, v/2.0], dtype='f4')
+
+    ax.plot(
+        xvals, yvals,
+        color=color,
+        linewidth=0.1,
+        linestyle='-',
+    )
+
+
+def make_wcs(image_origin, world_origin, theta=None, scale=0.2):
+    """
+    make and return a wcs object
+
+    Parameters
+    ----------
+    scale: float
+        Pixel scale
+    image_origin: galsim.PositionD
+        Image origin position
+    world_origin: galsim.CelestialCoord
+        Origin on the sky
+    theta: float, optional
+        Rotation angle in radians
+
+    Returns
+    -------
+    A galsim wcs object, currently a TanWCS
+    """
+    import numpy as np
+    import galsim
+
+    mat = np.array(
+        [[scale, 0.0],
+         [0.0, scale]],
+    )
+    if theta is not None:
+        costheta = np.cos(theta)
+        sintheta = np.sin(theta)
+        rot = np.array(
+            [[costheta, -sintheta],
+             [sintheta, costheta]],
+        )
+        mat = np.dot(mat, rot)
+
+    return galsim.TanWCS(
+        affine=galsim.AffineTransform(
+            mat[0, 0], mat[0, 1], mat[1, 0], mat[1, 1],
+            origin=image_origin,
+        ),
+        world_origin=world_origin,
+        units=galsim.arcsec,
+    )
+
+
+def get_wcs(ra, dec, theta=None):
+    import galsim
+
+    image_origin = galsim.PositionD(0, 0)
+    world_origin = galsim.CelestialCoord(
+        ra * galsim.degrees, dec * galsim.degrees,
+    )
+    return make_wcs(
+        image_origin=image_origin,
+        world_origin=world_origin,
+        theta=theta,
+    )
+
+
+def get_xy_bindata(x, y, z, weights, bins):
+    import numpy as np
+    from scipy.stats import binned_statistic_2d
+
+    stat = 'sum'
+
+    wret = binned_statistic_2d(
+        x, y, weights, statistic=stat, bins=bins
+    )
+    zret = binned_statistic_2d(
+        x, y, z * weights, statistic=stat, bins=bins
+    )
+    xret = binned_statistic_2d(
+        x, y, x * weights, statistic=stat, bins=bins
+    )
+    yret = binned_statistic_2d(
+        x, y, y * weights, statistic=stat, bins=bins
+    )
+
+    wsums = wret.statistic.T
+    zsums = zret.statistic.T
+    xsums = xret.statistic.T
+    ysums = yret.statistic.T
+
+    stat = wsums * 0 + np.nan
+    xstat = wsums * 0 + np.nan
+    ystat = wsums * 0 + np.nan
+    err = wsums * 0 + np.inf
+
+    w = np.where(wsums > 0)
+    stat[w] = zsums[w] / wsums[w]
+    xstat[w] = xsums[w] / wsums[w]
+    ystat[w] = ysums[w] / wsums[w]
+
+    err[w] = np.sqrt(1 / wsums[w])
+
+    return {
+        'stat': stat,
+        'err': err,
+        'x': xstat,
+        'y': ystat,
+        'wsums': wsums,
+    }
+
+
+def do_fwhm_plot(
+    Tstats,
+    Tstats_model,
+):
+    import matplotlib.pyplot as mplt
+    import numpy as np
+
+    fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+
+    tpos = -28000, 27000
+    axs[0, 0].text(tpos[0], tpos[1], 'data')
+    axs[0, 1].text(tpos[0], tpos[1], 'model')
+    axs[1, 0].text(tpos[0], tpos[1], 'resid')
+
+    for ax in axs.ravel():
+        # ax.set(xlim=lim, ylim=lim)
+        ax.set_aspect('equal')
+    axs[1, 1].axis('off')
+
+    x = Tstats['x'].ravel()
+    y = Tstats['y'].ravel()
+    extent = [
+        np.nanmin(x),
+        np.nanmax(x),
+        np.nanmin(y),
+        np.nanmax(y),
+    ]
+    plot_image_with_colorbar(
+        figax=(fig, axs[0, 0]),
+        image=Tstats['fwhm'],
+        extent=extent,
+    )
+    wfin = np.where(np.isfinite(Tstats_model['fwhm']))
+    if wfin[0].size > 0:
+        plot_image_with_colorbar(
+            figax=(fig, axs[0, 1]),
+            image=Tstats_model['fwhm'],
+            extent=extent,
+        )
+        plot_image_with_colorbar(
+            figax=(fig, axs[1, 0]),
+            image=Tstats_model['fwhm'] - Tstats['fwhm'],
+            extent=extent,
+            symmetric=True,
+        )
+
+    fig.tight_layout()
+    return fig, axs
+
+
+def do_whisker_plot(
+    e1stats,
+    e2stats,
+    e1stats_model,
+    e2stats_model,
+):
+    import matplotlib.pyplot as mplt
+    import numpy as np
+
+    fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(10, 10))
+
+    tpos = -32000, 30000
+    # axs[0, 0].text(tpos[0], tpos[1], 'data')
+    # axs[0, 1].text(tpos[0], tpos[1], 'model')
+    # axs[1, 0].text(tpos[0], tpos[1], 'resid')
+    tpos = [0.1, 0.9]
+    axs[0, 0].text(tpos[0], tpos[1], 'data', transform=axs[0, 0].transAxes)
+    axs[0, 1].text(tpos[0], tpos[1], 'model', transform=axs[0, 1].transAxes)
+    axs[1, 0].text(tpos[0], tpos[1], 'resid', transform=axs[1, 0].transAxes)
+
+    for ax in axs.ravel():
+        # ax.set(xlim=lim, ylim=lim)
+        ax.set_aspect('equal')
+    axs[1, 1].axis('off')
+
+    xmax = np.nanmax(e1stats['x'])
+    ymax = np.nanmax(e1stats['y'])
+    plot_one_whisker(
+        ax=axs[0, 0],
+        # x=23000, y=30000,
+        x=0.9 * xmax, y=0.9 * ymax,
+        e1=0.03, e2=0.00,
+        color='red'
+    )
+    # axs[0, 0].text(25000, 29300, "0.03")
+    axs[0, 0].text(0.97 * xmax, 0.9 * ymax, "0.03", va='center')
+
+    plot_one_whisker(
+        ax=axs[0, 0],
+        x=e1stats['x'].ravel(),
+        y=e1stats['y'].ravel(),
+        e1=e1stats['stat'].ravel(),
+        e2=e2stats['stat'].ravel(),
+    )
+
+    plot_one_whisker(
+        ax=axs[0, 1],
+        x=e1stats_model['x'].ravel(),
+        y=e1stats_model['y'].ravel(),
+        e1=e1stats_model['stat'].ravel(),
+        e2=e2stats_model['stat'].ravel(),
+    )
+
+    plot_one_whisker(
+        ax=axs[1, 0],
+        x=e1stats_model['x'].ravel(),
+        y=e1stats_model['y'].ravel(),
+        e1=e1stats_model['stat'].ravel() - e1stats['stat'].ravel(),
+        e2=e2stats_model['stat'].ravel() - e2stats['stat'].ravel(),
+    )
+
+    fig.tight_layout()
+    return fig, ax
+
+
+def get_range(args, x, y):
+
+    if args.trim:
+        xmin = x.min()
+        xmax = x.max()
+        ymin = y.min()
+        ymax = y.max()
+    else:
+        xmin = args.xmin
+        xmax = args.xmax
+        ymin = args.ymin
+        ymax = args.ymax
+
+    return xmin, xmax, ymin, ymax
+
+
+def main(args):
+    import numpy as np
+    import esutil as eu
+    import galsim
+    import ngmix
+
+    t = eu.io.read(args.flist)
+    w, = np.where((t['am_flags'] == 0) & t['star_select'])
+    t = t[w]
+
+    midra = np.nanmedian(t['ra'])
+    middec = np.nanmedian(t['dec'])
+
+    wcs = get_wcs(ra=midra, dec=middec)
+    x, y = wcs.radecToxy(
+        ra=t['ra'],
+        dec=t['dec'],
+        units=galsim.degrees,
+    )
+    weights = t['am_s2n'] ** 2
+
+    xmin, xmax, ymin, ymax = get_range(args, x, y)
+
+    bins = [
+        np.linspace(xmin, xmax, args.nbin),
+        np.linspace(ymin, ymax, args.nbin),
+    ]
+    Tstats = get_xy_bindata(
+        x=x, y=y, z=t['am_T'], weights=weights, bins=bins,
+    )
+
+    e1stats = get_xy_bindata(
+        x=x, y=y, z=t['am_e1'], weights=weights, bins=bins,
+    )
+    e2stats = get_xy_bindata(
+        x=x, y=y, z=t['am_e2'], weights=weights, bins=bins,
+    )
+
+    e1stats_model = get_xy_bindata(
+        x=x, y=y, z=t['am_psf_e1'], weights=weights, bins=bins,
+    )
+    e2stats_model = get_xy_bindata(
+        x=x, y=y, z=t['am_psf_e2'], weights=weights, bins=bins,
+    )
+    Tstats_model = get_xy_bindata(
+        x=x, y=y, z=t['am_psf_T'], weights=weights, bins=bins,
+    )
+
+    fwhm = ngmix.moments.T_to_fwhm(Tstats['stat'])
+    fwhm_model = ngmix.moments.T_to_fwhm(Tstats_model['stat'])
+    Tstats['fwhm'] = fwhm
+    Tstats_model['fwhm'] = fwhm_model
+    print('fwhm stats')
+
+    eu.stat.print_stats(fwhm[np.where(np.isfinite(fwhm))].ravel())
+    print('model fwhm stats')
+    wfin = np.where(np.isfinite(fwhm_model))
+    if wfin[0].size > 0:
+        eu.stat.print_stats(
+            fwhm_model[np.where(np.isfinite(fwhm_model))].ravel()
+        )
+
+    whisker_fig, _ = do_whisker_plot(
+        e1stats=e1stats,
+        e2stats=e2stats,
+        e1stats_model=e1stats_model,
+        e2stats_model=e2stats_model,
+    )
+
+    print('writing:', args.whisker_output)
+    whisker_fig.savefig(args.whisker_output, dpi=150)
+
+    fwhm_fig, axs = do_fwhm_plot(
+        Tstats=Tstats,
+        Tstats_model=Tstats_model,
+    )
+
+    print('writing:', args.fwhm_output)
+    fwhm_fig.savefig(args.fwhm_output, dpi=150)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--flist', nargs='+', required=True)
+    parser.add_argument('--whisker-output', required=True)
+    parser.add_argument('--fwhm-output', required=True)
+
+    parser.add_argument('--trim', action='store_true',
+                        help='trim x/y to that covered by input data')
+
+    parser.add_argument('--xmin', type=float, default=-35000.0)
+    parser.add_argument('--xmax', type=float, default=+35000.0)
+    parser.add_argument('--ymin', type=float, default=-35000.0)
+    parser.add_argument('--ymax', type=float, default=+35000.0)
+    parser.add_argument('--nbin', type=int, default=45)
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args)
