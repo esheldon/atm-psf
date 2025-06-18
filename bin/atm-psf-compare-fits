@@ -178,17 +178,19 @@ def do_fwhm_plot(
         image=Tstats['fwhm'],
         extent=extent,
     )
-    plot_image_with_colorbar(
-        figax=(fig, axs[0, 1]),
-        image=Tstats_model['fwhm'],
-        extent=extent,
-    )
-    plot_image_with_colorbar(
-        figax=(fig, axs[1, 0]),
-        image=Tstats_model['fwhm'] - Tstats['fwhm'],
-        extent=extent,
-        symmetric=True,
-    )
+    wfin = np.where(np.isfinite(Tstats_model['fwhm']))
+    if wfin[0].size > 0:
+        plot_image_with_colorbar(
+            figax=(fig, axs[0, 1]),
+            image=Tstats_model['fwhm'],
+            extent=extent,
+        )
+        plot_image_with_colorbar(
+            figax=(fig, axs[1, 0]),
+            image=Tstats_model['fwhm'] - Tstats['fwhm'],
+            extent=extent,
+            symmetric=True,
+        )
 
     fig.tight_layout()
     return fig, axs
@@ -328,9 +330,14 @@ def main(args):
     Tstats['fwhm'] = fwhm
     Tstats_model['fwhm'] = fwhm_model
     print('fwhm stats')
+
     eu.stat.print_stats(fwhm[np.where(np.isfinite(fwhm))].ravel())
     print('model fwhm stats')
-    eu.stat.print_stats(fwhm_model[np.where(np.isfinite(fwhm_model))].ravel())
+    wfin = np.where(np.isfinite(fwhm_model))
+    if wfin[0].size > 0:
+        eu.stat.print_stats(
+            fwhm_model[np.where(np.isfinite(fwhm_model))].ravel()
+        )
 
     whisker_fig, _ = do_whisker_plot(
         e1stats=e1stats,
