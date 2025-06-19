@@ -29,6 +29,7 @@ echo "running atm-psf-make-cat" >> ${logfile}
 /usr/bin/time -v atm-psf-make-cat \
     %(cat_extra)s \
     --seed ${cat_seed} \
+    --nccds 189 \
     --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
     --objfile %(objfile)s \
@@ -80,6 +81,7 @@ echo "running atm-psf-run-sim"
 %(command)s \
     %(sim_extra)s \
     --seed ${sim_seed} \
+    --nccds 189 \
     --instcat ${instcat} \
     --outdir ${outdir}
 """
