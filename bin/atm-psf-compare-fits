@@ -147,6 +147,7 @@ def get_xy_bindata(x, y, z, weights, bins):
 
 
 def do_fwhm_plot(
+    args,
     Tstats,
     Tstats_model,
 ):
@@ -155,10 +156,19 @@ def do_fwhm_plot(
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(10, 10))
 
-    tpos = -28000, 27000
-    axs[0, 0].text(tpos[0], tpos[1], 'data')
-    axs[0, 1].text(tpos[0], tpos[1], 'model')
-    axs[1, 0].text(tpos[0], tpos[1], 'resid')
+    # tpos = -28000, 27000
+    # axs[0, 0].text(tpos[0], tpos[1], 'data')
+    # axs[0, 1].text(tpos[0], tpos[1], 'model')
+    # axs[1, 0].text(tpos[0], tpos[1], 'resid')
+    tpos = [0.1, 0.9]
+    axs[0, 0].text(tpos[0], tpos[1], 'data', transform=axs[0, 0].transAxes)
+    axs[0, 1].text(tpos[0], tpos[1], 'model', transform=axs[0, 1].transAxes)
+    axs[1, 0].text(tpos[0], tpos[1], 'resid', transform=axs[1, 0].transAxes)
+
+    if not args.trim:
+        for ax in axs.ravel():
+            xlim = args.xmin, args.xmax
+            ax.set(xlim=xlim)
 
     for ax in axs.ravel():
         # ax.set(xlim=lim, ylim=lim)
@@ -207,7 +217,7 @@ def do_whisker_plot(
 
     fig, axs = mplt.subplots(nrows=2, ncols=2, figsize=(10, 10))
 
-    tpos = -32000, 30000
+    # tpos = -32000, 30000
     # axs[0, 0].text(tpos[0], tpos[1], 'data')
     # axs[0, 1].text(tpos[0], tpos[1], 'model')
     # axs[1, 0].text(tpos[0], tpos[1], 'resid')
@@ -350,6 +360,7 @@ def main(args):
     whisker_fig.savefig(args.whisker_output, dpi=150)
 
     fwhm_fig, axs = do_fwhm_plot(
+        args=args,
         Tstats=Tstats,
         Tstats_model=Tstats_model,
     )
@@ -368,10 +379,10 @@ def get_args():
     parser.add_argument('--trim', action='store_true',
                         help='trim x/y to that covered by input data')
 
-    parser.add_argument('--xmin', type=float, default=-35000.0)
-    parser.add_argument('--xmax', type=float, default=+35000.0)
-    parser.add_argument('--ymin', type=float, default=-35000.0)
-    parser.add_argument('--ymax', type=float, default=+35000.0)
+    parser.add_argument('--xmin', type=float, default=-39000.0)
+    parser.add_argument('--xmax', type=float, default=+39000.0)
+    parser.add_argument('--ymin', type=float, default=-39000.0)
+    parser.add_argument('--ymax', type=float, default=+39000.0)
     parser.add_argument('--nbin', type=int, default=45)
     return parser.parse_args()
 
