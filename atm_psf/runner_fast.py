@@ -273,14 +273,22 @@ def make_tan_wcs(image_origin, world_origin, theta=None, scale=0.2):
 
 
 def make_fov_psf(rng):
+    import simsim
+
+    config = simsim.config.get_config({'sim_type': 'image'})
+    return simsim.fov_psf.FOVPSF(
+        rng=rng,
+        config=config,
+    )
+
     # covers 4 degree radius disk, 8 degree across
     # But how to get this all in the same coordinate system?
-    full_dim = int(4.0 * 3600 / 0.2 * 2)
-    return PowerSpectrumPSF(
-        rng=rng,
-        im_width=full_dim,
-        buff=100,
-    )
+    # full_dim = int(4.0 * 3600 / 0.2 * 2)
+    # return PowerSpectrumPSF(
+    #     rng=rng,
+    #     im_width=full_dim,
+    #     buff=100,
+    # )
 
 
 class PowerSpectrumPSF(object):
