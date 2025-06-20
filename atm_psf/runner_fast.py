@@ -125,7 +125,8 @@ def run_fast_sim(
                 nskipped_low_flux += 1
                 continue
 
-            psf_at_pos = psf.getPSF(relpos=big_image_relpos)
+            # psf_at_pos = psf.getPSF(relpos=big_image_relpos)
+            psf_at_pos = psf.getPSF(big_image_relpos, ccd_id=ccd)
 
             stamp_size = montauk.stamps.get_stamp_size(
                 obj=obj, flux=flux, noise_var=med_noise_var, obsdata=obsdata,
