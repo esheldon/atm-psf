@@ -56,6 +56,9 @@ def go(args):
 
 
 def main():
+    from astropy.utils.iers import conf
+    conf.auto_max_age = None
+
     args = get_args()
     go(args)
 
