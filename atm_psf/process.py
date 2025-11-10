@@ -181,6 +181,7 @@ def run_sim(
             artist=artist,
             psf=psf,
             wcs=wcs,
+            boresight=obsdata['boresight'],
             sky_model=sky_model,
             sensor=sensor,
             dm_detector=dm_detector,

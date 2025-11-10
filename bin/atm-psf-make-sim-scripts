@@ -29,15 +29,16 @@ echo "running atm-psf-make-cat" >> ${logfile}
 /usr/bin/time -v atm-psf-make-cat \
     %(cat_extra)s \
     --seed ${cat_seed} \
+    --nccds 189 \
     --opsim-db %(opsim_db)s \
     --obsid ${obsid} \
     --objfile %(objfile)s \
     --instcat ${instcat} >> ${logfile} 2>> ${errfile}
 
+#    --nocorners \
 echo "running atm-psf-run-sim" >> ${logfile}
 /usr/bin/time -v %(command)s \
     %(sim_extra)s \
-    --nocorners \
     --seed ${sim_seed} \
     --instcat ${instcat} \
     --outdir ${outdir} >> ${logfile} 2>> ${errfile}
@@ -75,11 +76,12 @@ atm-psf-make-cat \
     --objfile %(objfile)s \
     --instcat ${instcat}
 
+#    --nocorners \
 echo "running atm-psf-run-sim"
 %(command)s \
     %(sim_extra)s \
-    --nocorners \
     --seed ${sim_seed} \
+    --nccds 189 \
     --instcat ${instcat} \
     --outdir ${outdir}
 """

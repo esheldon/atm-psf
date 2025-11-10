@@ -25,9 +25,11 @@ errfile="${logdir}/${outdir}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 
+flist=$(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | egrep -v "det188|det168|det123|det027|det000|det020|det065|det161" | sort)
+
 /usr/bin/time -v nnpsf-fit-many-images \
     %(extra)s \
-    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
+    --flist ${flist} \
     --output ${sources} \
     --complot-front ${complot_front} \
     --stats-plot ${stats_plot} \
@@ -63,9 +65,11 @@ errfile="${logdir}/${outdir}.err"
 
 echo "using logdir: ${logdir}" > ${logfile}
 
+flist=$(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | egrep -v "det188|det168|det123|det027|det000|det020|det065|det161" | sort)
+
 /usr/bin/time -v nnpsf-fit-many-images \
     %(extra)s \
-    --flist $(find ${pointing_dir}/ -name "simd*det[0-9][0-9][0-9].fits" | sort) \
+    --flist ${flist} \
     --output ${sources} >> ${logfile} 2>> ${errfile}
 
 if [ -n "${_CONDOR_SCRATCH_DIR}" ]; then

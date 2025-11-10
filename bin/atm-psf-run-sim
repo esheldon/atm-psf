@@ -41,7 +41,7 @@ def go(args):
     elif args.nocorners:
         ccds = get_ccdnums_nocorners()
     else:
-        ccds = get_random_ccdnums(rng, size=args.nccds)
+        ccds = get_random_ccdnums(rng, num=args.nccds)
 
     sim_config = atm_psf.config.load_sim_config(args.sim_config)
 
@@ -56,6 +56,9 @@ def go(args):
 
 
 def main():
+    from astropy.utils.iers import conf
+    conf.auto_max_age = None
+
     args = get_args()
     go(args)
 
